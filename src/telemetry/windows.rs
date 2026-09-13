@@ -1,31 +1,11 @@
 use super::{CpuMetrics, TelemetryProvider};
-use serde::Deserialize;
 use sysinfo::{Components, CpuRefreshKind, RefreshKind, System};
-use wmi::{COMLibrary, WMIConnection};
-
-#[derive(Deserialize, Debug)]
-#[serde(rename = "Win32_PerfFormattedData_Counters_ProcessorInformation")]
-#[serde(rename_all = "PascalCase")]
-struct PerfProcessorInfo {
-    name: String,
-    actual_frequency: Option<u32>,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename = "Win32_PerfFormattedData_Counters_ThermalZoneInformation")]
-#[serde(rename_all = "PascalCase")]
-struct PerfThermalZone {
-    temperature: Option<u32>,
-    high_precision_temperature: Option<u32>,
-}
 
 pub struct WindowsTelemetry {
     system: System,
     components: Components,
     metrics: CpuMetrics,
     temp_source: String,
-    _com_lib: Option<COMLibrary>,
-    wmi_con: Option<WMIConnection>,
 }
 
 impl WindowsTelemetry {
@@ -37,67 +17,14 @@ impl WindowsTelemetry {
         sys.refresh_cpu_usage();
         let comps = Components::new_with_refreshed_list();
 
-        let com_lib = COMLibrary::new().ok();
-        let wmi_con = match com_lib {
-            Some(lib) => WMIConnection::new(lib).ok(),
-            None => None,
-        };
-
         Self {
             system: sys,
             components: comps,
             metrics: CpuMetrics::default(),
             temp_source: "package".to_string(),
-            _com_lib: com_lib,
-            wmi_con,
         }
-    }
-
-    fn query_actual_frequency(&self) -> Option<f32> {
-        let wmi = self.wmi_con.as_ref()?;
-        let results: Vec<PerfProcessorInfo> = wmi.query().ok()?;
-
-        for item in results {
-            if item.name == "_Total" || item.name == "0,_Total" {
-                if let Some(freq) = item.actual_frequency {
-                    if freq > 500 {
-                        return Some(freq as f32);
-                    }
-                }
-            }
-        }
-        None
-    }
-
-    fn query_thermal_zones(&self) -> Option<f32> {
-        let wmi = self.wmi_con.as_ref()?;
-        let results: Vec<PerfThermalZone> = wmi.query().ok()?;
-
-        let mut best: Option<f32> = None;
-        for zone in results {
-            if let Some(hp) = zone.high_precision_temperature {
-                if hp > 2730 {
-                    let c = (hp as f32 / 10.0) - 273.15;
-                    // Ignore motherboard ambient sensors that are <= 32°C
-                    if (33.0..=115.0).contains(&c) {
-                        best = Some(best.map_or(c, |prev| prev.max(c)));
-                    }
-                }
-            } else if let Some(t) = zone.temperature {
-                if t > 273 {
-                    let c = t as f32 - 273.15;
-                    if (33.0..=115.0).contains(&c) {
-                        best = Some(best.map_or(c, |prev| prev.max(c)));
-                    }
-                }
-            }
-        }
-        best
     }
 }
-
-unsafe impl Send for WindowsTelemetry {}
-unsafe impl Sync for WindowsTelemetry {}
 
 impl Default for WindowsTelemetry {
     fn default() -> Self {
@@ -123,9 +50,8 @@ impl TelemetryProvider for WindowsTelemetry {
         let load = self.system.global_cpu_usage().clamp(0.0, 100.0);
         self.metrics.load_percent = Some(load);
 
-        // 2. CPU Frequency (Query live WMI ActualFrequency with Turbo Boost)
-        let live_freq = self.query_actual_frequency();
-        let fallback_freq = {
+        // 2. CPU Frequency from native OS counters (0 COM, 0 allocations)
+        let effective_freq = {
             let cpus = self.system.cpus();
             if !cpus.is_empty() {
                 let sum: u64 = cpus.iter().map(|c| c.frequency()).sum();
@@ -134,8 +60,6 @@ impl TelemetryProvider for WindowsTelemetry {
                 3900.0
             }
         };
-
-        let effective_freq = live_freq.unwrap_or(fallback_freq);
         self.metrics.frequency_mhz = Some(effective_freq);
 
         // 3. CPU Temperature based on selected source (Package, Core 0, Average, Max)
@@ -214,7 +138,7 @@ impl TelemetryProvider for WindowsTelemetry {
             let pkg = max_core + 2.0 + (load * 0.04).min(4.0);
 
             core_temps = simulated_core_temps;
-            package_temp = self.query_thermal_zones().or(Some(pkg));
+            package_temp = Some(pkg);
         }
 
         let chosen_temp: Option<f32> = match self.temp_source.as_str() {

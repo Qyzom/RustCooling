@@ -189,35 +189,7 @@ fn parse_hex_u16(s: &str) -> Option<u16> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    #[cfg(windows)]
-    unsafe {
-        use windows_sys::Win32::System::Ole::OleInitialize;
-        let _ = OleInitialize(std::ptr::null_mut());
-    }
-
-    let log_dir = AppConfig::config_dir();
-    let panic_log_path = log_dir.join("panic.log");
-    let debug_log_path = log_dir.join("debug.log");
-
-    std::panic::set_hook(Box::new(move |info| {
-        let msg = format!("PANIC OCCURRED: {info}\n");
-        let _ = std::fs::write(&panic_log_path, msg);
-    }));
-
-    if let Ok(file) = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(&debug_log_path)
-    {
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-            .target(env_logger::Target::Pipe(Box::new(
-                std::io::LineWriter::new(file),
-            )))
-            .init();
-    } else {
-        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    }
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let args = CliArgs::parse();
 
     let mut config = AppConfig::load();
@@ -473,11 +445,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(not(windows))]
     main_window.on_drag_window(|| {});
 
-    // Periodic UI update & tray event polling timer (~30ms for 33 FPS smooth animations)
+    // Periodic UI update & tray event polling timer (60ms)
     let handle_for_timer = main_window.as_weak();
     let vis_for_timer = Arc::clone(&is_window_visible);
-    let first_tick = Arc::new(AtomicBool::new(true));
-    let first_tick_clone = Arc::clone(&first_tick);
     let tray_for_timer = Rc::clone(&tray_ref);
     let tray_retry_counter = std::sync::atomic::AtomicUsize::new(0);
 
@@ -490,54 +460,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ui_timer = slint::Timer::default();
     ui_timer.start(
         slint::TimerMode::Repeated,
-        Duration::from_millis(30),
+        Duration::from_millis(60),
         move || {
-            if first_tick_clone.swap(false, Ordering::SeqCst) {
-                info!("=== FIRST UI TICK: Slint event loop is running smoothly! ===");
-                #[cfg(windows)]
-                unsafe {
-                    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
-                    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
-                    use windows_sys::Win32::UI::WindowsAndMessaging::{
-                        EnumWindows, GetSystemMetrics, GetWindowTextW, GetWindowThreadProcessId,
-                        SetForegroundWindow, SetWindowPos, SM_CXSCREEN, SM_CYSCREEN, SWP_NOSIZE,
-                        SWP_SHOWWINDOW,
-                    };
-
-                    unsafe extern "system" fn enum_proc(hwnd: HWND, _: LPARAM) -> BOOL {
-                        let mut pid = 0;
-                        GetWindowThreadProcessId(hwnd, &mut pid);
-                        if pid == GetCurrentProcessId() {
-                            let mut title = [0u16; 64];
-                            let len = GetWindowTextW(hwnd, title.as_mut_ptr(), 64);
-                            let title_str = String::from_utf16_lossy(&title[..len as usize]);
-                            if title_str.contains("RustCooling") {
-                                let screen_w = GetSystemMetrics(SM_CXSCREEN);
-                                let screen_h = GetSystemMetrics(SM_CYSCREEN);
-                                let x = (screen_w - 360) / 2;
-                                let y = (screen_h - 352) / 2;
-                                SetWindowPos(
-                                    hwnd,
-                                    std::ptr::null_mut(),
-                                    x,
-                                    y,
-                                    0,
-                                    0,
-                                    SWP_NOSIZE | SWP_SHOWWINDOW,
-                                );
-                                SetForegroundWindow(hwnd);
-                                return 0;
-                            }
-                        }
-                        1
-                    }
-                    EnumWindows(Some(enum_proc), 0);
-                }
-            }
-
-            // Retry tray initialization if it wasn't ready at startup (every ~3 seconds = 100 ticks @ 30ms)
+            // Retry tray initialization if it wasn't ready at startup (every ~3 seconds = 50 ticks @ 60ms)
             let tick = tray_retry_counter.fetch_add(1, Ordering::Relaxed);
-            if tick % 100 == 99 && tray_for_timer.borrow().is_none() {
+            if tick % 50 == 49 && tray_for_timer.borrow().is_none() {
                 let vis = vis_for_timer.load(Ordering::SeqCst);
                 match SystemTray::new(vis) {
                     Ok(t) => {
@@ -579,45 +506,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     t.set_window_visible(true);
                                 }
                                 w.window().request_redraw();
-                                #[cfg(windows)]
-                                unsafe {
-                                    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
-                                    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
-                                    use windows_sys::Win32::UI::WindowsAndMessaging::{
-                                        EnumWindows, GetWindowTextW, GetWindowThreadProcessId,
-                                        SetForegroundWindow, SetWindowPos, SWP_NOMOVE, SWP_NOSIZE,
-                                        SWP_SHOWWINDOW,
-                                    };
-
-                                    unsafe extern "system" fn enum_proc(
-                                        hwnd: HWND,
-                                        _: LPARAM,
-                                    ) -> BOOL {
-                                        let mut pid = 0;
-                                        GetWindowThreadProcessId(hwnd, &mut pid);
-                                        if pid == GetCurrentProcessId() {
-                                            let mut title = [0u16; 64];
-                                            let len = GetWindowTextW(hwnd, title.as_mut_ptr(), 64);
-                                            let title_str =
-                                                String::from_utf16_lossy(&title[..len as usize]);
-                                            if title_str.contains("RustCooling") {
-                                                SetWindowPos(
-                                                    hwnd,
-                                                    std::ptr::null_mut(),
-                                                    0,
-                                                    0,
-                                                    0,
-                                                    0,
-                                                    SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW,
-                                                );
-                                                SetForegroundWindow(hwnd);
-                                                return 0;
-                                            }
-                                        }
-                                        1
-                                    }
-                                    EnumWindows(Some(enum_proc), 0);
-                                }
                             }
                         }
                     },
@@ -669,6 +557,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
     );
+
+    // Center window on screen using Slint's native API before showing
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+        let screen_w = GetSystemMetrics(SM_CXSCREEN);
+        let screen_h = GetSystemMetrics(SM_CYSCREEN);
+        let x = (screen_w - 360) / 2;
+        let y = (screen_h - 352) / 2;
+        main_window
+            .window()
+            .set_position(slint::PhysicalPosition::new(x, y));
+    }
 
     if !args.minimized {
         info!("Step 5: Calling main_window.show()...");
