@@ -527,6 +527,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     EnumWindows(Some(enum_proc), 0);
                 }
+                trim_memory();
             }
 
             // Retry tray initialization if it wasn't ready at startup (every ~3 seconds = 100 ticks @ 30ms)
