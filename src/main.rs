@@ -78,6 +78,12 @@ fn set_autostart(enable: bool) {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::System::Com::CoInitialize;
+        let _ = CoInitialize(std::ptr::null_mut());
+    }
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let args = CliArgs::parse();
 
@@ -120,11 +126,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Initialize Slint GUI
+    info!("Step 1: Creating MainWindow...");
     let main_window = MainWindow::new()?;
+    info!("Step 2: MainWindow created successfully.");
     let state = monitor.get_state();
 
     // Apply translations to UI
     {
+        info!("Step 3: Setting translations...");
         let t = I18n::get();
         main_window.set_str_app_title(t.app_title.into());
         main_window.set_str_app_subtitle(t.app_subtitle.into());
@@ -136,6 +145,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         main_window.set_str_chart_freq(t.chart_cpu_freq.into());
         main_window.set_str_btn_settings(t.btn_settings.into());
         main_window.set_str_btn_minimize(t.btn_minimize.into());
+        info!("Step 4: Translations applied.");
     }
 
     // Callbacks
@@ -186,11 +196,55 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Periodic UI update & tray event polling timer (~150ms)
     let handle_for_timer = main_window.as_weak();
     let vis_for_timer = Arc::clone(&is_window_visible);
+    let first_tick = Arc::new(AtomicBool::new(true));
+    let first_tick_clone = Arc::clone(&first_tick);
     let ui_timer = slint::Timer::default();
     ui_timer.start(
         slint::TimerMode::Repeated,
         Duration::from_millis(150),
         move || {
+            if first_tick_clone.swap(false, Ordering::SeqCst) {
+                info!("=== FIRST UI TICK: Event loop is running! ===");
+                #[cfg(windows)]
+                unsafe {
+                    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
+                    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
+                    use windows_sys::Win32::UI::WindowsAndMessaging::{
+                        EnumWindows, GetWindowThreadProcessId, GetWindowTextW, GetClassNameW, IsWindowVisible,
+                        GetWindowLongW, SetWindowLongW, SetWindowPos, SetForegroundWindow,
+                        GWL_EXSTYLE, WS_EX_APPWINDOW, HWND_TOP, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+                    };
+
+                    unsafe extern "system" fn enum_proc(hwnd: HWND, _: LPARAM) -> BOOL {
+                        let mut pid = 0;
+                        GetWindowThreadProcessId(hwnd, &mut pid);
+                        if pid == GetCurrentProcessId() {
+                            let mut title = [0u16; 256];
+                            let mut class = [0u16; 256];
+                            GetWindowTextW(hwnd, title.as_mut_ptr(), 256);
+                            GetClassNameW(hwnd, class.as_mut_ptr(), 256);
+                            let title_str = String::from_utf16_lossy(&title);
+                            let class_str = String::from_utf16_lossy(&class);
+                            let clean_class = class_str.trim_matches(char::from(0));
+                            let clean_title = title_str.trim_matches(char::from(0));
+                            let vis = IsWindowVisible(hwnd);
+                            info!("Running Loop HWND: {:?}, Class: '{}', Title: '{}', Vis: {}", hwnd, clean_class, clean_title, vis);
+
+                            // If this is the main Slint window (not the hidden event target)
+                            if clean_class.contains("Slint") || clean_class.contains("Window") || clean_title.contains("RustCooling") {
+                                let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
+                                SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_APPWINDOW as i32);
+                                SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                                SetForegroundWindow(hwnd);
+                                info!("Configured and brought main window to front! HWND: {:?}", hwnd);
+                            }
+                        }
+                        1
+                    }
+
+                    EnumWindows(Some(enum_proc), 0);
+                }
+            }
             // Poll tray events
             if let Some(ref tray_manager) = tray {
                 let handle_show = handle_for_timer.clone();
@@ -266,37 +320,66 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     );
 
+    info!("Step 5: Calling main_window.show()...");
     main_window.show()?;
-
-    #[cfg(windows)]
-    unsafe {
-        use windows_sys::Win32::UI::WindowsAndMessaging::{
-            FindWindowW, GetWindowLongW, SetWindowLongW, GWL_EXSTYLE, WS_EX_APPWINDOW,
-            SetWindowPos, SetForegroundWindow, HWND_TOP, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
-        };
-        use std::ffi::OsStr;
-        use std::os::windows::ffi::OsStrExt;
-
-        let title_wide: Vec<u16> = OsStr::new("RustCooling")
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect();
-        let hwnd = FindWindowW(std::ptr::null(), title_wide.as_ptr());
-        if !hwnd.is_null() {
-            let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
-            SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_APPWINDOW as i32);
-            SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-            SetForegroundWindow(hwnd);
-        }
-    }
+    info!("Step 6: main_window.show() returned Ok.");
+    info!("Window size: {:?}", main_window.window().size());
+    info!("Window is_visible: {:?}", main_window.window().is_visible());
+    info!("Window position: {:?}", main_window.window().position());
 
     if args.minimized {
+        info!("Step 7: Minimizing on startup");
         let _ = main_window.hide();
         trim_memory();
     }
 
+    info!("Step 9: Calling main_window.run()...");
     main_window.run()?;
+    info!("Step 10: Event loop exited.");
     monitor.stop();
 
     Ok(())
+}
+
+#[cfg(test)]
+mod window_tests {
+    use super::*;
+
+    #[test]
+    fn test_main_window_init() {
+        let win = MainWindow::new();
+        assert!(win.is_ok(), "MainWindow::new failed: {:?}", win.err());
+        let w = win.unwrap();
+        let show_res = w.show();
+        println!("w.show() result: {:?}", show_res);
+
+        #[cfg(windows)]
+        unsafe {
+            use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
+            use windows_sys::Win32::System::Threading::GetCurrentProcessId;
+            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                EnumWindows, GetWindowThreadProcessId, GetWindowTextW, GetClassNameW, IsWindowVisible,
+            };
+
+            unsafe extern "system" fn enum_proc(hwnd: HWND, _: LPARAM) -> BOOL {
+                let mut pid = 0;
+                GetWindowThreadProcessId(hwnd, &mut pid);
+                if pid == GetCurrentProcessId() {
+                    let mut title = [0u16; 256];
+                    let mut class = [0u16; 256];
+                    GetWindowTextW(hwnd, title.as_mut_ptr(), 256);
+                    GetClassNameW(hwnd, class.as_mut_ptr(), 256);
+                    let title_str = String::from_utf16_lossy(&title);
+                    let class_str = String::from_utf16_lossy(&class);
+                    let vis = IsWindowVisible(hwnd);
+                    println!("FOUND HWND: {:?}, Class: {}, Title: {}, Vis: {}", hwnd, class_str.trim_matches(char::from(0)), title_str.trim_matches(char::from(0)), vis);
+                }
+                1
+            }
+
+            EnumWindows(Some(enum_proc), 0);
+        }
+
+        assert!(show_res.is_ok());
+    }
 }

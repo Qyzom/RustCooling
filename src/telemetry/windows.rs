@@ -77,13 +77,11 @@ impl WindowsTelemetry {
         sys.refresh_cpu_usage();
         let comps = Components::new_with_refreshed_list();
 
-        let mut inst = Self {
+        Self {
             system: sys,
             components: comps,
             metrics: CpuMetrics::default(),
-        };
-        inst.update();
-        inst
+        }
     }
 }
 

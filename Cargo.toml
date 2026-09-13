@@ -8,7 +8,7 @@ license = "MIT"
 
 [dependencies]
 # Use lightweight software renderer instead of heavy Skia/OpenGL (~6-10MB RAM instead of ~90MB)
-slint = { version = "1.9", default-features = false, features = ["std", "backend-winit", "renderer-software", "compat-1-2"] }
+slint = "1.9"
 hidapi = "2.6"
 sysinfo = { version = "0.33", default-features = false, features = ["system", "component"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -23,11 +23,13 @@ muda = "0.15"
 [target.'cfg(windows)'.dependencies]
 auto-launch = "0.5"
 windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
     "Win32_System_ProcessStatus",
     "Win32_System_Threading",
     "Win32_System_Com",
     "Win32_UI_WindowsAndMessaging",
-    "Win32_UI_Input_KeyboardAndMouse"
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell"
 ] }
 wmi = "0.14"
 
