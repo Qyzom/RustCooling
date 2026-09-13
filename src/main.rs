@@ -45,7 +45,14 @@ struct CliArgs {
     interval: Option<u64>,
 }
 
-pub fn trim_memory() {}
+pub fn trim_memory() {
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::System::ProcessStatus::EmptyWorkingSet;
+        let proc = windows_sys::Win32::System::Threading::GetCurrentProcess();
+        EmptyWorkingSet(proc);
+    }
+}
 
 fn set_autostart(enable: bool) {
     #[cfg(windows)]
@@ -474,6 +481,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tray_for_timer = Rc::clone(&tray_ref);
     let tray_retry_counter = std::sync::atomic::AtomicUsize::new(0);
 
+    let last_conn = std::cell::Cell::new(false);
+    let last_temp = std::cell::Cell::new(-1i32);
+    let last_load = std::cell::Cell::new(-1i32);
+    let last_label = std::cell::RefCell::new(String::new());
+    let last_val = std::cell::RefCell::new(String::new());
+
     let ui_timer = slint::Timer::default();
     ui_timer.start(
         slint::TimerMode::Repeated,
@@ -617,31 +630,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
 
-            // Sync metrics to UI when visible
+            // Sync metrics to UI when visible (throttled/deduplicated)
             if vis_for_timer.load(Ordering::Relaxed) {
                 if let Some(w) = handle_for_timer.upgrade() {
                     let is_conn = state.is_connected.load(Ordering::Relaxed);
-                    w.set_is_connected(is_conn);
+                    if last_conn.get() != is_conn {
+                        last_conn.set(is_conn);
+                        w.set_is_connected(is_conn);
+                    }
 
                     if let Ok(m) = state.metrics.lock() {
-                        if let Some(t) = m.temperature {
-                            w.set_cpu_temp(t.round() as i32);
-                        } else {
-                            w.set_cpu_temp(0);
+                        let new_temp = m.temperature.map(|t| t.round() as i32).unwrap_or(0);
+                        if last_temp.get() != new_temp {
+                            last_temp.set(new_temp);
+                            w.set_cpu_temp(new_temp);
                         }
 
-                        if let Some(l) = m.load_percent {
-                            w.set_cpu_load(l.round() as i32);
-                        } else {
-                            w.set_cpu_load(0);
+                        let new_load = m.load_percent.map(|l| l.round() as i32).unwrap_or(0);
+                        if last_load.get() != new_load {
+                            last_load.set(new_load);
+                            w.set_cpu_load(new_load);
                         }
                     }
 
                     if let Ok(lbl) = state.broadcast_label.lock() {
-                        w.set_broadcast_label(lbl.as_str().into());
+                        if *last_label.borrow() != *lbl {
+                            *last_label.borrow_mut() = lbl.clone();
+                            w.set_broadcast_label(lbl.as_str().into());
+                        }
                     }
                     if let Ok(val) = state.broadcast_value.lock() {
-                        w.set_broadcast_value(val.as_str().into());
+                        if *last_val.borrow() != *val {
+                            *last_val.borrow_mut() = val.clone();
+                            w.set_broadcast_value(val.as_str().into());
+                        }
                     }
                 }
             }
