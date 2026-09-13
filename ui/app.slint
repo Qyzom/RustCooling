@@ -74,7 +74,7 @@ export component MainWindow inherits Window {
     title: "RustCooling";
     no-frame: true;
     width: 360px;
-    height: 370px;
+    height: 380px;
     background: transparent;
     default-font-family: "Unbounded";
 
@@ -159,7 +159,7 @@ export component MainWindow inherits Window {
             padding: 0px;
             spacing: 0px;
 
-            // ==================== CUSTOM TITLE BAR ====================
+            // ==================== TITLE BAR ====================
             Rectangle {
                 height: 48px;
                 background: #141620;
@@ -193,7 +193,7 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    // Window Close Button ✕ (Symmetric 16px right margin)
+                    // Window Close Button ✕ (Symmetric 16px right margin, centered vertically)
                     close_touch := TouchArea {
                         width: 28px;
                         height: 28px;
@@ -479,27 +479,31 @@ export component MainWindow inherits Window {
                     padding-bottom: 10px;
                     spacing: 8px;
 
-                    // Settings Header Row
+                    // Settings Header Row: Large, easily clickable Back Button
                     HorizontalLayout {
                         alignment: space-between;
-                        height: 26px;
+                        height: 32px;
 
                         Text {
                             text: root.tr_settings_title;
-                            font-size: 12px;
+                            font-size: 13px;
                             font-weight: 800;
                             color: #e2e4ed;
                             vertical-alignment: center;
                         }
 
+                        // Prominent, comfortable Back Button
                         Rectangle {
-                            width: 76px;
-                            height: 26px;
+                            width: 100px;
+                            height: 32px;
 
-                            SelectPill {
+                            AppButton {
                                 text: root.tr_btn_back;
-                                font_size: 9px;
-                                is_selected: false;
+                                font_size: 11px;
+                                bg: #1e2230;
+                                hover_bg: #2e3346;
+                                border_color: #2e3346;
+                                border_radius: 10px;
                                 clicked => {
                                     root.save_settings(
                                         root.setting_display_mode,
@@ -514,20 +518,20 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    // Option 1: Display Mode
+                    // Option 1: Display Mode (2x2 Grid so all 4 buttons have plenty of room!)
                     Rectangle {
                         background: #171924;
                         border-radius: 12px;
                         border-width: 1px;
                         border-color: #272a38;
-                        height: 52px;
+                        height: 78px;
 
                         VerticalLayout {
                             padding-left: 12px;
                             padding-right: 12px;
                             padding-top: 6px;
                             padding-bottom: 6px;
-                            spacing: 4px;
+                            spacing: 5px;
 
                             Text {
                                 text: root.tr_setting_display_mode;
@@ -538,7 +542,7 @@ export component MainWindow inherits Window {
 
                             HorizontalLayout {
                                 spacing: 6px;
-                                height: 26px;
+                                height: 24px;
 
                                 SelectPill {
                                     text: root.tr_mode_temp;
@@ -554,6 +558,12 @@ export component MainWindow inherits Window {
                                     active_bg: #302648;
                                     clicked => { root.setting_display_mode = "freq"; }
                                 }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 6px;
+                                height: 24px;
+
                                 SelectPill {
                                     text: root.tr_mode_load;
                                     is_selected: root.setting_display_mode == "load";

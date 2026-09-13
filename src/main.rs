@@ -313,7 +313,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let screen_w = GetSystemMetrics(SM_CXSCREEN);
                                 let screen_h = GetSystemMetrics(SM_CYSCREEN);
                                 let x = (screen_w - 360) / 2;
-                                let y = (screen_h - 370) / 2;
+                                let y = (screen_h - 380) / 2;
                                 SetWindowPos(hwnd, std::ptr::null_mut(), x, y, 0, 0, SWP_NOSIZE | SWP_SHOWWINDOW);
                                 SetForegroundWindow(hwnd);
                                 return 0;
