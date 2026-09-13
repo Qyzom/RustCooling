@@ -59,7 +59,7 @@ The `MonitorService` runs on a dedicated background thread:
   - Linux: `~/.config/RustCooling/config.json`
   - Windows: `%APPDATA%\RustCooling\config.json`
 - **Autostart:**
-  - Linux: Creates/removes `~/.config/autostart/rust-cooling.desktop` complying with the FreeDesktop Autostart specification.
+  - Linux: Creates/removes `~/.config/autostart/RustCooling.desktop` complying with the FreeDesktop Autostart specification.
   - Windows: Configured via standard registry Run keys with `--minimized` flag.
 
 ---
@@ -137,8 +137,8 @@ cargo build --release
 ```
 
 The resulting executable will be located at:
-- **Linux:** `target/release/rust-cooling`
-- **Windows:** `target/release/rust-cooling.exe`
+- **Linux:** `target/release/RustCooling`
+- **Windows:** `target/release/RustCooling.exe`
 
 ---
 
@@ -146,16 +146,16 @@ The resulting executable will be located at:
 
 ```bash
 # Launch GUI
-./rust-cooling
+./RustCooling
 
 # Launch minimized to system tray
-./rust-cooling --minimized
+./RustCooling --minimized
 
 # Run as headless background daemon (without GUI)
-./rust-cooling --daemon
+./RustCooling --daemon
 
 # Override polling interval (in milliseconds)
-./rust-cooling --interval 500
+./RustCooling --interval 500
 ```
 
 ---

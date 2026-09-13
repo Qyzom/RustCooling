@@ -45,14 +45,7 @@ struct CliArgs {
     interval: Option<u64>,
 }
 
-pub fn trim_memory() {
-    #[cfg(windows)]
-    unsafe {
-        use windows_sys::Win32::System::ProcessStatus::EmptyWorkingSet;
-        let proc = windows_sys::Win32::System::Threading::GetCurrentProcess();
-        EmptyWorkingSet(proc);
-    }
-}
+pub fn trim_memory() {}
 
 fn set_autostart(enable: bool) {
     #[cfg(windows)]
@@ -79,7 +72,7 @@ fn set_autostart(enable: bool) {
     {
         if let Some(config_dir) = dirs::config_dir() {
             let autostart_dir = config_dir.join("autostart");
-            let desktop_file = autostart_dir.join("rust-cooling.desktop");
+            let desktop_file = autostart_dir.join("RustCooling.desktop");
 
             if enable {
                 if let Ok(current_exe) = std::env::current_exe() {
@@ -527,7 +520,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     EnumWindows(Some(enum_proc), 0);
                 }
-                trim_memory();
             }
 
             // Retry tray initialization if it wasn't ready at startup (every ~3 seconds = 100 ticks @ 30ms)
@@ -705,7 +697,7 @@ mod window_tests {
 
     #[test]
     fn test_linux_desktop_entry_format() {
-        let exe_path = "/usr/local/bin/rust-cooling";
+        let exe_path = "/usr/local/bin/RustCooling";
         let entry = format!(
             "[Desktop Entry]\n\
              Type=Application\n\
@@ -718,7 +710,7 @@ mod window_tests {
              StartupNotify=false\n",
             exe_path
         );
-        assert!(entry.contains("Exec=\"/usr/local/bin/rust-cooling\" --minimized"));
+        assert!(entry.contains("Exec=\"/usr/local/bin/RustCooling\" --minimized"));
         assert!(entry.contains("Type=Application"));
     }
 }

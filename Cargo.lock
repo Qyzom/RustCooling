@@ -3,6 +3,27 @@
 version = 4
 
 [[package]]
+name = "RustCooling"
+version = "0.1.0"
+dependencies = [
+ "auto-launch",
+ "clap",
+ "dirs 6.0.0",
+ "env_logger",
+ "hidapi",
+ "log",
+ "muda 0.15.3",
+ "serde",
+ "serde_json",
+ "slint",
+ "slint-build",
+ "sysinfo",
+ "tray-icon",
+ "windows-sys 0.59.0",
+ "wmi",
+]
+
+[[package]]
 name = "ab_glyph"
 version = "0.2.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4790,27 +4811,6 @@ dependencies = [
  "snafu",
  "unicode-linebreak",
  "unicode-width",
-]
-
-[[package]]
-name = "rust-cooling"
-version = "0.1.0"
-dependencies = [
- "auto-launch",
- "clap",
- "dirs 6.0.0",
- "env_logger",
- "hidapi",
- "log",
- "muda 0.15.3",
- "serde",
- "serde_json",
- "slint",
- "slint-build",
- "sysinfo",
- "tray-icon",
- "windows-sys 0.59.0",
- "wmi",
 ]
 
 [[package]]
