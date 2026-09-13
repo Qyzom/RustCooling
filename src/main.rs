@@ -47,12 +47,11 @@ pub fn trim_memory() {
     #[cfg(windows)]
     unsafe {
         use windows_sys::Win32::System::ProcessStatus::EmptyWorkingSet;
-        use windows_sys::Win32::System::Threading::{GetCurrentProcess, SetProcessWorkingSetSize};
-        let proc = GetCurrentProcess();
+        let proc = windows_sys::Win32::System::Threading::GetCurrentProcess();
         EmptyWorkingSet(proc);
-        SetProcessWorkingSetSize(proc, usize::MAX, usize::MAX);
     }
 }
+
 
 #[allow(dead_code)]
 fn set_autostart(enable: bool) {
@@ -237,15 +236,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Close window (top-right cross) -> hides window to system tray
+    // Close window (top-right cross) -> hides window to system tray (or exits if tray unavailable)
     let win_for_close = main_window.as_weak();
     let vis_for_close = Arc::clone(&is_window_visible);
+    let tray_for_close = Arc::clone(&tray_ref);
     main_window.on_close_window(move || {
-        info!("Close requested -> hiding window to tray");
-        if let Some(w) = win_for_close.upgrade() {
-            let _ = w.hide();
-            vis_for_close.store(false, Ordering::SeqCst);
-            trim_memory();
+        let has_tray = tray_for_close.lock().map(|g| g.is_some()).unwrap_or(false);
+        if has_tray {
+            info!("Close requested -> hiding window to system tray");
+            if let Some(w) = win_for_close.upgrade() {
+                let _ = w.hide();
+                vis_for_close.store(false, Ordering::SeqCst);
+                trim_memory();
+            }
+        } else {
+            info!("Close requested, but no system tray is active -> quitting event loop");
+            let _ = slint::quit_event_loop();
         }
     });
 
@@ -273,6 +279,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let first_tick = Arc::new(AtomicBool::new(true));
     let first_tick_clone = Arc::clone(&first_tick);
     let tray_for_timer = Arc::clone(&tray_ref);
+    let tray_retry_counter = std::sync::atomic::AtomicUsize::new(0);
 
     let ui_timer = slint::Timer::default();
     ui_timer.start(
@@ -281,15 +288,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         move || {
             if first_tick_clone.swap(false, Ordering::SeqCst) {
                 info!("=== FIRST UI TICK: Slint event loop is running smoothly! ===");
-                trim_memory();
+                #[cfg(windows)]
+                unsafe {
+                    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
+                    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
+                    use windows_sys::Win32::UI::WindowsAndMessaging::{
+                        EnumWindows, GetSystemMetrics, GetWindowTextW, GetWindowThreadProcessId,
+                        SetForegroundWindow, SetWindowPos, SM_CXSCREEN, SM_CYSCREEN, SWP_NOSIZE,
+                        SWP_SHOWWINDOW,
+                    };
+
+                    unsafe extern "system" fn enum_proc(hwnd: HWND, _: LPARAM) -> BOOL {
+                        let mut pid = 0;
+                        GetWindowThreadProcessId(hwnd, &mut pid);
+                        if pid == GetCurrentProcessId() {
+                            let mut title = [0u16; 64];
+                            let len = GetWindowTextW(hwnd, title.as_mut_ptr(), 64);
+                            let title_str = String::from_utf16_lossy(&title[..len as usize]);
+                            if title_str.contains("RustCooling") {
+                                let screen_w = GetSystemMetrics(SM_CXSCREEN);
+                                let screen_h = GetSystemMetrics(SM_CYSCREEN);
+                                let x = (screen_w - 360) / 2;
+                                let y = (screen_h - 380) / 2;
+                                SetWindowPos(hwnd, std::ptr::null_mut(), x, y, 0, 0, SWP_NOSIZE | SWP_SHOWWINDOW);
+                                SetForegroundWindow(hwnd);
+                                return 0;
+                            }
+                        }
+                        1
+                    }
+                    EnumWindows(Some(enum_proc), 0);
+                }
             }
 
-            // Retry tray initialization if it wasn't ready at startup
-            if let Ok(mut guard) = tray_for_timer.lock() {
-                if guard.is_none() {
-                    if let Ok(t) = SystemTray::new() {
-                        info!("System tray successfully initialized on retry!");
-                        *guard = Some(t);
+            // Retry tray initialization if it wasn't ready at startup (every ~3 seconds = 20 ticks)
+            if tray_retry_counter.fetch_add(1, Ordering::Relaxed) % 20 == 19 {
+                if let Ok(mut guard) = tray_for_timer.lock() {
+                    if guard.is_none() {
+                        if let Ok(t) = SystemTray::new() {
+                            info!("System tray successfully initialized on retry!");
+                            *guard = Some(t);
+                        }
                     }
                 }
             }
@@ -364,36 +403,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     main_window.window().request_redraw();
     info!("Step 6: main_window.show() returned Ok.");
-
-    #[cfg(windows)]
-    unsafe {
-        use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
-        use windows_sys::Win32::System::Threading::GetCurrentProcessId;
-        use windows_sys::Win32::UI::WindowsAndMessaging::{
-            EnumWindows, GetSystemMetrics, GetWindowTextW, GetWindowThreadProcessId, SetWindowPos,
-            SM_CXSCREEN, SM_CYSCREEN, SWP_NOSIZE, SWP_NOZORDER,
-        };
-
-        unsafe extern "system" fn enum_proc(hwnd: HWND, _: LPARAM) -> BOOL {
-            let mut pid = 0;
-            GetWindowThreadProcessId(hwnd, &mut pid);
-            if pid == GetCurrentProcessId() {
-                let mut title = [0u16; 64];
-                let len = GetWindowTextW(hwnd, title.as_mut_ptr(), 64);
-                let title_str = String::from_utf16_lossy(&title[..len as usize]);
-                if title_str.contains("RustCooling") {
-                    let screen_w = GetSystemMetrics(SM_CXSCREEN);
-                    let screen_h = GetSystemMetrics(SM_CYSCREEN);
-                    let x = (screen_w - 360) / 2;
-                    let y = (screen_h - 380) / 2;
-                    SetWindowPos(hwnd, std::ptr::null_mut(), x, y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
-                    return 0;
-                }
-            }
-            1
-        }
-        EnumWindows(Some(enum_proc), 0);
-    }
 
     info!("Window size: {:?}", main_window.window().size());
     info!("Window is_visible: {:?}", main_window.window().is_visible());

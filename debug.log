@@ -1,13 +1,14 @@
-[2026-09-13T10:50:45Z INFO  rust_cooling] ==================================================
-[2026-09-13T10:50:45Z INFO  rust_cooling]  RustCooling v0.1.0 - ID-COOLING FX LCD Controller
-[2026-09-13T10:50:45Z INFO  rust_cooling] ==================================================
-[2026-09-13T10:50:45Z INFO  rust_cooling::service] Monitor background service started.
-[2026-09-13T10:50:45Z WARN  rust_cooling] Failed to initialize system tray icon: Неопознанная ошибка (os error -2147467259)
-[2026-09-13T10:50:45Z INFO  rust_cooling] Step 1: Creating MainWindow...
-[2026-09-13T10:50:45Z INFO  rust_cooling] Step 2: MainWindow created successfully.
-[2026-09-13T10:50:45Z INFO  rust_cooling] Step 5: Calling main_window.show()...
-[2026-09-13T10:50:45Z INFO  rust_cooling] Step 6: main_window.show() returned Ok.
-[2026-09-13T10:50:45Z INFO  rust_cooling] Window size: PhysicalSize { width: 360, height: 380 }
-[2026-09-13T10:50:45Z INFO  rust_cooling] Window is_visible: true
-[2026-09-13T10:50:45Z INFO  rust_cooling] Window position: PhysicalPosition { x: 0, y: 0 }
-[2026-09-13T10:50:45Z INFO  rust_cooling] Step 9: Calling main_window.run()...
+[2026-09-13T11:24:15Z INFO  rust_cooling] ==================================================
+[2026-09-13T11:24:15Z INFO  rust_cooling]  RustCooling v0.1.0 - ID-COOLING FX LCD Controller
+[2026-09-13T11:24:15Z INFO  rust_cooling] ==================================================
+[2026-09-13T11:24:15Z INFO  rust_cooling::service] Monitor background service started.
+[2026-09-13T11:24:15Z INFO  rust_cooling] Step 2: MainWindow created successfully.
+[2026-09-13T11:24:15Z INFO  rust_cooling] Step 5: Calling main_window.show()...
+[2026-09-13T11:24:15Z INFO  rust_cooling] Step 6: main_window.show() returned Ok.
+[2026-09-13T11:24:15Z INFO  rust_cooling] Window size: PhysicalSize { width: 360, height: 380 }
+[2026-09-13T11:24:15Z INFO  rust_cooling] Window is_visible: true
+[2026-09-13T11:24:15Z INFO  rust_cooling] Window position: PhysicalPosition { x: 0, y: 0 }
+[2026-09-13T11:24:15Z INFO  rust_cooling] Step 9: Calling slint::run_event_loop_until_quit()...
+[2026-09-13T11:24:16Z INFO  rust_cooling] === FIRST UI TICK: Slint event loop is running smoothly! ===
+[2026-09-13T11:24:16Z INFO  rust_cooling::hid::device] Successfully connected to ID-COOLING LCD Display (VID: 0x1A86, PID: 0xE317)
+[2026-09-13T11:24:16Z INFO  rust_cooling::service] ID-COOLING LCD Display connected.
