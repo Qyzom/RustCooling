@@ -124,7 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .open("d:\\Файлы\\antigraivty\\RustCooling\\debug.log")
     {
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-            .target(env_logger::Target::Pipe(Box::new(file)))
+            .target(env_logger::Target::Pipe(Box::new(std::io::LineWriter::new(file))))
             .init();
     } else {
         env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -171,9 +171,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let tray_ref = Arc::new(Mutex::new(tray));
 
     // Initialize Slint GUI
-    info!("Step 1: Creating MainWindow...");
-    let main_window = MainWindow::new()?;
-    info!("Step 2: MainWindow created successfully.");
+    let main_window = match MainWindow::new() {
+        Ok(w) => {
+            info!("Step 2: MainWindow created successfully.");
+            w
+        }
+        Err(e) => {
+            warn!("FAILED to create MainWindow: {:?}", e);
+            return Err(e.into());
+        }
+    };
     let state = monitor.get_state();
 
     // Set initial settings and translations
@@ -277,6 +284,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 trim_memory();
             }
 
+            // Retry tray initialization if it wasn't ready at startup
+            if let Ok(mut guard) = tray_for_timer.lock() {
+                if guard.is_none() {
+                    if let Ok(t) = SystemTray::new() {
+                        info!("System tray successfully initialized on retry!");
+                        *guard = Some(t);
+                    }
+                }
+            }
+
             // Poll tray events
             if let Ok(guard) = tray_for_timer.lock() {
                 if let Some(ref tray_manager) = *guard {
@@ -341,9 +358,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     info!("Step 5: Calling main_window.show()...");
-    main_window.show()?;
+    if let Err(e) = main_window.show() {
+        warn!("FAILED main_window.show(): {:?}", e);
+        return Err(e.into());
+    }
     main_window.window().request_redraw();
     info!("Step 6: main_window.show() returned Ok.");
+
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
+        use windows_sys::Win32::System::Threading::GetCurrentProcessId;
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            EnumWindows, GetSystemMetrics, GetWindowThreadProcessId, SetWindowPos,
+            SM_CXSCREEN, SM_CYSCREEN, SWP_NOSIZE, SWP_NOZORDER,
+        };
+
+        unsafe extern "system" fn enum_proc(hwnd: HWND, _: LPARAM) -> BOOL {
+            let mut pid = 0;
+            GetWindowThreadProcessId(hwnd, &mut pid);
+            if pid == GetCurrentProcessId() {
+                let screen_w = GetSystemMetrics(SM_CXSCREEN);
+                let screen_h = GetSystemMetrics(SM_CYSCREEN);
+                let x = (screen_w - 360) / 2;
+                let y = (screen_h - 380) / 2;
+                SetWindowPos(hwnd, std::ptr::null_mut(), x, y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
+                return 0;
+            }
+            1
+        }
+        EnumWindows(Some(enum_proc), 0);
+    }
+
     info!("Window size: {:?}", main_window.window().size());
     info!("Window is_visible: {:?}", main_window.window().is_visible());
     info!("Window position: {:?}", main_window.window().position());
@@ -371,6 +417,7 @@ mod window_tests {
         let win = MainWindow::new();
         assert!(win.is_ok(), "MainWindow::new failed: {:?}", win.err());
         let w = win.unwrap();
+        apply_translations(&w);
         let show_res = w.show();
         assert!(show_res.is_ok());
     }
