@@ -370,7 +370,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
         use windows_sys::Win32::System::Threading::GetCurrentProcessId;
         use windows_sys::Win32::UI::WindowsAndMessaging::{
-            EnumWindows, GetSystemMetrics, GetWindowThreadProcessId, SetWindowPos,
+            EnumWindows, GetSystemMetrics, GetWindowTextW, GetWindowThreadProcessId, SetWindowPos,
             SM_CXSCREEN, SM_CYSCREEN, SWP_NOSIZE, SWP_NOZORDER,
         };
 
@@ -378,12 +378,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut pid = 0;
             GetWindowThreadProcessId(hwnd, &mut pid);
             if pid == GetCurrentProcessId() {
-                let screen_w = GetSystemMetrics(SM_CXSCREEN);
-                let screen_h = GetSystemMetrics(SM_CYSCREEN);
-                let x = (screen_w - 360) / 2;
-                let y = (screen_h - 380) / 2;
-                SetWindowPos(hwnd, std::ptr::null_mut(), x, y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
-                return 0;
+                let mut title = [0u16; 64];
+                let len = GetWindowTextW(hwnd, title.as_mut_ptr(), 64);
+                let title_str = String::from_utf16_lossy(&title[..len as usize]);
+                if title_str.contains("RustCooling") {
+                    let screen_w = GetSystemMetrics(SM_CXSCREEN);
+                    let screen_h = GetSystemMetrics(SM_CYSCREEN);
+                    let x = (screen_w - 360) / 2;
+                    let y = (screen_h - 380) / 2;
+                    SetWindowPos(hwnd, std::ptr::null_mut(), x, y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
+                    return 0;
+                }
             }
             1
         }
@@ -400,8 +405,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         trim_memory();
     }
 
-    info!("Step 9: Calling main_window.run()...");
-    let run_res = main_window.run();
+    info!("Step 9: Calling slint::run_event_loop_until_quit()...");
+    let run_res = slint::run_event_loop_until_quit();
     info!("Step 10: Event loop exited with result: {:?}", run_res);
     monitor.stop();
 
