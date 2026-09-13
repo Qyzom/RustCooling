@@ -10,29 +10,31 @@ component AppButton {
     in property <length> border_radius: 12px;
     callback clicked();
 
-    ta := TouchArea {
-        mouse-cursor: pointer;
-        clicked => { root.clicked(); }
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: root.border_radius;
+        background: ta.pressed ? root.bg : (ta.has-hover ? root.hover_bg : root.bg);
+        border-width: 1px;
+        border-color: root.border_color;
+        animate background { duration: 100ms; }
 
-        Rectangle {
+        Text {
             width: 100%;
             height: 100%;
-            border-radius: root.border_radius;
-            background: ta.has-hover ? root.hover_bg : root.bg;
-            border-width: 1px;
-            border-color: root.border_color;
-            animate background { duration: 120ms; }
+            text: root.text;
+            font-size: root.font_size;
+            font-weight: 700;
+            color: root.text_color;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
 
-            Text {
-                width: 100%;
-                height: 100%;
-                text: root.text;
-                font-size: root.font_size;
-                font-weight: 700;
-                color: root.text_color;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
+        ta := TouchArea {
+            width: 100%;
+            height: 100%;
+            mouse-cursor: pointer;
+            clicked => { root.clicked(); }
         }
     }
 }
@@ -45,29 +47,31 @@ component SelectPill {
     in property <length> font_size: 10px;
     callback clicked();
 
-    ta := TouchArea {
-        mouse-cursor: pointer;
-        clicked => { root.clicked(); }
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 8px;
+        background: root.is_selected ? root.active_bg : (ta.has-hover ? #252837 : #1c1f2b);
+        border-width: 1px;
+        border-color: root.is_selected ? root.active_color : (ta.has-hover ? #363a4d : #252837);
+        animate background { duration: 100ms; }
 
-        Rectangle {
+        Text {
             width: 100%;
             height: 100%;
-            border-radius: 8px;
-            background: root.is_selected ? root.active_bg : (ta.has-hover ? #252837 : #1c1f2b);
-            border-width: 1px;
-            border-color: root.is_selected ? root.active_color : #2a2e40;
-            animate background { duration: 120ms; }
+            text: root.text;
+            font-size: root.font_size;
+            font-weight: 700;
+            color: root.is_selected ? root.active_color : (ta.has-hover ? #ffffff : #c4c6d2);
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
 
-            Text {
-                width: 100%;
-                height: 100%;
-                text: root.text;
-                font-size: root.font_size;
-                font-weight: 700;
-                color: root.is_selected ? root.active_color : (ta.has-hover ? #ffffff : #c4c6d2);
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
+        ta := TouchArea {
+            width: 100%;
+            height: 100%;
+            mouse-cursor: pointer;
+            clicked => { root.clicked(); }
         }
     }
 }
@@ -97,19 +101,19 @@ export component MainWindow inherits Window {
     in property <string> tr_status_connected: "Connected";
     in property <string> tr_status_searching: "Searching";
     in property <string> tr_display_card_title: "PUMP DISPLAY OUTPUT";
-    in property <string> tr_chip_temp: "TEMP";
-    in property <string> tr_chip_freq: "FREQ";
-    in property <string> tr_chip_load: "LOAD";
+    in property <string> tr_chip_temp: "Temperature";
+    in property <string> tr_chip_freq: "Frequency";
+    in property <string> tr_chip_load: "Load";
     in property <string> tr_btn_settings: "Settings";
     in property <string> tr_settings_title: "SETTINGS";
     in property <string> tr_btn_back: "← Back";
     in property <string> tr_setting_display_mode: "Display Mode on Pump Screen";
-    in property <string> tr_mode_temp: "Temp";
-    in property <string> tr_mode_freq: "Freq";
+    in property <string> tr_mode_temp: "Temperature";
+    in property <string> tr_mode_freq: "Frequency";
     in property <string> tr_mode_load: "Load";
     in property <string> tr_mode_carousel: "Carousel";
     in property <string> tr_setting_freq_format: "Frequency Format";
-    in property <string> tr_freq_ghz: "GHz (46 = 4.6 GHz)";
+    in property <string> tr_freq_ghz: "GHz (4.6 GHz)";
     in property <string> tr_freq_mhz: "MHz (4600 MHz)";
     in property <string> tr_setting_language: "Interface Language";
     in property <string> tr_btn_save_return: "Save & Return";
@@ -155,12 +159,12 @@ export component MainWindow inherits Window {
 
             // ==================== CUSTOM TITLE BAR ====================
             Rectangle {
-                height: 44px;
+                height: 46px;
                 background: #141620;
 
-                // Drag Area for frameless window (does not intersect close button)
+                // Drag Area for frameless window
                 TouchArea {
-                    width: parent.width - 50px;
+                    width: parent.width - 48px;
                     height: parent.height;
                     x: 0px;
                     y: 0px;
@@ -177,36 +181,34 @@ export component MainWindow inherits Window {
                     padding-right: 12px;
                     alignment: space-between;
 
-                    // Brand Title
+                    // Brand Title + Badge
                     HorizontalLayout {
                         spacing: 8px;
                         alignment: center;
 
                         Text {
                             text: root.tr_app_title;
-                            font-size: 13px;
+                            font-size: 14px;
                             font-weight: 800;
                             color: #e2e4ed;
                             vertical-alignment: center;
                         }
 
                         Rectangle {
+                            width: 28px;
                             height: 18px;
                             border-radius: 9px;
                             background: #252837;
 
-                            HorizontalLayout {
-                                padding-left: 6px;
-                                padding-right: 6px;
-                                alignment: center;
-
-                                Text {
-                                    text: root.tr_app_badge;
-                                    font-size: 9px;
-                                    font-weight: 800;
-                                    color: #7bd0c1;
-                                    vertical-alignment: center;
-                                }
+                            Text {
+                                width: 100%;
+                                height: 100%;
+                                text: root.tr_app_badge;
+                                font-size: 9px;
+                                font-weight: 800;
+                                color: #7bd0c1;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
                             }
                         }
                     }
@@ -217,7 +219,7 @@ export component MainWindow inherits Window {
                         height: 32px;
                         border-radius: 8px;
                         background: close_touch.has-hover ? #ba1a1a : transparent;
-                        animate background { duration: 120ms; }
+                        animate background { duration: 100ms; }
 
                         Path {
                             width: 12px;
@@ -230,6 +232,8 @@ export component MainWindow inherits Window {
                         }
 
                         close_touch := TouchArea {
+                            width: 100%;
+                            height: 100%;
                             mouse-cursor: pointer;
                             clicked => {
                                 root.close_window();
@@ -248,13 +252,13 @@ export component MainWindow inherits Window {
             if !root.show_settings : VerticalLayout {
                 padding-left: 16px;
                 padding-right: 16px;
-                padding-top: 14px;
-                padding-bottom: 14px;
-                spacing: 12px;
+                padding-top: 12px;
+                padding-bottom: 12px;
+                spacing: 10px;
 
                 // 1. Device Hardware Status Bar
                 Rectangle {
-                    height: 46px;
+                    height: 44px;
                     background: #171924;
                     border-radius: 12px;
                     border-width: 1px;
@@ -286,8 +290,8 @@ export component MainWindow inherits Window {
 
                         // Status Badge
                         Rectangle {
-                            height: 24px;
-                            border-radius: 12px;
+                            height: 22px;
+                            border-radius: 11px;
                             background: root.is_connected ? #12382c : #381a1f;
 
                             HorizontalLayout {
@@ -300,14 +304,14 @@ export component MainWindow inherits Window {
                                     width: 6px;
                                     height: 6px;
                                     border-radius: 3px;
-                                    background: root.is_connected ? #7bd0c1 : #f28b82;
+                                    background: root.is_connected ? #7bd0c1 : #ffb4ab;
                                 }
 
                                 Text {
                                     text: root.is_connected ? root.tr_status_connected : root.tr_status_searching;
                                     font-size: 9px;
                                     font-weight: 700;
-                                    color: root.is_connected ? #7bd0c1 : #f28b82;
+                                    color: root.is_connected ? #7bd0c1 : #ffb4ab;
                                     vertical-alignment: center;
                                 }
                             }
@@ -315,28 +319,26 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                // 2. Main Display Output Card
+                // 2. Main Pump Display Card
                 Rectangle {
-                    height: 180px;
-                    background: #171924;
+                    background: #151722;
                     border-radius: 14px;
                     border-width: 1px;
-                    border-color: #292d3e;
+                    border-color: #272a38;
 
                     VerticalLayout {
-                        padding: 14px;
-                        spacing: 6px;
-                        alignment: space-between;
+                        padding: 12px;
+                        spacing: 10px;
 
-                        // Header
+                        // Card Header Row
                         HorizontalLayout {
                             alignment: space-between;
+                            height: 20px;
 
                             Text {
                                 text: root.tr_display_card_title;
-                                font-size: 9px;
-                                font-weight: 700;
-                                letter-spacing: 1px;
+                                font-size: 10px;
+                                font-weight: 800;
                                 color: #8c90a2;
                                 vertical-alignment: center;
                             }
@@ -364,7 +366,7 @@ export component MainWindow inherits Window {
                             }
                         }
 
-                        // Big Display Number
+                        // Big Display Value & Subtitle
                         VerticalLayout {
                             alignment: center;
                             spacing: 2px;
@@ -386,88 +388,94 @@ export component MainWindow inherits Window {
                             }
                         }
 
-                        // Metrics Summary Chips
+                        // Metrics Summary Columns (No 4-letter abbreviations!)
                         HorizontalLayout {
-                            alignment: center;
                             spacing: 8px;
+                            height: 48px;
 
-                            // Temp Chip
+                            // Temp Box
                             Rectangle {
-                                background: #202331;
-                                border-radius: 8px;
-                                height: 26px;
+                                horizontal-stretch: 1;
+                                background: #1c1f2d;
+                                border-radius: 10px;
+                                border-width: 1px;
+                                border-color: #252837;
 
-                                HorizontalLayout {
-                                    padding-left: 10px;
-                                    padding-right: 10px;
-                                    spacing: 5px;
+                                VerticalLayout {
                                     alignment: center;
+                                    spacing: 2px;
 
                                     Text {
                                         text: root.tr_chip_temp;
                                         font-size: 8px;
-                                        font-weight: 700;
+                                        font-weight: 600;
                                         color: #8c909e;
+                                        horizontal-alignment: center;
                                     }
                                     Text {
                                         text: root.cpu_temp > 0 ? "\{root.cpu_temp}°C" : "—";
-                                        font-size: 9px;
-                                        font-weight: 700;
+                                        font-size: 12px;
+                                        font-weight: 800;
                                         color: root.temp_accent(root.cpu_temp);
+                                        horizontal-alignment: center;
                                     }
                                 }
                             }
 
-                            // Clock Chip
+                            // Freq Box
                             Rectangle {
-                                background: #202331;
-                                border-radius: 8px;
-                                height: 26px;
+                                horizontal-stretch: 1;
+                                background: #1c1f2d;
+                                border-radius: 10px;
+                                border-width: 1px;
+                                border-color: #252837;
 
-                                HorizontalLayout {
-                                    padding-left: 10px;
-                                    padding-right: 10px;
-                                    spacing: 5px;
+                                VerticalLayout {
                                     alignment: center;
+                                    spacing: 2px;
 
                                     Text {
                                         text: root.tr_chip_freq;
                                         font-size: 8px;
-                                        font-weight: 700;
+                                        font-weight: 600;
                                         color: #8c909e;
+                                        horizontal-alignment: center;
                                     }
                                     Text {
                                         text: root.cpu_freq > 0 ? (root.setting_freq_ghz ? "\{Math.round(root.cpu_freq / 100) / 10} GHz" : "\{root.cpu_freq} MHz") : "—";
-                                        font-size: 9px;
-                                        font-weight: 700;
+                                        font-size: 12px;
+                                        font-weight: 800;
                                         color: #d0bcff;
+                                        horizontal-alignment: center;
                                     }
                                 }
                             }
 
-                            // Load Chip
+                            // Load Box
                             Rectangle {
-                                background: #202331;
-                                border-radius: 8px;
-                                height: 26px;
+                                horizontal-stretch: 1;
+                                background: #1c1f2d;
+                                border-radius: 10px;
+                                border-width: 1px;
+                                border-color: #252837;
 
-                                HorizontalLayout {
-                                    padding-left: 10px;
-                                    padding-right: 10px;
-                                    spacing: 5px;
+                                VerticalLayout {
                                     alignment: center;
+                                    spacing: 2px;
 
                                     Text {
                                         text: root.tr_chip_load;
                                         font-size: 8px;
-                                        font-weight: 700;
+                                        font-weight: 600;
                                         color: #8c909e;
+                                        horizontal-alignment: center;
                                     }
                                     Text {
                                         text: root.cpu_load >= 0 ? "\{root.cpu_load}%" : "—";
-                                        font-size: 9px;
-                                        font-weight: 700;
+                                        font-size: 12px;
+                                        font-weight: 800;
                                         color: #a8c7fa;
+                                        horizontal-alignment: center;
                                     }
                                 }
                             }
@@ -477,7 +485,7 @@ export component MainWindow inherits Window {
 
                 // 3. Bottom Row: ONLY ONE BUTTON: [ Settings ]
                 AppButton {
-                    height: 42px;
+                    height: 40px;
                     text: root.tr_btn_settings;
                     bg: #1e2230;
                     hover_bg: #2e3346;
@@ -497,7 +505,7 @@ export component MainWindow inherits Window {
                 padding-right: 16px;
                 padding-top: 12px;
                 padding-bottom: 12px;
-                spacing: 10px;
+                spacing: 8px;
 
                 // Settings Header Row
                 HorizontalLayout {
@@ -513,7 +521,7 @@ export component MainWindow inherits Window {
                     }
 
                     Rectangle {
-                        width: 72px;
+                        width: 76px;
                         height: 26px;
 
                         SelectPill {
