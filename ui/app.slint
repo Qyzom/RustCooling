@@ -1,14 +1,11 @@
 import "../assets/fonts/Unbounded.ttf";
-import { Button } from "std-widgets.slint";
 
 export component MainWindow inherits Window {
-    title: "RustCooling - ID-COOLING FX LCD Controller";
-    icon: @image-url("");
-    preferred-width: 460px;
-    preferred-height: 580px;
-    min-width: 420px;
-    min-height: 520px;
-    background: #111318;
+    title: "RustCooling";
+    no-frame: true;
+    width: 400px;
+    height: 600px;
+    background: transparent;
     default-font-family: "Unbounded";
 
     // Properties bound to Rust state
@@ -20,8 +17,8 @@ export component MainWindow inherits Window {
     in property <string> broadcast_value: "—";
     
     // Graph history arrays
-    in property <[float]> load_history: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-    in property <[float]> freq_history: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    in property <[float]> load_history: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    in property <[float]> freq_history: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
 
     // Localized Strings
     in property <string> str_app_title: "RustCooling";
@@ -30,7 +27,7 @@ export component MainWindow inherits Window {
     in property <string> str_disconnected: "Disconnected";
     in property <string> str_display_title: "AIO LCD BROADCAST";
     in property <string> str_display_desc: "Transmitting live metrics to pump screen";
-    in property <string> str_chart_load: "CPU Utilization History";
+    in property <string> str_chart_load: "CPU Utilization";
     in property <string> str_chart_freq: "Core Clock Frequency";
     in property <string> str_btn_settings: "Settings";
     in property <string> str_btn_minimize: "Hide to Tray";
@@ -38,383 +35,533 @@ export component MainWindow inherits Window {
     // Callbacks to Rust
     callback open_settings();
     callback hide_window();
+    callback drag_window();
+    callback minimize_window();
+    callback close_window();
 
     pure function temp_accent(temp: int) -> color {
         if temp < 50 {
-            return #7bd0c1; // MD3 Teal/Mint
-        } else if temp < 70 {
-            return #fde293; // MD3 Warm Yellow
-        } else if temp < 82 {
-            return #f28b82; // MD3 Orange/Coral
+            return #7bd0c1; // MD3 Mint Teal
+        } else if temp < 68 {
+            return #fde293; // MD3 Soft Amber
+        } else if temp < 80 {
+            return #ffb77c; // MD3 Coral Peach
         } else {
-            return #f6aea9; // MD3 High Alert
+            return #ffb4ab; // MD3 Crimson Alert
         }
     }
 
-    VerticalLayout {
-        padding-top: 18px;
-        padding-bottom: 18px;
-        padding-left: 20px;
-        padding-right: 20px;
-        spacing: 14px;
+    // Outer root container with 16px rounded corners and border
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #101218;
+        border-radius: 16px;
+        border-width: 1px;
+        border-color: #272a36;
+        clip: true;
 
-        // Top App Bar (Material 3 style)
-        HorizontalLayout {
-            alignment: space-between;
-            height: 42px;
+        VerticalLayout {
+            padding: 0px;
+            spacing: 0px;
 
-            VerticalLayout {
-                alignment: center;
-                spacing: 2px;
-                Text {
-                    text: root.str_app_title;
-                    font-size: 19px;
-                    font-weight: 700;
-                    color: #e2e2e9;
+            // ==================== CUSTOM TITLE BAR ====================
+            Rectangle {
+                height: 42px;
+                background: #14161f;
+
+                // Draggable Area for Titlebar
+                TouchArea {
+                    width: parent.width - 80px;
+                    height: parent.height;
+                    x: 0px;
+                    y: 0px;
+
+                    pointer-event(event) => {
+                        if event.kind == PointerEventKind.down {
+                            root.drag_window();
+                        }
+                    }
                 }
-                Text {
-                    text: root.str_app_subtitle;
-                    font-size: 10px;
-                    font-weight: 400;
-                    color: #90909a;
-                }
-            }
 
-            HorizontalLayout {
-                alignment: end;
-                spacing: 8px;
+                HorizontalLayout {
+                    padding-left: 14px;
+                    padding-right: 8px;
+                    alignment: space-between;
 
-                // Status Pill
-                Rectangle {
-                    background: root.is_connected ? #12382c : #381a1f;
-                    border-color: root.is_connected ? #7bd0c1 : #f28b82;
-                    border-width: 1px;
-                    border-radius: 16px;
-                    height: 32px;
-
+                    // App Brand & Logo
                     HorizontalLayout {
+                        spacing: 8px;
                         alignment: center;
-                        spacing: 6px;
-                        padding-left: 12px;
-                        padding-right: 12px;
 
                         Rectangle {
-                            width: 8px;
-                            height: 8px;
-                            border-radius: 4px;
-                            background: root.is_connected ? #7bd0c1 : #f28b82;
+                            width: 22px;
+                            height: 22px;
+                            border-radius: 6px;
+                            background: #252837;
+
+                            Text {
+                                text: "❄";
+                                font-size: 11px;
+                                color: #7bd0c1;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
                         }
+
                         Text {
-                            text: root.is_connected ? root.str_connected : root.str_disconnected;
-                            font-size: 11px;
-                            font-weight: 600;
-                            color: root.is_connected ? #7bd0c1 : #f28b82;
+                            text: root.str_app_title;
+                            font-size: 12px;
+                            font-weight: 700;
+                            color: #e2e4ed;
+                            vertical-alignment: center;
+                        }
+
+                        Text {
+                            text: "FX";
+                            font-size: 9px;
+                            font-weight: 700;
+                            color: #7bd0c1;
                             vertical-alignment: center;
                         }
                     }
-                }
 
-                // Settings Button (MD3 Tonal Button)
-                Rectangle {
-                    background: #2a2c34;
-                    border-radius: 16px;
-                    height: 32px;
-
+                    // Window Controls (Minimize & Close)
                     HorizontalLayout {
+                        spacing: 4px;
                         alignment: center;
-                        padding-left: 12px;
-                        padding-right: 12px;
 
-                        Text {
-                            text: "⚙ " + root.str_btn_settings;
-                            font-size: 11px;
-                            font-weight: 600;
-                            color: #d0bcff;
-                            vertical-alignment: center;
+                        // Minimize Button
+                        min_btn := Rectangle {
+                            width: 32px;
+                            height: 28px;
+                            border-radius: 6px;
+                            background: min_touch.has-hover ? #252838 : transparent;
+
+                            Text {
+                                text: "—";
+                                font-size: 11px;
+                                font-weight: 700;
+                                color: #c4c6d2;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            min_touch := TouchArea {
+                                clicked => {
+                                    root.minimize_window();
+                                }
+                            }
                         }
-                    }
 
-                    TouchArea {
-                        clicked => {
-                            root.open_settings();
+                        // Close Button
+                        close_btn := Rectangle {
+                            width: 32px;
+                            height: 28px;
+                            border-radius: 6px;
+                            background: close_touch.has-hover ? #ba1a1a : transparent;
+
+                            Text {
+                                text: "✕";
+                                font-size: 11px;
+                                font-weight: 700;
+                                color: close_touch.has-hover ? #ffffff : #c4c6d2;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            close_touch := TouchArea {
+                                clicked => {
+                                    root.close_window();
+                                }
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Hero Card: Current AIO LCD Broadcast Output
-        Rectangle {
-            background: #1c1d24;
-            border-color: #31333d;
-            border-width: 1px;
-            border-radius: 20px;
-            height: 180px;
+            // Title Bar Divider
+            Rectangle {
+                height: 1px;
+                background: #232530;
+            }
 
+            // ==================== MAIN CONTENT BODY ====================
             VerticalLayout {
-                padding: 16px;
-                spacing: 6px;
-                alignment: space-between;
+                padding-left: 16px;
+                padding-right: 16px;
+                padding-top: 14px;
+                padding-bottom: 14px;
+                spacing: 12px;
 
-                HorizontalLayout {
-                    alignment: space-between;
-                    Text {
-                        text: root.str_display_title;
-                        font-size: 11px;
-                        font-weight: 700;
-                        letter-spacing: 1.5px;
-                        color: #a8c7fa;
-                    }
+                // 1. Connection Status Bar
+                Rectangle {
+                    height: 38px;
+                    background: #171922;
+                    border-radius: 12px;
+                    border-width: 1px;
+                    border-color: #272a36;
 
-                    Rectangle {
-                        background: root.is_connected ? #1d3347 : #381a1f;
-                        border-radius: 10px;
-                        height: 20px;
+                    HorizontalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        alignment: space-between;
+
                         HorizontalLayout {
-                            padding-left: 8px;
-                            padding-right: 8px;
+                            spacing: 6px;
+                            alignment: center;
+
                             Text {
-                                text: root.is_connected ? "● BROADCASTING" : "IDLE";
+                                text: "DEVICE";
                                 font-size: 9px;
                                 font-weight: 700;
-                                color: root.is_connected ? #a8c7fa : #f28b82;
+                                color: #8e919f;
                                 vertical-alignment: center;
+                            }
+
+                            Text {
+                                text: "ID-COOLING AIO LCD";
+                                font-size: 10px;
+                                font-weight: 600;
+                                color: #d4d6e2;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        // Status Badge
+                        Rectangle {
+                            height: 22px;
+                            border-radius: 11px;
+                            background: root.is_connected ? #12382c : #381a1f;
+
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 8px;
+                                spacing: 5px;
+                                alignment: center;
+
+                                Rectangle {
+                                    width: 6px;
+                                    height: 6px;
+                                    border-radius: 3px;
+                                    background: root.is_connected ? #7bd0c1 : #f28b82;
+                                }
+
+                                Text {
+                                    text: root.is_connected ? root.str_connected : root.str_disconnected;
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    color: root.is_connected ? #7bd0c1 : #f28b82;
+                                    vertical-alignment: center;
+                                }
                             }
                         }
                     }
                 }
 
-                // Main Big Active Broadcast Value
-                VerticalLayout {
-                    alignment: center;
-                    spacing: 2px;
+                // 2. Main Hero Broadcast Card
+                Rectangle {
+                    height: 190px;
+                    background: #181a24;
+                    border-radius: 20px;
+                    border-width: 1px;
+                    border-color: #2b2e3d;
 
-                    Text {
-                        text: root.broadcast_value;
-                        font-size: 50px;
-                        font-weight: 800;
-                        color: root.temp_accent(root.cpu_temp);
-                        horizontal-alignment: center;
-                    }
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 8px;
+                        alignment: space-between;
 
-                    Text {
-                        text: root.broadcast_label;
-                        font-size: 12px;
-                        font-weight: 500;
-                        color: #c4c6d0;
-                        horizontal-alignment: center;
-                    }
-                }
-
-                // Live Sensor Metric Chips
-                HorizontalLayout {
-                    alignment: center;
-                    spacing: 8px;
-
-                    // Chip 1: Temp
-                    Rectangle {
-                        background: #252731;
-                        border-radius: 12px;
-                        height: 26px;
+                        // Card Header
                         HorizontalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
-                            spacing: 4px;
-                            Text {
-                                text: "TEMP";
-                                font-size: 9px;
-                                font-weight: 700;
-                                color: #90909a;
-                                vertical-alignment: center;
-                            }
-                            Text {
-                                text: root.cpu_temp > 0 ? "\{root.cpu_temp} °C" : "—";
-                                font-size: 11px;
-                                font-weight: 700;
-                                color: root.temp_accent(root.cpu_temp);
-                                vertical-alignment: center;
-                            }
-                        }
-                    }
+                            alignment: space-between;
 
-                    // Chip 2: Frequency
-                    Rectangle {
-                        background: #252731;
-                        border-radius: 12px;
-                        height: 26px;
-                        HorizontalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
-                            spacing: 4px;
                             Text {
-                                text: "CLOCK";
-                                font-size: 9px;
+                                text: root.str_display_title;
+                                font-size: 10px;
                                 font-weight: 700;
-                                color: #90909a;
-                                vertical-alignment: center;
-                            }
-                            Text {
-                                text: root.cpu_freq > 0 ? "\{root.cpu_freq} MHz" : "—";
-                                font-size: 11px;
-                                font-weight: 700;
-                                color: #d0bcff;
-                                vertical-alignment: center;
-                            }
-                        }
-                    }
-
-                    // Chip 3: Load
-                    Rectangle {
-                        background: #252731;
-                        border-radius: 12px;
-                        height: 26px;
-                        HorizontalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
-                            spacing: 4px;
-                            Text {
-                                text: "LOAD";
-                                font-size: 9px;
-                                font-weight: 700;
-                                color: #90909a;
-                                vertical-alignment: center;
-                            }
-                            Text {
-                                text: root.cpu_load >= 0 ? "\{root.cpu_load} %" : "—";
-                                font-size: 11px;
-                                font-weight: 700;
+                                letter-spacing: 1.2px;
                                 color: #a8c7fa;
                                 vertical-alignment: center;
                             }
+
+                            Rectangle {
+                                height: 20px;
+                                border-radius: 10px;
+                                background: root.is_connected ? #172a3d : #2e1a1f;
+
+                                HorizontalLayout {
+                                    padding-left: 8px;
+                                    padding-right: 8px;
+                                    alignment: center;
+
+                                    Text {
+                                        text: root.is_connected ? "● BROADCASTING" : "STANDBY";
+                                        font-size: 8px;
+                                        font-weight: 700;
+                                        color: root.is_connected ? #a8c7fa : #f28b82;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
                         }
-                    }
-                }
-            }
-        }
 
-        // Material 3 Live Telemetry Graphs Card
-        Rectangle {
-            background: #1c1d24;
-            border-color: #31333d;
-            border-width: 1px;
-            border-radius: 20px;
-            vertical-stretch: 1;
+                        // Big Temperature Digits
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 1px;
 
-            VerticalLayout {
-                padding: 16px;
-                spacing: 12px;
+                            Text {
+                                text: root.cpu_temp > 0 ? "\{root.cpu_temp}°C" : "—";
+                                font-size: 54px;
+                                font-weight: 800;
+                                color: root.temp_accent(root.cpu_temp);
+                                horizontal-alignment: center;
+                            }
 
-                // Graph 1: CPU Load History
-                VerticalLayout {
-                    spacing: 6px;
-                    HorizontalLayout {
-                        alignment: space-between;
-                        Text {
-                            text: root.str_chart_load;
-                            font-size: 11px;
-                            font-weight: 600;
-                            color: #c4c6d0;
+                            Text {
+                                text: root.str_display_desc;
+                                font-size: 10px;
+                                font-weight: 500;
+                                color: #9b9fae;
+                                horizontal-alignment: center;
+                            }
                         }
-                        Text {
-                            text: "\{root.cpu_load} %";
-                            font-size: 11px;
-                            font-weight: 700;
-                            color: #a8c7fa;
-                        }
-                    }
 
-                    // Material 3 Bar Chart
-                    Rectangle {
-                        height: 52px;
-                        background: #14151b;
-                        border-radius: 10px;
-                        border-color: #272832;
-                        border-width: 1px;
-
+                        // Bottom Metric Chips
                         HorizontalLayout {
-                            alignment: space-around;
-                            padding: 6px;
+                            alignment: center;
+                            spacing: 8px;
 
-                            for val[i] in root.load_history : Rectangle {
-                                width: 12px;
-                                height: Math.max(4px, parent.height * (val / 100.0) - 8px);
-                                y: parent.height - self.height - 6px;
-                                background: #a8c7fa;
-                                border-radius: 4px;
+                            // Chip 1: Temp
+                            Rectangle {
+                                background: #222533;
+                                border-radius: 10px;
+                                height: 26px;
+
+                                HorizontalLayout {
+                                    padding-left: 8px;
+                                    padding-right: 8px;
+                                    spacing: 4px;
+                                    alignment: center;
+
+                                    Text {
+                                        text: "TEMP";
+                                        font-size: 8px;
+                                        font-weight: 700;
+                                        color: #8c909e;
+                                        vertical-alignment: center;
+                                    }
+                                    Text {
+                                        text: root.cpu_temp > 0 ? "\{root.cpu_temp} °C" : "—";
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        color: root.temp_accent(root.cpu_temp);
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+
+                            // Chip 2: Clock
+                            Rectangle {
+                                background: #222533;
+                                border-radius: 10px;
+                                height: 26px;
+
+                                HorizontalLayout {
+                                    padding-left: 8px;
+                                    padding-right: 8px;
+                                    spacing: 4px;
+                                    alignment: center;
+
+                                    Text {
+                                        text: "CLOCK";
+                                        font-size: 8px;
+                                        font-weight: 700;
+                                        color: #8c909e;
+                                        vertical-alignment: center;
+                                    }
+                                    Text {
+                                        text: root.cpu_freq > 0 ? "\{root.cpu_freq} MHz" : "—";
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        color: #d0bcff;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                            }
+
+                            // Chip 3: Load
+                            Rectangle {
+                                background: #222533;
+                                border-radius: 10px;
+                                height: 26px;
+
+                                HorizontalLayout {
+                                    padding-left: 8px;
+                                    padding-right: 8px;
+                                    spacing: 4px;
+                                    alignment: center;
+
+                                    Text {
+                                        text: "LOAD";
+                                        font-size: 8px;
+                                        font-weight: 700;
+                                        color: #8c909e;
+                                        vertical-alignment: center;
+                                    }
+                                    Text {
+                                        text: root.cpu_load >= 0 ? "\{root.cpu_load} %" : "—";
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        color: #a8c7fa;
+                                        vertical-alignment: center;
+                                    }
+                                }
                             }
                         }
                     }
                 }
 
-                // Graph 2: CPU Clock History
-                VerticalLayout {
-                    spacing: 6px;
-                    HorizontalLayout {
-                        alignment: space-between;
-                        Text {
-                            text: root.str_chart_freq;
-                            font-size: 11px;
-                            font-weight: 600;
-                            color: #c4c6d0;
+                // 3. Telemetry History Visualizers Card
+                Rectangle {
+                    height: 190px;
+                    background: #181a24;
+                    border-radius: 20px;
+                    border-width: 1px;
+                    border-color: #2b2e3d;
+
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 12px;
+
+                        // Graph 1: CPU Load
+                        VerticalLayout {
+                            spacing: 6px;
+
+                            HorizontalLayout {
+                                alignment: space-between;
+
+                                Text {
+                                    text: root.str_chart_load;
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: #c4c6d2;
+                                }
+
+                                Text {
+                                    text: "\{root.cpu_load} %";
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: #a8c7fa;
+                                }
+                            }
+
+                            // Clean bar visualizer
+                            Rectangle {
+                                height: 48px;
+                                background: #12131b;
+                                border-radius: 10px;
+                                border-width: 1px;
+                                border-color: #222430;
+
+                                HorizontalLayout {
+                                    alignment: space-around;
+                                    padding-left: 6px;
+                                    padding-right: 6px;
+                                    padding-top: 4px;
+                                    padding-bottom: 4px;
+
+                                    for val[i] in root.load_history : Rectangle {
+                                        width: 12px;
+                                        height: Math.max(4px, parent.height * (val / 100.0) - 8px);
+                                        y: parent.height - self.height - 4px;
+                                        background: #a8c7fa;
+                                        border-radius: 3px;
+                                    }
+                                }
+                            }
                         }
-                        Text {
-                            text: "\{root.cpu_freq} MHz";
-                            font-size: 11px;
-                            font-weight: 700;
-                            color: #d0bcff;
-                        }
-                    }
 
-                    // Material 3 Frequency Chart
-                    Rectangle {
-                        height: 52px;
-                        background: #14151b;
-                        border-radius: 10px;
-                        border-color: #272832;
-                        border-width: 1px;
+                        // Graph 2: Core Frequency
+                        VerticalLayout {
+                            spacing: 6px;
 
-                        HorizontalLayout {
-                            alignment: space-around;
-                            padding: 6px;
+                            HorizontalLayout {
+                                alignment: space-between;
 
-                            for val[i] in root.freq_history : Rectangle {
-                                width: 12px;
-                                height: Math.max(4px, parent.height * (Math.min(5000.0, val) / 5000.0) - 8px);
-                                y: parent.height - self.height - 6px;
-                                background: #d0bcff;
-                                border-radius: 4px;
+                                Text {
+                                    text: root.str_chart_freq;
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: #c4c6d2;
+                                }
+
+                                Text {
+                                    text: "\{root.cpu_freq} MHz";
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: #d0bcff;
+                                }
+                            }
+
+                            // Clean bar visualizer
+                            Rectangle {
+                                height: 48px;
+                                background: #12131b;
+                                border-radius: 10px;
+                                border-width: 1px;
+                                border-color: #222430;
+
+                                HorizontalLayout {
+                                    alignment: space-around;
+                                    padding-left: 6px;
+                                    padding-right: 6px;
+                                    padding-top: 4px;
+                                    padding-bottom: 4px;
+
+                                    for val[i] in root.freq_history : Rectangle {
+                                        width: 12px;
+                                        height: Math.max(4px, parent.height * (Math.min(5200.0, val) / 5200.0) - 8px);
+                                        y: parent.height - self.height - 4px;
+                                        background: #d0bcff;
+                                        border-radius: 3px;
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
-        }
 
-        // Bottom Action Bar
-        HorizontalLayout {
-            alignment: center;
-            height: 40px;
-
-            Rectangle {
-                background: #2a2c34;
-                border-radius: 20px;
-                height: 38px;
-                width: 220px;
-
+                // 4. Bottom Actions
                 HorizontalLayout {
                     alignment: center;
-                    Text {
-                        text: root.str_btn_minimize;
-                        font-size: 12px;
-                        font-weight: 600;
-                        color: #e2e2e9;
-                        vertical-alignment: center;
-                    }
-                }
+                    height: 38px;
 
-                TouchArea {
-                    clicked => {
-                        root.hide_window();
+                    hide_btn := Rectangle {
+                        width: 200px;
+                        height: 36px;
+                        border-radius: 18px;
+                        background: hide_touch.has-hover ? #323545 : #252837;
+
+                        HorizontalLayout {
+                            alignment: center;
+                            spacing: 6px;
+
+                            Text {
+                                text: root.str_btn_minimize;
+                                font-size: 11px;
+                                font-weight: 700;
+                                color: #e2e4ed;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        hide_touch := TouchArea {
+                            clicked => {
+                                root.hide_window();
+                            }
+                        }
                     }
                 }
             }

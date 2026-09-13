@@ -64,11 +64,6 @@ impl MonitorService {
         thread::spawn(move || {
             info!("Monitor background service started.");
             let mut telemetry = create_telemetry_provider();
-
-            let mut last_temp: Option<u16> = None;
-            let mut last_freq: Option<u16> = None;
-            let mut last_usage: Option<u16> = None;
-
             let mut was_connected = false;
 
             while running.load(Ordering::Relaxed) {
@@ -79,10 +74,6 @@ impl MonitorService {
                         let _ = device.send_show(true);
                         state.is_connected.store(true, Ordering::SeqCst);
                         was_connected = true;
-                        // Reset deduplication cache on new connection
-                        last_temp = None;
-                        last_freq = None;
-                        last_usage = None;
                     } else {
                         if was_connected {
                             warn!("ID-COOLING LCD Display disconnected. Retrying in 2 seconds...");
@@ -123,12 +114,8 @@ impl MonitorService {
                 // Step 1: Send Temperature (at T+0ms)
                 if let Some(temp_f) = metrics.temperature {
                     let temp_val = temp_f.round() as u16;
-                    if last_temp != Some(temp_val) {
-                        if device.send_temperature(temp_val) {
-                            last_temp = Some(temp_val);
-                        } else {
-                            state.is_connected.store(false, Ordering::SeqCst);
-                        }
+                    if !device.send_temperature(temp_val) {
+                        state.is_connected.store(false, Ordering::SeqCst);
                     }
                     if let Ok(mut lbl) = state.broadcast_label.lock() {
                         *lbl = "CPU Temperature".to_string();
@@ -144,12 +131,8 @@ impl MonitorService {
                 // Step 2: Send Frequency (at T+100ms)
                 if let Some(freq_f) = metrics.frequency_mhz {
                     let freq_val = freq_f.round() as u16;
-                    if last_freq != Some(freq_val) {
-                        if device.send_frequency(freq_val) {
-                            last_freq = Some(freq_val);
-                        } else {
-                            state.is_connected.store(false, Ordering::SeqCst);
-                        }
+                    if !device.send_frequency(freq_val) {
+                        state.is_connected.store(false, Ordering::SeqCst);
                     }
                 }
 
@@ -159,12 +142,8 @@ impl MonitorService {
                 // Step 3: Send CPU Usage (at T+200ms)
                 if let Some(usage_f) = metrics.load_percent {
                     let usage_val = usage_f.round() as u16;
-                    if last_usage != Some(usage_val) {
-                        if device.send_usage(usage_val) {
-                            last_usage = Some(usage_val);
-                        } else {
-                            state.is_connected.store(false, Ordering::SeqCst);
-                        }
+                    if !device.send_usage(usage_val) {
+                        state.is_connected.store(false, Ordering::SeqCst);
                     }
                 }
 
@@ -177,6 +156,7 @@ impl MonitorService {
                 let remaining_ms = interval_ms.saturating_sub(elapsed_ms);
                 thread::sleep(Duration::from_millis(remaining_ms));
             }
+
 
             // Graceful shutdown: turn off display
             debug!("Sending CMD_SHOW(0) and closing device...");

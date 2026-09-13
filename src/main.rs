@@ -144,15 +144,44 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let is_window_visible = Arc::new(AtomicBool::new(!args.minimized));
+
+    // Hide / Minimize to tray
     let handle_for_hide = main_window.as_weak();
     let vis_for_hide = Arc::clone(&is_window_visible);
-    main_window.on_hide_window(move || {
+    let hide_action = move || {
         if let Some(w) = handle_for_hide.upgrade() {
             let _ = w.hide();
             vis_for_hide.store(false, Ordering::SeqCst);
             trim_memory();
         }
+    };
+    let hide_action_clone = hide_action.clone();
+    main_window.on_hide_window(hide_action);
+    main_window.on_minimize_window(hide_action_clone);
+
+    // Close window / Quit app
+    main_window.on_close_window(|| {
+        info!("Close requested. Exiting application...");
+        let _ = slint::quit_event_loop();
     });
+
+    // Native frameless window dragging on Windows
+    #[cfg(windows)]
+    main_window.on_drag_window(|| {
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            GetForegroundWindow, SendMessageW, HTCAPTION, WM_NCLBUTTONDOWN,
+        };
+        unsafe {
+            ReleaseCapture();
+            let hwnd = GetForegroundWindow();
+            if !hwnd.is_null() {
+                SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION as usize, 0);
+            }
+        }
+    });
+    #[cfg(not(windows))]
+    main_window.on_drag_window(|| {});
 
     // Periodic UI update & tray event polling timer (~150ms)
     let handle_for_timer = main_window.as_weak();
