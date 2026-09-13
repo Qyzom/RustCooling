@@ -84,7 +84,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = CoInitialize(std::ptr::null_mut());
     }
 
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    std::panic::set_hook(Box::new(|info| {
+        let msg = format!("PANIC OCCURRED: {info}\n");
+        let _ = std::fs::write("d:\\Файлы\\antigraivty\\RustCooling\\panic.log", msg);
+    }));
+
+    if let Ok(file) = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open("d:\\Файлы\\antigraivty\\RustCooling\\debug.log")
+    {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+            .target(env_logger::Target::Pipe(Box::new(file)))
+            .init();
+    } else {
+        env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    }
     let args = CliArgs::parse();
 
     let mut config = AppConfig::load();
@@ -204,56 +220,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Duration::from_millis(150),
         move || {
             if first_tick_clone.swap(false, Ordering::SeqCst) {
-                info!("=== FIRST UI TICK: Event loop is running! ===");
-                #[cfg(windows)]
-                unsafe {
-                    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
-                    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
-                    use windows_sys::Win32::UI::WindowsAndMessaging::{
-                        EnumWindows, GetWindowThreadProcessId, GetWindowTextW, GetClassNameW, IsWindowVisible,
-                        SetWindowPos, SetForegroundWindow,
-                    };
-
-                    unsafe extern "system" fn enum_proc(hwnd: HWND, _: LPARAM) -> BOOL {
-                        let mut pid = 0;
-                        GetWindowThreadProcessId(hwnd, &mut pid);
-                        if pid == GetCurrentProcessId() {
-                            let mut title = [0u16; 256];
-                            let mut class = [0u16; 256];
-                            GetWindowTextW(hwnd, title.as_mut_ptr(), 256);
-                            GetClassNameW(hwnd, class.as_mut_ptr(), 256);
-                            let title_str = String::from_utf16_lossy(&title);
-                            let class_str = String::from_utf16_lossy(&class);
-                            let clean_class = class_str.trim_matches(char::from(0));
-                            let clean_title = title_str.trim_matches(char::from(0));
-                            let vis = IsWindowVisible(hwnd);
-                            info!("Running Loop HWND: {:?}, Class: '{}', Title: '{}', Vis: {}", hwnd, clean_class, clean_title, vis);
-
-                            // If this is the main Slint window (not the hidden event target)
-                            if clean_title == "RustCooling" || (clean_class.contains("Window") && !clean_class.contains("NV")) {
-                                use windows_sys::Win32::UI::WindowsAndMessaging::{
-                                    GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, HWND_TOP, SWP_SHOWWINDOW,
-                                };
-
-                                // Center on screen
-                                let screen_w = GetSystemMetrics(SM_CXSCREEN);
-                                let screen_h = GetSystemMetrics(SM_CYSCREEN);
-                                let win_w = 400;
-                                let win_h = 600;
-                                let pos_x = (screen_w - win_w) / 2;
-                                let pos_y = (screen_h - win_h) / 2;
-
-                                SetWindowPos(hwnd, HWND_TOP, pos_x, pos_y, win_w, win_h, SWP_SHOWWINDOW);
-                                SetForegroundWindow(hwnd);
-                                info!("Centered ({}, {}) [{}x{}] and brought window to front! HWND: {:?}", pos_x, pos_y, win_w, win_h, hwnd);
-                            }
-                        }
-                        1
-                    }
-
-                    EnumWindows(Some(enum_proc), 0);
-                }
+                info!("=== FIRST UI TICK: Slint event loop is running smoothly! ===");
             }
+
             // Poll tray events
             if let Some(ref tray_manager) = tray {
                 let handle_show = handle_for_timer.clone();
@@ -262,6 +231,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 tray_manager.poll_events(
                     move || {
+                        info!("Tray show/hide toggle clicked");
                         if let Some(w) = handle_show.upgrade() {
                             let currently_visible = vis_show.load(Ordering::SeqCst);
                             if currently_visible {
@@ -275,6 +245,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     },
                     move || {
+                        info!("Tray EXIT clicked -> requesting quit_event_loop()");
                         if let Some(_w) = handle_exit.upgrade() {
                             let _ = slint::quit_event_loop();
                         }
@@ -344,8 +315,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     info!("Step 9: Calling main_window.run()...");
-    main_window.run()?;
-    info!("Step 10: Event loop exited.");
+    let run_res = main_window.run();
+    info!("Step 10: Event loop exited with result: {:?}", run_res);
     monitor.stop();
 
     Ok(())

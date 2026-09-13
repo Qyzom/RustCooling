@@ -94,7 +94,3 @@ fn create_default_icon() -> Result<Icon, Box<dyn std::error::Error>> {
     let icon = Icon::from_rgba(rgba, width, height)?;
     Ok(icon)
 }
-
-
-
-
