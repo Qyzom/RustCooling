@@ -13,8 +13,7 @@ use config::AppConfig;
 use i18n::I18n;
 use log::{info, warn};
 use service::MonitorService;
-use slint::{ComponentHandle, ModelRc, VecModel};
-use std::rc::Rc;
+use slint::ComponentHandle;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -57,7 +56,6 @@ pub fn trim_memory() {
 
 #[allow(dead_code)]
 fn set_autostart(enable: bool) {
-
     #[cfg(windows)]
     {
         if let Ok(current_exe) = std::env::current_exe() {
@@ -77,6 +75,34 @@ fn set_autostart(enable: bool) {
             }
         }
     }
+}
+
+fn apply_translations(w: &MainWindow) {
+    let t = I18n::get();
+    w.set_tr_app_title(t.app_title.as_str().into());
+    w.set_tr_app_badge(t.app_badge.as_str().into());
+    w.set_tr_device_name(t.device_name.as_str().into());
+    w.set_tr_device_desc_connected(t.device_desc_connected.as_str().into());
+    w.set_tr_device_desc_searching(t.device_desc_searching.as_str().into());
+    w.set_tr_status_connected(t.status_connected.as_str().into());
+    w.set_tr_status_searching(t.status_searching.as_str().into());
+    w.set_tr_display_card_title(t.display_card_title.as_str().into());
+    w.set_tr_chip_temp(t.chip_temp.as_str().into());
+    w.set_tr_chip_freq(t.chip_freq.as_str().into());
+    w.set_tr_chip_load(t.chip_load.as_str().into());
+    w.set_tr_btn_settings(t.btn_settings.as_str().into());
+    w.set_tr_settings_title(t.settings_title.as_str().into());
+    w.set_tr_btn_back(t.btn_back.as_str().into());
+    w.set_tr_setting_display_mode(t.setting_display_mode.as_str().into());
+    w.set_tr_mode_temp(t.mode_temp.as_str().into());
+    w.set_tr_mode_freq(t.mode_freq.as_str().into());
+    w.set_tr_mode_load(t.mode_load.as_str().into());
+    w.set_tr_mode_carousel(t.mode_carousel.as_str().into());
+    w.set_tr_setting_freq_format(t.setting_freq_format.as_str().into());
+    w.set_tr_freq_ghz(t.freq_ghz.as_str().into());
+    w.set_tr_freq_mhz(t.freq_mhz.as_str().into());
+    w.set_tr_setting_language(t.setting_language.as_str().into());
+    w.set_tr_btn_save_return(t.btn_save_return.as_str().into());
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -142,6 +168,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             None
         }
     };
+    let tray_ref = Arc::new(Mutex::new(tray));
 
     // Initialize Slint GUI
     info!("Step 1: Creating MainWindow...");
@@ -149,7 +176,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Step 2: MainWindow created successfully.");
     let state = monitor.get_state();
 
-    // Set initial settings state from config
+    // Set initial settings and translations
     {
         let cfg = config_ref.lock().unwrap();
         main_window.set_setting_display_mode(cfg.display_mode.as_str().into());
@@ -157,17 +184,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         main_window.set_setting_interval_ms(cfg.update_interval_ms as i32);
         main_window.set_setting_language(cfg.language.as_str().into());
     }
+    apply_translations(&main_window);
 
     // Callbacks
     let config_for_save = Arc::clone(&config_ref);
+    let win_for_save = main_window.as_weak();
+    let tray_for_save = Arc::clone(&tray_ref);
     main_window.on_save_settings(move |mode, freq_ghz, interval, lang| {
+        let lang_str = lang.to_string();
+        I18n::set_language(&lang_str);
+        if let Some(w) = win_for_save.upgrade() {
+            apply_translations(&w);
+        }
+        if let Ok(guard) = tray_for_save.lock() {
+            if let Some(ref t) = *guard {
+                t.update_labels();
+            }
+        }
         if let Ok(mut cfg) = config_for_save.lock() {
             cfg.display_mode = mode.to_string();
             cfg.freq_in_ghz = freq_ghz;
             cfg.update_interval_ms = (interval as u64).max(300);
-            cfg.language = lang.to_string();
+            cfg.language = lang_str.clone();
             let _ = cfg.save();
-            info!("Settings applied: mode={}, freq_ghz={}, interval={}ms, lang={}", mode, freq_ghz, interval, lang);
+            info!("Settings applied: mode={}, freq_ghz={}, interval={}ms, lang={}", mode, freq_ghz, interval, lang_str);
         }
     });
 
@@ -190,10 +230,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Close window / Quit app
-    main_window.on_close_window(|| {
-        info!("Close requested. Exiting application gracefully...");
-        std::process::exit(0);
+    // Close window (top-right cross) -> hides window to system tray
+    let win_for_close = main_window.as_weak();
+    let vis_for_close = Arc::clone(&is_window_visible);
+    main_window.on_close_window(move || {
+        info!("Close requested -> hiding window to tray");
+        if let Some(w) = win_for_close.upgrade() {
+            let _ = w.hide();
+            vis_for_close.store(false, Ordering::SeqCst);
+            trim_memory();
+        }
     });
 
     // Native frameless window dragging on Windows
@@ -219,6 +265,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let vis_for_timer = Arc::clone(&is_window_visible);
     let first_tick = Arc::new(AtomicBool::new(true));
     let first_tick_clone = Arc::clone(&first_tick);
+    let tray_for_timer = Arc::clone(&tray_ref);
+
     let ui_timer = slint::Timer::default();
     ui_timer.start(
         slint::TimerMode::Repeated,
@@ -230,33 +278,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Poll tray events
-            if let Some(ref tray_manager) = tray {
-                let handle_show = handle_for_timer.clone();
-                let vis_show = Arc::clone(&vis_for_timer);
-                let handle_exit = handle_for_timer.clone();
+            if let Ok(guard) = tray_for_timer.lock() {
+                if let Some(ref tray_manager) = *guard {
+                    let handle_show = handle_for_timer.clone();
+                    let vis_show = Arc::clone(&vis_for_timer);
+                    let handle_exit = handle_for_timer.clone();
 
-                tray_manager.poll_events(
-                    move || {
-                        info!("Tray show/hide toggle clicked");
-                        if let Some(w) = handle_show.upgrade() {
-                            let currently_visible = vis_show.load(Ordering::SeqCst);
-                            if currently_visible {
-                                let _ = w.hide();
-                                vis_show.store(false, Ordering::SeqCst);
-                                trim_memory();
-                            } else {
+                    tray_manager.poll_events(
+                        move || {
+                            info!("Tray restore requested -> showing window");
+                            if let Some(w) = handle_show.upgrade() {
                                 let _ = w.show();
                                 vis_show.store(true, Ordering::SeqCst);
+                                w.window().request_redraw();
                             }
-                        }
-                    },
-                    move || {
-                        info!("Tray EXIT clicked -> requesting quit_event_loop()");
-                        if let Some(_w) = handle_exit.upgrade() {
-                            let _ = slint::quit_event_loop();
-                        }
-                    },
-                );
+                        },
+                        move || {
+                            info!("Tray EXIT clicked -> requesting quit_event_loop()");
+                            if let Some(_w) = handle_exit.upgrade() {
+                                let _ = slint::quit_event_loop();
+                            }
+                        },
+                    );
+                }
             }
 
             // Sync metrics to UI when visible
@@ -290,20 +334,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     if let Ok(val) = state.broadcast_value.lock() {
                         w.set_broadcast_value(val.as_str().into());
-                    }
-
-                    // Update charts
-                    if let Ok(hist) = state.temp_history.lock() {
-                        let model: Rc<VecModel<f32>> = Rc::new(VecModel::from(hist.clone()));
-                        w.set_temp_history(ModelRc::from(model));
-                    }
-                    if let Ok(hist) = state.load_history.lock() {
-                        let model: Rc<VecModel<f32>> = Rc::new(VecModel::from(hist.clone()));
-                        w.set_load_history(ModelRc::from(model));
-                    }
-                    if let Ok(hist) = state.freq_history.lock() {
-                        let model: Rc<VecModel<f32>> = Rc::new(VecModel::from(hist.clone()));
-                        w.set_freq_history(ModelRc::from(model));
                     }
                 }
             }
@@ -342,35 +372,6 @@ mod window_tests {
         assert!(win.is_ok(), "MainWindow::new failed: {:?}", win.err());
         let w = win.unwrap();
         let show_res = w.show();
-        println!("w.show() result: {:?}", show_res);
-
-        #[cfg(windows)]
-        unsafe {
-            use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
-            use windows_sys::Win32::System::Threading::GetCurrentProcessId;
-            use windows_sys::Win32::UI::WindowsAndMessaging::{
-                EnumWindows, GetWindowThreadProcessId, GetWindowTextW, GetClassNameW, IsWindowVisible,
-            };
-
-            unsafe extern "system" fn enum_proc(hwnd: HWND, _: LPARAM) -> BOOL {
-                let mut pid = 0;
-                GetWindowThreadProcessId(hwnd, &mut pid);
-                if pid == GetCurrentProcessId() {
-                    let mut title = [0u16; 256];
-                    let mut class = [0u16; 256];
-                    GetWindowTextW(hwnd, title.as_mut_ptr(), 256);
-                    GetClassNameW(hwnd, class.as_mut_ptr(), 256);
-                    let title_str = String::from_utf16_lossy(&title);
-                    let class_str = String::from_utf16_lossy(&class);
-                    let vis = IsWindowVisible(hwnd);
-                    println!("FOUND HWND: {:?}, Class: {}, Title: {}, Vis: {}", hwnd, class_str.trim_matches(char::from(0)), title_str.trim_matches(char::from(0)), vis);
-                }
-                1
-            }
-
-            EnumWindows(Some(enum_proc), 0);
-        }
-
         assert!(show_res.is_ok());
     }
 }

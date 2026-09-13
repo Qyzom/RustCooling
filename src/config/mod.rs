@@ -32,7 +32,7 @@ impl Default for AppConfig {
             minimize_to_tray: true,
             start_minimized: false,
             high_priority: true,
-            language: "ru".to_string(),
+            language: "en".to_string(),
             display_mode: "temp".to_string(),
             freq_in_ghz: true,
         }

@@ -2,19 +2,23 @@ use muda::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{
     Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent,
 };
+use crate::i18n::I18n;
 
 pub struct SystemTray {
     _tray_icon: TrayIcon,
     show_item_id: muda::MenuId,
     exit_item_id: muda::MenuId,
+    show_item: MenuItem,
+    exit_item: MenuItem,
 }
 
 impl SystemTray {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        let t = I18n::get();
         let tray_menu = Menu::new();
-        let show_item = MenuItem::new("Show / Hide Window", true, None);
+        let show_item = MenuItem::new(&t.tray_show, true, None);
         let show_item_id = show_item.id().clone();
-        let exit_item = MenuItem::new("Exit", true, None);
+        let exit_item = MenuItem::new(&t.tray_exit, true, None);
         let exit_item_id = exit_item.id().clone();
 
         tray_menu.append(&show_item)?;
@@ -33,15 +37,23 @@ impl SystemTray {
             _tray_icon: tray_icon,
             show_item_id,
             exit_item_id,
+            show_item,
+            exit_item,
         })
     }
 
-    pub fn poll_events<FShow, FExit>(&self, on_toggle_show: FShow, on_exit: FExit)
+    pub fn update_labels(&self) {
+        let t = I18n::get();
+        self.show_item.set_text(&t.tray_show);
+        self.exit_item.set_text(&t.tray_exit);
+    }
+
+    pub fn poll_events<FShow, FExit>(&self, on_show: FShow, on_exit: FExit)
     where
         FShow: Fn(),
         FExit: Fn(),
     {
-        // Poll tray icon clicks (left click to show/hide)
+        // Poll tray icon clicks (left click restores/shows the window)
         while let Ok(event) = TrayIconEvent::receiver().try_recv() {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
@@ -49,14 +61,14 @@ impl SystemTray {
                 ..
             } = event
             {
-                on_toggle_show();
+                on_show();
             }
         }
 
-        // Poll menu items
+        // Poll menu items (right click context menu)
         while let Ok(event) = MenuEvent::receiver().try_recv() {
             if event.id == self.show_item_id {
-                on_toggle_show();
+                on_show();
             } else if event.id == self.exit_item_id {
                 on_exit();
             }
@@ -64,7 +76,7 @@ impl SystemTray {
     }
 }
 
-/// Generates a simple 32x32 RGBA cooling icon (cyan/blue square with accent) in pure code
+/// Generates a crisp 32x32 RGBA cooling icon (cyan/blue circular badge)
 fn create_default_icon() -> Result<Icon, Box<dyn std::error::Error>> {
     let width = 32;
     let height = 32;
@@ -78,11 +90,11 @@ fn create_default_icon() -> Result<Icon, Box<dyn std::error::Error>> {
 
             if dist_sq <= 14 * 14 {
                 if dist_sq <= 11 * 11 {
-                    // Inner cyan
-                    rgba.extend_from_slice(&[137, 220, 235, 255]); // #89dceb
+                    // Inner mint teal
+                    rgba.extend_from_slice(&[123, 208, 193, 255]); // #7bd0c1
                 } else {
-                    // Border blue
-                    rgba.extend_from_slice(&[137, 180, 250, 255]); // #89b4fa
+                    // Border dark slate
+                    rgba.extend_from_slice(&[39, 42, 56, 255]); // #272a38
                 }
             } else {
                 // Transparent

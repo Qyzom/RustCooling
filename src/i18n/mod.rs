@@ -1,29 +1,40 @@
 use serde::Deserialize;
 use std::sync::RwLock;
 
-#[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone, Default)]
 pub struct Translation {
-
     pub app_title: String,
-    pub app_subtitle: String,
-    pub connected: String,
-    pub disconnected: String,
-    pub display_title: String,
-    pub display_active_metric: String,
+    pub app_badge: String,
+    pub device_name: String,
+    pub device_desc_connected: String,
+    pub device_desc_searching: String,
+    pub status_connected: String,
+    pub status_searching: String,
+    pub display_card_title: String,
     pub metric_temperature: String,
     pub metric_frequency: String,
     pub metric_load: String,
-    pub chart_cpu_load: String,
-    pub chart_cpu_freq: String,
-    pub chart_realtime: String,
+    pub metric_carousel: String,
+    pub chip_temp: String,
+    pub chip_freq: String,
+    pub chip_load: String,
     pub btn_settings: String,
-    pub btn_minimize: String,
-    pub status_broadcasting: String,
-    pub status_idle: String,
-    pub unit_celsius: String,
-    pub unit_mhz: String,
-    pub unit_percent: String,
+    pub settings_title: String,
+    pub btn_back: String,
+    pub setting_display_mode: String,
+    pub mode_temp: String,
+    pub mode_freq: String,
+    pub mode_load: String,
+    pub mode_carousel: String,
+    pub setting_freq_format: String,
+    pub freq_ghz: String,
+    pub freq_mhz: String,
+    #[allow(dead_code)]
+    pub setting_interval: String,
+    pub setting_language: String,
+    pub btn_save_return: String,
+    pub tray_show: String,
+    pub tray_exit: String,
 }
 
 static CURRENT_TRANSLATION: RwLock<Option<Translation>> = RwLock::new(None);
@@ -38,15 +49,12 @@ impl I18n {
         Self::load_current(&l);
     }
 
-    #[allow(dead_code)]
     pub fn set_language(lang: &str) {
-
         let mut l = CURRENT_LANG.write().unwrap();
         *l = lang.to_lowercase();
         Self::load_current(&l);
     }
 
-    #[allow(dead_code)]
     pub fn get() -> Translation {
         if let Ok(guard) = CURRENT_TRANSLATION.read() {
             if let Some(ref t) = *guard {

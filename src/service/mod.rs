@@ -23,7 +23,7 @@ impl MonitorState {
         Self {
             metrics: Arc::new(Mutex::new(CpuMetrics::default())),
             is_connected: Arc::new(AtomicBool::new(false)),
-            broadcast_label: Arc::new(Mutex::new("Температура CPU".to_string())),
+            broadcast_label: Arc::new(Mutex::new(crate::i18n::I18n::get().metric_temperature)),
             broadcast_value: Arc::new(Mutex::new("—".to_string())),
             temp_history: Arc::new(Mutex::new(vec![0.0; 16])),
             load_history: Arc::new(Mutex::new(vec![0.0; 16])),
@@ -139,7 +139,7 @@ impl MonitorService {
                                 state.is_connected.store(false, Ordering::SeqCst);
                             }
                             if let Ok(mut lbl) = state.broadcast_label.lock() {
-                                *lbl = "Частота CPU".to_string();
+                                *lbl = crate::i18n::I18n::get().metric_frequency;
                             }
                             if let Ok(mut val) = state.broadcast_value.lock() {
                                 *val = if freq_in_ghz {
@@ -157,7 +157,7 @@ impl MonitorService {
                                 state.is_connected.store(false, Ordering::SeqCst);
                             }
                             if let Ok(mut lbl) = state.broadcast_label.lock() {
-                                *lbl = "Загрузка CPU".to_string();
+                                *lbl = crate::i18n::I18n::get().metric_load;
                             }
                             if let Ok(mut val) = state.broadcast_value.lock() {
                                 *val = format!("{}%", usage_val);
@@ -170,7 +170,7 @@ impl MonitorService {
                             let temp_val = temp_f.round() as u16;
                             let _ = device.send_temperature(temp_val);
                             if let Ok(mut lbl) = state.broadcast_label.lock() {
-                                *lbl = "Температура CPU".to_string();
+                                *lbl = crate::i18n::I18n::get().metric_carousel;
                             }
                             if let Ok(mut val) = state.broadcast_value.lock() {
                                 *val = format!("{}°C", temp_val);
@@ -201,7 +201,7 @@ impl MonitorService {
                                 state.is_connected.store(false, Ordering::SeqCst);
                             }
                             if let Ok(mut lbl) = state.broadcast_label.lock() {
-                                *lbl = "Температура CPU".to_string();
+                                *lbl = crate::i18n::I18n::get().metric_temperature;
                             }
                             if let Ok(mut val) = state.broadcast_value.lock() {
                                 *val = format!("{}°C", temp_val);
