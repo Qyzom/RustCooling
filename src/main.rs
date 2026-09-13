@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 mod config;
 mod hid;
 mod i18n;
@@ -147,48 +149,51 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Step 2: MainWindow created successfully.");
     let state = monitor.get_state();
 
-    // Apply translations to UI
+    // Set initial settings state from config
     {
-        info!("Step 3: Setting translations...");
-        let t = I18n::get();
-        main_window.set_str_app_title(t.app_title.into());
-        main_window.set_str_app_subtitle(t.app_subtitle.into());
-        main_window.set_str_connected(t.connected.into());
-        main_window.set_str_disconnected(t.disconnected.into());
-        main_window.set_str_display_title(t.display_title.into());
-        main_window.set_str_display_desc(t.display_active_metric.into());
-        main_window.set_str_chart_load(t.chart_cpu_load.into());
-        main_window.set_str_chart_freq(t.chart_cpu_freq.into());
-        main_window.set_str_btn_settings(t.btn_settings.into());
-        main_window.set_str_btn_minimize(t.btn_minimize.into());
-        info!("Step 4: Translations applied.");
+        let cfg = config_ref.lock().unwrap();
+        main_window.set_setting_display_mode(cfg.display_mode.as_str().into());
+        main_window.set_setting_freq_ghz(cfg.freq_in_ghz);
+        main_window.set_setting_interval_ms(cfg.update_interval_ms as i32);
+        main_window.set_setting_language(cfg.language.as_str().into());
     }
 
     // Callbacks
-    main_window.on_open_settings(|| {
-        info!("Settings clicked (screen foundation ready)");
+    let config_for_save = Arc::clone(&config_ref);
+    main_window.on_save_settings(move |mode, freq_ghz, interval, lang| {
+        if let Ok(mut cfg) = config_for_save.lock() {
+            cfg.display_mode = mode.to_string();
+            cfg.freq_in_ghz = freq_ghz;
+            cfg.update_interval_ms = (interval as u64).max(300);
+            cfg.language = lang.to_string();
+            let _ = cfg.save();
+            info!("Settings applied: mode={}, freq_ghz={}, interval={}ms, lang={}", mode, freq_ghz, interval, lang);
+        }
     });
 
     let is_window_visible = Arc::new(AtomicBool::new(!args.minimized));
 
-    // Hide / Minimize to tray
-    let handle_for_hide = main_window.as_weak();
-    let vis_for_hide = Arc::clone(&is_window_visible);
-    let hide_action = move || {
-        if let Some(w) = handle_for_hide.upgrade() {
-            let _ = w.hide();
-            vis_for_hide.store(false, Ordering::SeqCst);
+    // Minimize window callback
+    let win_for_min = main_window.as_weak();
+    main_window.on_minimize_window(move || {
+        info!("Minimize requested");
+        if let Some(_w) = win_for_min.upgrade() {
+            #[cfg(windows)]
+            unsafe {
+                use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, ShowWindow, SW_MINIMIZE};
+                let hwnd = GetForegroundWindow();
+                if !hwnd.is_null() {
+                    ShowWindow(hwnd, SW_MINIMIZE);
+                }
+            }
             trim_memory();
         }
-    };
-    let hide_action_clone = hide_action.clone();
-    main_window.on_hide_window(hide_action);
-    main_window.on_minimize_window(hide_action_clone);
+    });
 
     // Close window / Quit app
     main_window.on_close_window(|| {
-        info!("Close requested. Exiting application...");
-        let _ = slint::quit_event_loop();
+        info!("Close requested. Exiting application gracefully...");
+        std::process::exit(0);
     });
 
     // Native frameless window dragging on Windows
@@ -221,6 +226,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         move || {
             if first_tick_clone.swap(false, Ordering::SeqCst) {
                 info!("=== FIRST UI TICK: Slint event loop is running smoothly! ===");
+                trim_memory();
             }
 
             // Poll tray events
@@ -287,6 +293,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     // Update charts
+                    if let Ok(hist) = state.temp_history.lock() {
+                        let model: Rc<VecModel<f32>> = Rc::new(VecModel::from(hist.clone()));
+                        w.set_temp_history(ModelRc::from(model));
+                    }
                     if let Ok(hist) = state.load_history.lock() {
                         let model: Rc<VecModel<f32>> = Rc::new(VecModel::from(hist.clone()));
                         w.set_load_history(ModelRc::from(model));

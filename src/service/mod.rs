@@ -13,6 +13,7 @@ pub struct MonitorState {
     pub is_connected: Arc<AtomicBool>,
     pub broadcast_label: Arc<Mutex<String>>,
     pub broadcast_value: Arc<Mutex<String>>,
+    pub temp_history: Arc<Mutex<Vec<f32>>>,
     pub load_history: Arc<Mutex<Vec<f32>>>,
     pub freq_history: Arc<Mutex<Vec<f32>>>,
 }
@@ -22,8 +23,9 @@ impl MonitorState {
         Self {
             metrics: Arc::new(Mutex::new(CpuMetrics::default())),
             is_connected: Arc::new(AtomicBool::new(false)),
-            broadcast_label: Arc::new(Mutex::new("CPU Temperature".to_string())),
+            broadcast_label: Arc::new(Mutex::new("Температура CPU".to_string())),
             broadcast_value: Arc::new(Mutex::new("—".to_string())),
+            temp_history: Arc::new(Mutex::new(vec![0.0; 16])),
             load_history: Arc::new(Mutex::new(vec![0.0; 16])),
             freq_history: Arc::new(Mutex::new(vec![0.0; 16])),
         }
@@ -94,6 +96,14 @@ impl MonitorService {
                 }
 
                 // Update history buffers
+                if let Some(t) = metrics.temperature {
+                    if let Ok(mut hist) = state.temp_history.lock() {
+                        if hist.len() >= 16 {
+                            hist.remove(0);
+                        }
+                        hist.push(t);
+                    }
+                }
                 if let Some(l) = metrics.load_percent {
                     if let Ok(mut hist) = state.load_history.lock() {
                         if hist.len() >= 16 {
@@ -111,48 +121,97 @@ impl MonitorService {
                     }
                 }
 
-                // Step 1: Send Temperature (at T+0ms)
-                if let Some(temp_f) = metrics.temperature {
-                    let temp_val = temp_f.round() as u16;
-                    if !device.send_temperature(temp_val) {
-                        state.is_connected.store(false, Ordering::SeqCst);
-                    }
-                    if let Ok(mut lbl) = state.broadcast_label.lock() {
-                        *lbl = "CPU Temperature".to_string();
-                    }
-                    if let Ok(mut val) = state.broadcast_value.lock() {
-                        *val = format!("{}°C", temp_val);
-                    }
-                }
+                // Read current display configuration
+                let (display_mode, freq_in_ghz, interval_ms) = {
+                    let cfg = config.lock().unwrap();
+                    (cfg.display_mode.clone(), cfg.freq_in_ghz, cfg.update_interval_ms.max(300))
+                };
 
-                // Wait 100ms before sending frequency (staggering)
-                thread::sleep(Duration::from_millis(100));
-
-                // Step 2: Send Frequency (at T+100ms)
-                if let Some(freq_f) = metrics.frequency_mhz {
-                    let freq_val = freq_f.round() as u16;
-                    if !device.send_frequency(freq_val) {
-                        state.is_connected.store(false, Ordering::SeqCst);
+                match display_mode.as_str() {
+                    "freq" => {
+                        if let Some(freq_f) = metrics.frequency_mhz {
+                            let send_val = if freq_in_ghz {
+                                ((freq_f / 100.0).round() as u16).min(99)
+                            } else {
+                                freq_f.round() as u16
+                            };
+                            if !device.send_frequency(send_val) {
+                                state.is_connected.store(false, Ordering::SeqCst);
+                            }
+                            if let Ok(mut lbl) = state.broadcast_label.lock() {
+                                *lbl = "Частота CPU".to_string();
+                            }
+                            if let Ok(mut val) = state.broadcast_value.lock() {
+                                *val = if freq_in_ghz {
+                                    format!("{:.1} GHz", freq_f / 1000.0)
+                                } else {
+                                    format!("{} MHz", freq_f.round())
+                                };
+                            }
+                        }
                     }
-                }
+                    "load" => {
+                        if let Some(usage_f) = metrics.load_percent {
+                            let usage_val = usage_f.round() as u16;
+                            if !device.send_usage(usage_val) {
+                                state.is_connected.store(false, Ordering::SeqCst);
+                            }
+                            if let Ok(mut lbl) = state.broadcast_label.lock() {
+                                *lbl = "Загрузка CPU".to_string();
+                            }
+                            if let Ok(mut val) = state.broadcast_value.lock() {
+                                *val = format!("{}%", usage_val);
+                            }
+                        }
+                    }
+                    "carousel" => {
+                        // Staggered sending of all 3 frames
+                        if let Some(temp_f) = metrics.temperature {
+                            let temp_val = temp_f.round() as u16;
+                            let _ = device.send_temperature(temp_val);
+                            if let Ok(mut lbl) = state.broadcast_label.lock() {
+                                *lbl = "Температура CPU".to_string();
+                            }
+                            if let Ok(mut val) = state.broadcast_value.lock() {
+                                *val = format!("{}°C", temp_val);
+                            }
+                        }
+                        thread::sleep(Duration::from_millis(100));
 
-                // Wait 100ms before sending usage (staggering)
-                thread::sleep(Duration::from_millis(100));
+                        if let Some(freq_f) = metrics.frequency_mhz {
+                            let send_val = if freq_in_ghz {
+                                ((freq_f / 100.0).round() as u16).min(99)
+                            } else {
+                                freq_f.round() as u16
+                            };
+                            let _ = device.send_frequency(send_val);
+                        }
+                        thread::sleep(Duration::from_millis(100));
 
-                // Step 3: Send CPU Usage (at T+200ms)
-                if let Some(usage_f) = metrics.load_percent {
-                    let usage_val = usage_f.round() as u16;
-                    if !device.send_usage(usage_val) {
-                        state.is_connected.store(false, Ordering::SeqCst);
+                        if let Some(usage_f) = metrics.load_percent {
+                            let usage_val = usage_f.round() as u16;
+                            let _ = device.send_usage(usage_val);
+                        }
+                    }
+                    _ => {
+                        // Default: "temp"
+                        if let Some(temp_f) = metrics.temperature {
+                            let temp_val = temp_f.round() as u16;
+                            if !device.send_temperature(temp_val) {
+                                state.is_connected.store(false, Ordering::SeqCst);
+                            }
+                            if let Ok(mut lbl) = state.broadcast_label.lock() {
+                                *lbl = "Температура CPU".to_string();
+                            }
+                            if let Ok(mut val) = state.broadcast_value.lock() {
+                                *val = format!("{}°C", temp_val);
+                            }
+                        }
                     }
                 }
 
                 // Sleep the remainder of the configured update interval
-                let interval_ms = {
-                    let cfg = config.lock().unwrap();
-                    cfg.update_interval_ms.max(300)
-                };
-                let elapsed_ms = 200;
+                let elapsed_ms = if display_mode == "carousel" { 200 } else { 0 };
                 let remaining_ms = interval_ms.saturating_sub(elapsed_ms);
                 thread::sleep(Duration::from_millis(remaining_ms));
             }

@@ -46,6 +46,7 @@ impl I18n {
         Self::load_current(&l);
     }
 
+    #[allow(dead_code)]
     pub fn get() -> Translation {
         if let Ok(guard) = CURRENT_TRANSLATION.read() {
             if let Some(ref t) = *guard {

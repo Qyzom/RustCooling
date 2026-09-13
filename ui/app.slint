@@ -5,60 +5,55 @@ export component MainWindow inherits Window {
     no-frame: true;
     width: 400px;
     height: 600px;
-    background: #101218;
+    background: transparent;
     default-font-family: "Unbounded";
 
-    // Properties bound to Rust state
+    // Properties bound to Rust telemetry
     in property <int> cpu_temp: 0;
     in property <int> cpu_load: 0;
     in property <int> cpu_freq: 0;
     in property <bool> is_connected: false;
-    in property <string> broadcast_label: "CPU Temperature";
+    in property <string> broadcast_label: "Температура CPU";
     in property <string> broadcast_value: "—";
     
-    // Graph history arrays
-    in property <[float]> load_history: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    // Graph history arrays (16 points each)
+    in property <[float]> temp_history: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     in property <[float]> freq_history: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    in property <[float]> load_history: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
 
-    // Localized Strings
-    in property <string> str_app_title: "RustCooling";
-    in property <string> str_app_subtitle: "ID-COOLING FX LCD Controller";
-    in property <string> str_connected: "Connected";
-    in property <string> str_disconnected: "Disconnected";
-    in property <string> str_display_title: "AIO LCD BROADCAST";
-    in property <string> str_display_desc: "Transmitting live metrics to pump screen";
-    in property <string> str_chart_load: "CPU Utilization";
-    in property <string> str_chart_freq: "Core Clock Frequency";
-    in property <string> str_btn_settings: "Settings";
-    in property <string> str_btn_minimize: "Hide to Tray";
+    // Settings View State
+    in-out property <bool> show_settings: false;
+    in-out property <string> setting_display_mode: "temp"; // "temp", "freq", "load", "carousel"
+    in-out property <bool> setting_freq_ghz: true;
+    in-out property <int> setting_interval_ms: 1000;
+    in-out property <string> setting_language: "ru";
 
     // Callbacks to Rust
-    callback open_settings();
-    callback hide_window();
-    callback drag_window();
+    callback save_settings(string, bool, int, string);
     callback minimize_window();
     callback close_window();
+    callback drag_window();
 
     pure function temp_accent(temp: int) -> color {
         if temp < 50 {
-            return #7bd0c1; // MD3 Mint Teal
+            return #7bd0c1; // Mint Teal
         } else if temp < 68 {
-            return #fde293; // MD3 Soft Amber
+            return #fde293; // Soft Amber
         } else if temp < 80 {
-            return #ffb77c; // MD3 Coral Peach
+            return #ffb77c; // Coral Peach
         } else {
-            return #ffb4ab; // MD3 Crimson Alert
+            return #ffb4ab; // Crimson Alert
         }
     }
 
-    // Outer root container with border
+    // Outer container with rounded corners and subtle border
     Rectangle {
         width: 100%;
         height: 100%;
         background: #101218;
-        border-radius: 0px;
+        border-radius: 16px;
         border-width: 1px;
-        border-color: #272a36;
+        border-color: #272a38;
         clip: true;
 
         VerticalLayout {
@@ -67,12 +62,12 @@ export component MainWindow inherits Window {
 
             // ==================== CUSTOM TITLE BAR ====================
             Rectangle {
-                height: 42px;
-                background: #14161f;
+                height: 44px;
+                background: #141620;
 
-                // Draggable Area for Titlebar
+                // Drag Area for frameless window
                 TouchArea {
-                    width: parent.width - 80px;
+                    width: parent.width - 50px;
                     height: parent.height;
                     x: 0px;
                     y: 0px;
@@ -85,146 +80,112 @@ export component MainWindow inherits Window {
                 }
 
                 HorizontalLayout {
-                    padding-left: 14px;
-                    padding-right: 8px;
+                    padding-left: 16px;
+                    padding-right: 12px;
                     alignment: space-between;
 
-                    // App Brand & Logo
+                    // Brand Title
                     HorizontalLayout {
                         spacing: 8px;
                         alignment: center;
 
-                        Rectangle {
-                            width: 22px;
-                            height: 22px;
-                            border-radius: 6px;
-                            background: #252837;
-
-                            Text {
-                                text: "❄";
-                                font-size: 11px;
-                                color: #7bd0c1;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-                        }
-
                         Text {
-                            text: root.str_app_title;
-                            font-size: 12px;
-                            font-weight: 700;
+                            text: "RustCooling";
+                            font-size: 13px;
+                            font-weight: 800;
                             color: #e2e4ed;
                             vertical-alignment: center;
                         }
 
-                        Text {
-                            text: "FX";
-                            font-size: 9px;
-                            font-weight: 700;
-                            color: #7bd0c1;
-                            vertical-alignment: center;
+                        Rectangle {
+                            height: 18px;
+                            border-radius: 9px;
+                            background: #252837;
+
+                            HorizontalLayout {
+                                padding-left: 6px;
+                                padding-right: 6px;
+                                alignment: center;
+
+                                Text {
+                                    text: "FX";
+                                    font-size: 9px;
+                                    font-weight: 800;
+                                    color: #7bd0c1;
+                                    vertical-alignment: center;
+                                }
+                            }
                         }
                     }
 
-                    // Window Controls (Minimize & Close)
-                    HorizontalLayout {
-                        spacing: 4px;
-                        alignment: center;
+                    // Window Close Button (Vector Cross matching Unbounded)
+                    close_btn := Rectangle {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 8px;
+                        background: close_touch.has-hover ? #ba1a1a : transparent;
 
-                        // Minimize Button
-                        min_btn := Rectangle {
-                            width: 32px;
-                            height: 28px;
-                            border-radius: 6px;
-                            background: min_touch.has-hover ? #252838 : transparent;
-
-                            Text {
-                                text: "—";
-                                font-size: 11px;
-                                font-weight: 700;
-                                color: #c4c6d2;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-
-                            min_touch := TouchArea {
-                                clicked => {
-                                    root.minimize_window();
-                                }
-                            }
+                        Path {
+                            width: 12px;
+                            height: 12px;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                            stroke: close_touch.has-hover ? #ffffff : #c4c6d2;
+                            stroke-width: 1.8px;
+                            commands: "M 1 1 L 11 11 M 11 1 L 1 11";
                         }
 
-                        // Close Button
-                        close_btn := Rectangle {
-                            width: 32px;
-                            height: 28px;
-                            border-radius: 6px;
-                            background: close_touch.has-hover ? #ba1a1a : transparent;
-
-                            Text {
-                                text: "✕";
-                                font-size: 11px;
-                                font-weight: 700;
-                                color: close_touch.has-hover ? #ffffff : #c4c6d2;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-
-                            close_touch := TouchArea {
-                                clicked => {
-                                    root.close_window();
-                                }
+                        close_touch := TouchArea {
+                            clicked => {
+                                root.close_window();
                             }
                         }
                     }
                 }
             }
 
-            // Title Bar Divider
             Rectangle {
                 height: 1px;
-                background: #232530;
+                background: #222432;
             }
 
-            // ==================== MAIN CONTENT BODY ====================
-            VerticalLayout {
+            // ==================== CONTENT (MONITOR VIEW) ====================
+            if !root.show_settings : VerticalLayout {
                 padding-left: 16px;
                 padding-right: 16px;
-                padding-top: 14px;
-                padding-bottom: 14px;
-                spacing: 12px;
+                padding-top: 12px;
+                padding-bottom: 12px;
+                spacing: 10px;
 
-                // 1. Connection Status Bar
+                // 1. Device Hardware Status Bar
                 Rectangle {
-                    height: 38px;
-                    background: #171922;
+                    height: 42px;
+                    background: #171924;
                     border-radius: 12px;
                     border-width: 1px;
-                    border-color: #272a36;
+                    border-color: #272a38;
 
                     HorizontalLayout {
                         padding-left: 12px;
                         padding-right: 12px;
                         alignment: space-between;
 
-                        HorizontalLayout {
-                            spacing: 6px;
+                        VerticalLayout {
                             alignment: center;
+                            spacing: 1px;
 
                             Text {
-                                text: "DEVICE";
-                                font-size: 9px;
+                                text: "ID-COOLING FX Series";
+                                font-size: 10px;
                                 font-weight: 700;
-                                color: #8e919f;
-                                vertical-alignment: center;
+                                color: #d4d6e2;
                             }
 
                             Text {
-                                text: "ID-COOLING AIO LCD";
-                                font-size: 10px;
-                                font-weight: 600;
-                                color: #d4d6e2;
-                                vertical-alignment: center;
+                                text: root.is_connected ? "USB HID (VID 1A86, PID E317)" : "Поиск устройства USB...";
+                                font-size: 8px;
+                                font-weight: 500;
+                                color: #8e919f;
                             }
                         }
 
@@ -248,7 +209,7 @@ export component MainWindow inherits Window {
                                 }
 
                                 Text {
-                                    text: root.is_connected ? root.str_connected : root.str_disconnected;
+                                    text: root.is_connected ? "Подключено" : "Поиск";
                                     font-size: 9px;
                                     font-weight: 700;
                                     color: root.is_connected ? #7bd0c1 : #f28b82;
@@ -259,85 +220,87 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                // 2. Main Hero Broadcast Card
+                // 2. Main Display Output Card
                 Rectangle {
-                    height: 190px;
-                    background: #181a24;
-                    border-radius: 20px;
+                    height: 154px;
+                    background: #171924;
+                    border-radius: 16px;
                     border-width: 1px;
-                    border-color: #2b2e3d;
+                    border-color: #292d3e;
 
                     VerticalLayout {
-                        padding: 14px;
-                        spacing: 8px;
+                        padding: 12px;
+                        spacing: 4px;
                         alignment: space-between;
 
-                        // Card Header
+                        // Header
                         HorizontalLayout {
                             alignment: space-between;
 
                             Text {
-                                text: root.str_display_title;
-                                font-size: 10px;
+                                text: "ВЫВОД НА ДИСПЛЕЙ";
+                                font-size: 9px;
                                 font-weight: 700;
-                                letter-spacing: 1.2px;
-                                color: #a8c7fa;
+                                letter-spacing: 1px;
+                                color: #8c90a2;
                                 vertical-alignment: center;
                             }
 
                             Rectangle {
-                                height: 20px;
-                                border-radius: 10px;
-                                background: root.is_connected ? #172a3d : #2e1a1f;
+                                height: 18px;
+                                border-radius: 9px;
+                                background: #232738;
 
                                 HorizontalLayout {
-                                    padding-left: 8px;
-                                    padding-right: 8px;
+                                    padding-left: 6px;
+                                    padding-right: 6px;
                                     alignment: center;
 
                                     Text {
-                                        text: root.is_connected ? "● BROADCASTING" : "STANDBY";
+                                        text: root.setting_display_mode == "freq" ? "Частота" :
+                                              root.setting_display_mode == "load" ? "Загрузка" :
+                                              root.setting_display_mode == "carousel" ? "Карусель" : "Температура";
                                         font-size: 8px;
                                         font-weight: 700;
-                                        color: root.is_connected ? #a8c7fa : #f28b82;
+                                        color: #a8c7fa;
                                         vertical-alignment: center;
                                     }
                                 }
                             }
                         }
 
-                        // Big Temperature Digits
+                        // Big Display Number
                         VerticalLayout {
                             alignment: center;
-                            spacing: 1px;
+                            spacing: 0px;
 
                             Text {
-                                text: root.cpu_temp > 0 ? "\{root.cpu_temp}°C" : "—";
-                                font-size: 54px;
+                                text: root.broadcast_value;
+                                font-size: 44px;
                                 font-weight: 800;
                                 color: root.temp_accent(root.cpu_temp);
                                 horizontal-alignment: center;
                             }
 
                             Text {
-                                text: root.str_display_desc;
+                                text: root.broadcast_label;
                                 font-size: 10px;
-                                font-weight: 500;
+                                font-weight: 600;
                                 color: #9b9fae;
                                 horizontal-alignment: center;
                             }
                         }
 
-                        // Bottom Metric Chips
+                        // Metrics Summary Chips
                         HorizontalLayout {
                             alignment: center;
-                            spacing: 8px;
+                            spacing: 6px;
 
-                            // Chip 1: Temp
+                            // Temp Chip
                             Rectangle {
                                 background: #222533;
-                                border-radius: 10px;
-                                height: 26px;
+                                border-radius: 8px;
+                                height: 24px;
 
                                 HorizontalLayout {
                                     padding-left: 8px;
@@ -350,23 +313,21 @@ export component MainWindow inherits Window {
                                         font-size: 8px;
                                         font-weight: 700;
                                         color: #8c909e;
-                                        vertical-alignment: center;
                                     }
                                     Text {
-                                        text: root.cpu_temp > 0 ? "\{root.cpu_temp} °C" : "—";
-                                        font-size: 10px;
+                                        text: root.cpu_temp > 0 ? "\{root.cpu_temp}°C" : "—";
+                                        font-size: 9px;
                                         font-weight: 700;
                                         color: root.temp_accent(root.cpu_temp);
-                                        vertical-alignment: center;
                                     }
                                 }
                             }
 
-                            // Chip 2: Clock
+                            // Clock Chip
                             Rectangle {
                                 background: #222533;
-                                border-radius: 10px;
-                                height: 26px;
+                                border-radius: 8px;
+                                height: 24px;
 
                                 HorizontalLayout {
                                     padding-left: 8px;
@@ -375,27 +336,25 @@ export component MainWindow inherits Window {
                                     alignment: center;
 
                                     Text {
-                                        text: "CLOCK";
+                                        text: "FREQ";
                                         font-size: 8px;
                                         font-weight: 700;
                                         color: #8c909e;
-                                        vertical-alignment: center;
                                     }
                                     Text {
-                                        text: root.cpu_freq > 0 ? "\{root.cpu_freq} MHz" : "—";
-                                        font-size: 10px;
+                                        text: root.cpu_freq > 0 ? "\{Math.round(root.cpu_freq / 100) / 10} GHz" : "—";
+                                        font-size: 9px;
                                         font-weight: 700;
                                         color: #d0bcff;
-                                        vertical-alignment: center;
                                     }
                                 }
                             }
 
-                            // Chip 3: Load
+                            // Load Chip
                             Rectangle {
                                 background: #222533;
-                                border-radius: 10px;
-                                height: 26px;
+                                border-radius: 8px;
+                                height: 24px;
 
                                 HorizontalLayout {
                                     padding-left: 8px;
@@ -408,14 +367,12 @@ export component MainWindow inherits Window {
                                         font-size: 8px;
                                         font-weight: 700;
                                         color: #8c909e;
-                                        vertical-alignment: center;
                                     }
                                     Text {
-                                        text: root.cpu_load >= 0 ? "\{root.cpu_load} %" : "—";
-                                        font-size: 10px;
+                                        text: root.cpu_load >= 0 ? "\{root.cpu_load}%" : "—";
+                                        font-size: 9px;
                                         font-weight: 700;
                                         color: #a8c7fa;
-                                        vertical-alignment: center;
                                     }
                                 }
                             }
@@ -423,109 +380,175 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                // 3. Telemetry History Visualizers Card
+                // 3. Telemetry Visualizers (3 Non-Inverted History Charts)
                 Rectangle {
-                    height: 190px;
-                    background: #181a24;
-                    border-radius: 20px;
+                    height: 236px;
+                    background: #171924;
+                    border-radius: 16px;
                     border-width: 1px;
-                    border-color: #2b2e3d;
+                    border-color: #292d3e;
 
                     VerticalLayout {
-                        padding: 14px;
-                        spacing: 12px;
+                        padding: 10px;
+                        spacing: 8px;
 
-                        // Graph 1: CPU Load
+                        // Graph 1: CPU Temperature
                         VerticalLayout {
-                            spacing: 6px;
+                            spacing: 3px;
 
                             HorizontalLayout {
                                 alignment: space-between;
 
                                 Text {
-                                    text: root.str_chart_load;
-                                    font-size: 10px;
+                                    text: "Температура CPU";
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    color: #c4c6d2;
+                                }
+
+                                Text {
+                                    text: "\{root.cpu_temp} °C";
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    color: root.temp_accent(root.cpu_temp);
+                                }
+                            }
+
+                            Rectangle {
+                                height: 42px;
+                                background: #11121a;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: #222430;
+                                clip: true;
+
+                                HorizontalLayout {
+                                    alignment: space-around;
+                                    padding-left: 4px;
+                                    padding-right: 4px;
+                                    padding-bottom: 2px;
+                                    padding-top: 2px;
+
+                                    for val[i] in root.temp_history : Rectangle {
+                                        width: 14px;
+                                        height: 100%;
+                                        background: transparent;
+
+                                        Rectangle {
+                                            width: 100%;
+                                            height: Math.max(3px, parent.height * (Math.min(100.0, val) / 100.0) - 2px);
+                                            y: parent.height - self.height;
+                                            background: root.temp_accent(Math.round(val));
+                                            border-radius: 2px;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Graph 2: CPU Frequency
+                        VerticalLayout {
+                            spacing: 3px;
+
+                            HorizontalLayout {
+                                alignment: space-between;
+
+                                Text {
+                                    text: "Частота ядер";
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    color: #c4c6d2;
+                                }
+
+                                Text {
+                                    text: "\{Math.round(root.cpu_freq / 100) / 10} GHz";
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    color: #d0bcff;
+                                }
+                            }
+
+                            Rectangle {
+                                height: 42px;
+                                background: #11121a;
+                                border-radius: 8px;
+                                border-width: 1px;
+                                border-color: #222430;
+                                clip: true;
+
+                                HorizontalLayout {
+                                    alignment: space-around;
+                                    padding-left: 4px;
+                                    padding-right: 4px;
+                                    padding-bottom: 2px;
+                                    padding-top: 2px;
+
+                                    for val[i] in root.freq_history : Rectangle {
+                                        width: 14px;
+                                        height: 100%;
+                                        background: transparent;
+
+                                        Rectangle {
+                                            width: 100%;
+                                            height: Math.max(3px, parent.height * (Math.min(5500.0, val) / 5500.0) - 2px);
+                                            y: parent.height - self.height;
+                                            background: #d0bcff;
+                                            border-radius: 2px;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Graph 3: CPU Load
+                        VerticalLayout {
+                            spacing: 3px;
+
+                            HorizontalLayout {
+                                alignment: space-between;
+
+                                Text {
+                                    text: "Загрузка CPU";
+                                    font-size: 9px;
                                     font-weight: 700;
                                     color: #c4c6d2;
                                 }
 
                                 Text {
                                     text: "\{root.cpu_load} %";
-                                    font-size: 10px;
+                                    font-size: 9px;
                                     font-weight: 700;
                                     color: #a8c7fa;
                                 }
                             }
 
-                            // Clean bar visualizer
                             Rectangle {
-                                height: 48px;
-                                background: #12131b;
-                                border-radius: 10px;
+                                height: 42px;
+                                background: #11121a;
+                                border-radius: 8px;
                                 border-width: 1px;
                                 border-color: #222430;
+                                clip: true;
 
                                 HorizontalLayout {
                                     alignment: space-around;
-                                    padding-left: 6px;
-                                    padding-right: 6px;
-                                    padding-top: 4px;
-                                    padding-bottom: 4px;
+                                    padding-left: 4px;
+                                    padding-right: 4px;
+                                    padding-bottom: 2px;
+                                    padding-top: 2px;
 
                                     for val[i] in root.load_history : Rectangle {
-                                        width: 12px;
-                                        height: Math.max(4px, parent.height * (val / 100.0) - 8px);
-                                        y: parent.height - self.height - 4px;
-                                        background: #a8c7fa;
-                                        border-radius: 3px;
-                                    }
-                                }
-                            }
-                        }
+                                        width: 14px;
+                                        height: 100%;
+                                        background: transparent;
 
-                        // Graph 2: Core Frequency
-                        VerticalLayout {
-                            spacing: 6px;
-
-                            HorizontalLayout {
-                                alignment: space-between;
-
-                                Text {
-                                    text: root.str_chart_freq;
-                                    font-size: 10px;
-                                    font-weight: 700;
-                                    color: #c4c6d2;
-                                }
-
-                                Text {
-                                    text: "\{root.cpu_freq} MHz";
-                                    font-size: 10px;
-                                    font-weight: 700;
-                                    color: #d0bcff;
-                                }
-                            }
-
-                            // Clean bar visualizer
-                            Rectangle {
-                                height: 48px;
-                                background: #12131b;
-                                border-radius: 10px;
-                                border-width: 1px;
-                                border-color: #222430;
-
-                                HorizontalLayout {
-                                    alignment: space-around;
-                                    padding-left: 6px;
-                                    padding-right: 6px;
-                                    padding-top: 4px;
-                                    padding-bottom: 4px;
-
-                                    for val[i] in root.freq_history : Rectangle {
-                                        width: 12px;
-                                        height: Math.max(4px, parent.height * (Math.min(5200.0, val) / 5200.0) - 8px);
-                                        y: parent.height - self.height - 4px;
-                                        background: #d0bcff;
-                                        border-radius: 3px;
+                                        Rectangle {
+                                            width: 100%;
+                                            height: Math.max(3px, parent.height * (Math.min(100.0, val) / 100.0) - 2px);
+                                            y: parent.height - self.height;
+                                            background: #a8c7fa;
+                                            border-radius: 2px;
+                                        }
                                     }
                                 }
                             }
@@ -533,34 +556,529 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                // 4. Bottom Actions
+                // 4. Bottom Button Row (3 Buttons)
                 HorizontalLayout {
-                    alignment: center;
-                    height: 38px;
+                    alignment: space-between;
+                    spacing: 8px;
+                    height: 36px;
 
-                    hide_btn := Rectangle {
-                        width: 200px;
+                    // Button 1: Settings
+                    Rectangle {
+                        horizontal-stretch: 1;
                         height: 36px;
-                        border-radius: 18px;
-                        background: hide_touch.has-hover ? #323545 : #252837;
+                        border-radius: 12px;
+                        background: set_t.has-hover ? #2e3346 : #1e2230;
+                        border-width: 1px;
+                        border-color: #2e3346;
+
+                        Text {
+                            text: "Настройки";
+                            font-size: 10px;
+                            font-weight: 700;
+                            color: #d4d6e2;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        set_t := TouchArea {
+                            clicked => {
+                                root.show_settings = true;
+                            }
+                        }
+                    }
+
+                    // Button 2: Minimize
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 36px;
+                        border-radius: 12px;
+                        background: min_t.has-hover ? #2e3346 : #1e2230;
+                        border-width: 1px;
+                        border-color: #2e3346;
+
+                        Text {
+                            text: "Свернуть";
+                            font-size: 10px;
+                            font-weight: 700;
+                            color: #d4d6e2;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        min_t := TouchArea {
+                            clicked => {
+                                root.minimize_window();
+                            }
+                        }
+                    }
+
+                    // Button 3: Close
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        height: 36px;
+                        border-radius: 12px;
+                        background: cls_t.has-hover ? #7a1e1b : #2d191d;
+                        border-width: 1px;
+                        border-color: cls_t.has-hover ? #b3261e : #3d2026;
+
+                        Text {
+                            text: "Закрыть";
+                            font-size: 10px;
+                            font-weight: 700;
+                            color: #ffb4ab;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        cls_t := TouchArea {
+                            clicked => {
+                                root.close_window();
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==================== SETTINGS VIEW ====================
+            if root.show_settings : VerticalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                padding-top: 14px;
+                padding-bottom: 14px;
+                spacing: 12px;
+
+                // Settings Header
+                HorizontalLayout {
+                    alignment: space-between;
+
+                    Text {
+                        text: "НАСТРОЙКИ";
+                        font-size: 13px;
+                        font-weight: 800;
+                        color: #e2e4ed;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        height: 28px;
+                        border-radius: 8px;
+                        background: back_t.has-hover ? #2e3346 : #202433;
 
                         HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
                             alignment: center;
-                            spacing: 6px;
 
                             Text {
-                                text: root.str_btn_minimize;
-                                font-size: 11px;
+                                text: "← Назад";
+                                font-size: 10px;
                                 font-weight: 700;
-                                color: #e2e4ed;
+                                color: #7bd0c1;
                                 vertical-alignment: center;
                             }
                         }
 
-                        hide_touch := TouchArea {
+                        back_t := TouchArea {
                             clicked => {
-                                root.hide_window();
+                                root.save_settings(
+                                    root.setting_display_mode,
+                                    root.setting_freq_ghz,
+                                    root.setting_interval_ms,
+                                    root.setting_language
+                                );
+                                root.show_settings = false;
                             }
+                        }
+                    }
+                }
+
+                // Option 1: Display Metric
+                Rectangle {
+                    background: #171924;
+                    border-radius: 14px;
+                    border-width: 1px;
+                    border-color: #272a38;
+
+                    VerticalLayout {
+                        spacing: 8px;
+
+                        Text {
+                            text: "Вывод на дисплей помпы";
+                            font-size: 11px;
+                            font-weight: 700;
+                            color: #d4d6e2;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 6px;
+
+                            // Temp Mode
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 32px;
+                                border-radius: 8px;
+                                background: root.setting_display_mode == "temp" ? #1b3d35 : #202433;
+                                border-width: 1px;
+                                border-color: root.setting_display_mode == "temp" ? #7bd0c1 : #2a2e40;
+
+                                Text {
+                                    text: "Темп.";
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: root.setting_display_mode == "temp" ? #7bd0c1 : #c4c6d2;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                TouchArea {
+                                    clicked => { root.setting_display_mode = "temp"; }
+                                }
+                            }
+
+                            // Freq Mode
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 32px;
+                                border-radius: 8px;
+                                background: root.setting_display_mode == "freq" ? #302648 : #202433;
+                                border-width: 1px;
+                                border-color: root.setting_display_mode == "freq" ? #d0bcff : #2a2e40;
+
+                                Text {
+                                    text: "Частота";
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: root.setting_display_mode == "freq" ? #d0bcff : #c4c6d2;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                TouchArea {
+                                    clicked => { root.setting_display_mode = "freq"; }
+                                }
+                            }
+
+                            // Load Mode
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 32px;
+                                border-radius: 8px;
+                                background: root.setting_display_mode == "load" ? #192d47 : #202433;
+                                border-width: 1px;
+                                border-color: root.setting_display_mode == "load" ? #a8c7fa : #2a2e40;
+
+                                Text {
+                                    text: "Загрузка";
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: root.setting_display_mode == "load" ? #a8c7fa : #c4c6d2;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                TouchArea {
+                                    clicked => { root.setting_display_mode = "load"; }
+                                }
+                            }
+
+                            // Carousel Mode
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 32px;
+                                border-radius: 8px;
+                                background: root.setting_display_mode == "carousel" ? #382c18 : #202433;
+                                border-width: 1px;
+                                border-color: root.setting_display_mode == "carousel" ? #fde293 : #2a2e40;
+
+                                Text {
+                                    text: "Карусель";
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: root.setting_display_mode == "carousel" ? #fde293 : #c4c6d2;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                TouchArea {
+                                    clicked => { root.setting_display_mode = "carousel"; }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Option 2: Frequency Output Format (4.6 GHz -> sends 46)
+                Rectangle {
+                    background: #171924;
+                    border-radius: 14px;
+                    border-width: 1px;
+                    border-color: #272a38;
+
+                    VerticalLayout {
+                        spacing: 8px;
+
+                        Text {
+                            text: "Формат вывода частоты";
+                            font-size: 11px;
+                            font-weight: 700;
+                            color: #d4d6e2;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 32px;
+                                border-radius: 8px;
+                                background: root.setting_freq_ghz ? #302648 : #202433;
+                                border-width: 1px;
+                                border-color: root.setting_freq_ghz ? #d0bcff : #2a2e40;
+
+                                Text {
+                                    text: "В ГГц (46 = 4.6 GHz)";
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    color: root.setting_freq_ghz ? #d0bcff : #c4c6d2;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                TouchArea {
+                                    clicked => { root.setting_freq_ghz = true; }
+                                }
+                            }
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 32px;
+                                border-radius: 8px;
+                                background: !root.setting_freq_ghz ? #302648 : #202433;
+                                border-width: 1px;
+                                border-color: !root.setting_freq_ghz ? #d0bcff : #2a2e40;
+
+                                Text {
+                                    text: "В МГц (4600 MHz)";
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    color: !root.setting_freq_ghz ? #d0bcff : #c4c6d2;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                TouchArea {
+                                    clicked => { root.setting_freq_ghz = false; }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Option 3: Update Interval
+                Rectangle {
+                    background: #171924;
+                    border-radius: 14px;
+                    border-width: 1px;
+                    border-color: #272a38;
+
+                    VerticalLayout {
+                        spacing: 8px;
+
+                        Text {
+                            text: "Интервал опроса телеметрии";
+                            font-size: 11px;
+                            font-weight: 700;
+                            color: #d4d6e2;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 32px;
+                                border-radius: 8px;
+                                background: root.setting_interval_ms == 500 ? #1b3d35 : #202433;
+                                border-width: 1px;
+                                border-color: root.setting_interval_ms == 500 ? #7bd0c1 : #2a2e40;
+
+                                Text {
+                                    text: "500 мс";
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: root.setting_interval_ms == 500 ? #7bd0c1 : #c4c6d2;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                TouchArea {
+                                    clicked => { root.setting_interval_ms = 500; }
+                                }
+                            }
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 32px;
+                                border-radius: 8px;
+                                background: root.setting_interval_ms == 1000 ? #1b3d35 : #202433;
+                                border-width: 1px;
+                                border-color: root.setting_interval_ms == 1000 ? #7bd0c1 : #2a2e40;
+
+                                Text {
+                                    text: "1000 мс";
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: root.setting_interval_ms == 1000 ? #7bd0c1 : #c4c6d2;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                TouchArea {
+                                    clicked => { root.setting_interval_ms = 1000; }
+                                }
+                            }
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 32px;
+                                border-radius: 8px;
+                                background: root.setting_interval_ms == 2000 ? #1b3d35 : #202433;
+                                border-width: 1px;
+                                border-color: root.setting_interval_ms == 2000 ? #7bd0c1 : #2a2e40;
+
+                                Text {
+                                    text: "2000 мс";
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: root.setting_interval_ms == 2000 ? #7bd0c1 : #c4c6d2;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                TouchArea {
+                                    clicked => { root.setting_interval_ms = 2000; }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Option 4: Language Selection
+                Rectangle {
+                    background: #171924;
+                    border-radius: 14px;
+                    border-width: 1px;
+                    border-color: #272a38;
+
+                    VerticalLayout {
+                        spacing: 8px;
+
+                        Text {
+                            text: "Язык интерфейса";
+                            font-size: 11px;
+                            font-weight: 700;
+                            color: #d4d6e2;
+                        }
+
+                        HorizontalLayout {
+                            spacing: 8px;
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 32px;
+                                border-radius: 8px;
+                                background: root.setting_language == "ru" ? #1b3d35 : #202433;
+                                border-width: 1px;
+                                border-color: root.setting_language == "ru" ? #7bd0c1 : #2a2e40;
+
+                                Text {
+                                    text: "Русский";
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: root.setting_language == "ru" ? #7bd0c1 : #c4c6d2;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                TouchArea {
+                                    clicked => { root.setting_language = "ru"; }
+                                }
+                            }
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 32px;
+                                border-radius: 8px;
+                                background: root.setting_language == "en" ? #1b3d35 : #202433;
+                                border-width: 1px;
+                                border-color: root.setting_language == "en" ? #7bd0c1 : #2a2e40;
+
+                                Text {
+                                    text: "English";
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: root.setting_language == "en" ? #7bd0c1 : #c4c6d2;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                TouchArea {
+                                    clicked => { root.setting_language = "en"; }
+                                }
+                            }
+
+                            Rectangle {
+                                horizontal-stretch: 1;
+                                height: 32px;
+                                border-radius: 8px;
+                                background: root.setting_language == "zh" ? #1b3d35 : #202433;
+                                border-width: 1px;
+                                border-color: root.setting_language == "zh" ? #7bd0c1 : #2a2e40;
+
+                                Text {
+                                    text: "中文";
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    color: root.setting_language == "zh" ? #7bd0c1 : #c4c6d2;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+
+                                TouchArea {
+                                    clicked => { root.setting_language = "zh"; }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Save & Back Button
+                Rectangle {
+                    height: 38px;
+                    border-radius: 12px;
+                    background: save_t.has-hover ? #7bd0c1 : #5bbfae;
+
+                    HorizontalLayout {
+                        alignment: center;
+
+                        Text {
+                            text: "Сохранить и вернуться";
+                            font-size: 11px;
+                            font-weight: 800;
+                            color: #101218;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    save_t := TouchArea {
+                        clicked => {
+                            root.save_settings(
+                                root.setting_display_mode,
+                                root.setting_freq_ghz,
+                                root.setting_interval_ms,
+                                root.setting_language
+                            );
+                            root.show_settings = false;
                         }
                     }
                 }

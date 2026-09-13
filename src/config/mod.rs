@@ -10,6 +10,18 @@ pub struct AppConfig {
     pub start_minimized: bool,
     pub high_priority: bool,
     pub language: String,
+    #[serde(default = "default_display_mode")]
+    pub display_mode: String, // "temp", "freq", "load", "carousel"
+    #[serde(default = "default_true")]
+    pub freq_in_ghz: bool, // true: 4.6 GHz (sends 46 to LCD), false: 4600 MHz
+}
+
+fn default_display_mode() -> String {
+    "temp".to_string()
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for AppConfig {
@@ -21,6 +33,8 @@ impl Default for AppConfig {
             start_minimized: false,
             high_priority: true,
             language: "ru".to_string(),
+            display_mode: "temp".to_string(),
+            freq_in_ghz: true,
         }
     }
 }
