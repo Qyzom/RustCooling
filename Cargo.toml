@@ -7,8 +7,8 @@ description = "Ultra-lightweight cross-platform LCD display controller for ID-CO
 license = "MIT"
 
 [dependencies]
-# Use lightweight software renderer instead of heavy Skia/OpenGL (~6-10MB RAM instead of ~90MB)
-slint = "1.9"
+slint = { version = "1.9", default-features = false, features = ["std", "backend-winit", "renderer-software", "compat-1-2"] }
+
 hidapi = "2.6"
 sysinfo = { version = "0.33", default-features = false, features = ["system", "component"] }
 serde = { version = "1.0", features = ["derive"] }

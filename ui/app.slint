@@ -89,41 +89,40 @@ export component MainWindow inherits Window {
     in property <int> cpu_load: 0;
     in property <int> cpu_freq: 0;
     in property <bool> is_connected: false;
-    in property <string> broadcast_label: "CPU Temperature";
+    in property <string> broadcast_label: "Температура CPU";
     in property <string> broadcast_value: "—";
 
     // Translation properties
     in property <string> tr_app_title: "RustCooling";
-    in property <string> tr_app_badge: "FX";
-    in property <string> tr_device_name: "ID-COOLING FX Series";
+    in property <string> tr_device_name: "Контроллер дисплея СЖО";
     in property <string> tr_device_desc_connected: "USB HID (VID 1A86, PID E317)";
-    in property <string> tr_device_desc_searching: "Searching for USB device...";
-    in property <string> tr_status_connected: "Connected";
-    in property <string> tr_status_searching: "Searching";
-    in property <string> tr_display_card_title: "PUMP DISPLAY OUTPUT";
-    in property <string> tr_chip_temp: "Temperature";
-    in property <string> tr_chip_freq: "Frequency";
-    in property <string> tr_chip_load: "Load";
-    in property <string> tr_btn_settings: "Settings";
-    in property <string> tr_settings_title: "SETTINGS";
-    in property <string> tr_btn_back: "← Back";
-    in property <string> tr_setting_display_mode: "Display Mode on Pump Screen";
-    in property <string> tr_mode_temp: "Temperature";
-    in property <string> tr_mode_freq: "Frequency";
-    in property <string> tr_mode_load: "Load";
-    in property <string> tr_mode_carousel: "Carousel";
-    in property <string> tr_setting_freq_format: "Frequency Format";
-    in property <string> tr_freq_ghz: "GHz (4.6 GHz)";
-    in property <string> tr_freq_mhz: "MHz (4600 MHz)";
-    in property <string> tr_setting_language: "Interface Language";
-    in property <string> tr_btn_save_return: "Save & Return";
+    in property <string> tr_device_desc_searching: "Поиск устройства USB...";
+    in property <string> tr_status_connected: "Подключено";
+    in property <string> tr_status_searching: "Поиск";
+    in property <string> tr_display_card_title: "ВЫВОД НА ДИСПЛЕЙ";
+    in property <string> tr_chip_temp: "Температура";
+    in property <string> tr_chip_freq: "Частота";
+    in property <string> tr_chip_load: "Загрузка";
+    in property <string> tr_btn_settings: "Настройки";
+    in property <string> tr_settings_title: "НАСТРОЙКИ";
+    in property <string> tr_btn_back: "← Назад";
+    in property <string> tr_setting_display_mode: "Вывод на дисплей помпы";
+    in property <string> tr_mode_temp: "Температура";
+    in property <string> tr_mode_freq: "Частота";
+    in property <string> tr_mode_load: "Загрузка";
+    in property <string> tr_mode_carousel: "Карусель";
+    in property <string> tr_setting_freq_format: "Формат вывода частоты";
+    in property <string> tr_freq_ghz: "ГГц (4.6 GHz)";
+    in property <string> tr_freq_mhz: "МГц (4600 MHz)";
+    in property <string> tr_setting_language: "Язык интерфейса";
+    in property <string> tr_btn_save_return: "Сохранить и вернуться";
 
     // Settings View State
     in-out property <bool> show_settings: false;
-    in-out property <string> setting_display_mode: "temp"; // "temp", "freq", "load", "carousel"
+    in-out property <string> setting_display_mode: "temp";
     in-out property <bool> setting_freq_ghz: true;
     in-out property <int> setting_interval_ms: 1000;
-    in-out property <string> setting_language: "en";
+    in-out property <string> setting_language: "ru";
 
     // Callbacks to Rust
     callback save_settings(string, bool, int, string);
@@ -159,10 +158,10 @@ export component MainWindow inherits Window {
 
             // ==================== CUSTOM TITLE BAR ====================
             Rectangle {
-                height: 46px;
+                height: 48px;
                 background: #141620;
 
-                // Drag Area for frameless window
+                // Drag Area for frameless window (does not intersect close button)
                 TouchArea {
                     width: parent.width - 48px;
                     height: parent.height;
@@ -178,45 +177,23 @@ export component MainWindow inherits Window {
 
                 HorizontalLayout {
                     padding-left: 16px;
-                    padding-right: 12px;
+                    padding-right: 16px;
                     alignment: space-between;
 
-                    // Brand Title + Badge
-                    HorizontalLayout {
-                        spacing: 8px;
-                        alignment: center;
-
-                        Text {
-                            text: root.tr_app_title;
-                            font-size: 14px;
-                            font-weight: 800;
-                            color: #e2e4ed;
-                            vertical-alignment: center;
-                        }
-
-                        Rectangle {
-                            width: 28px;
-                            height: 18px;
-                            border-radius: 9px;
-                            background: #252837;
-
-                            Text {
-                                width: 100%;
-                                height: 100%;
-                                text: root.tr_app_badge;
-                                font-size: 9px;
-                                font-weight: 800;
-                                color: #7bd0c1;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-                        }
+                    // Brand Title (Clean, no FX badge)
+                    Text {
+                        text: root.tr_app_title;
+                        font-size: 14px;
+                        font-weight: 800;
+                        color: #e2e4ed;
+                        vertical-alignment: center;
                     }
 
-                    // Window Close Button ✕ (Minimizes to tray)
+                    // Window Close Button ✕ (Symmetric 16px right margin, centered vertically)
                     close_btn := Rectangle {
                         width: 32px;
                         height: 32px;
+                        y: (parent.height - self.height) / 2;
                         border-radius: 8px;
                         background: close_touch.has-hover ? #ba1a1a : transparent;
                         animate background { duration: 100ms; }
@@ -258,15 +235,15 @@ export component MainWindow inherits Window {
 
                 // 1. Device Hardware Status Bar
                 Rectangle {
-                    height: 44px;
+                    height: 46px;
                     background: #171924;
                     border-radius: 12px;
                     border-width: 1px;
                     border-color: #272a38;
 
                     HorizontalLayout {
-                        padding-left: 12px;
-                        padding-right: 12px;
+                        padding-left: 14px;
+                        padding-right: 14px;
                         alignment: space-between;
 
                         VerticalLayout {
@@ -288,21 +265,26 @@ export component MainWindow inherits Window {
                             }
                         }
 
-                        // Status Badge
+                        // Status Badge (Properly centered dot & text)
                         Rectangle {
-                            height: 22px;
-                            border-radius: 11px;
-                            background: root.is_connected ? #12382c : #381a1f;
+                            height: 24px;
+                            y: (parent.height - self.height) / 2;
+                            border-radius: 12px;
+                            background: root.is_connected ? #10382b : #381a1f;
+                            border-width: 1px;
+                            border-color: root.is_connected ? #1d5c47 : #5c202a;
 
                             HorizontalLayout {
-                                padding-left: 8px;
-                                padding-right: 8px;
-                                spacing: 5px;
+                                padding-left: 10px;
+                                padding-right: 10px;
+                                spacing: 6px;
                                 alignment: center;
 
+                                // Centered status dot
                                 Rectangle {
                                     width: 6px;
                                     height: 6px;
+                                    y: (parent.height - self.height) / 2;
                                     border-radius: 3px;
                                     background: root.is_connected ? #7bd0c1 : #ffb4ab;
                                 }
@@ -330,10 +312,10 @@ export component MainWindow inherits Window {
                         padding: 12px;
                         spacing: 10px;
 
-                        // Card Header Row
+                        // Card Header Row: Title on left, Refresh Rate & Live indicator on right
                         HorizontalLayout {
                             alignment: space-between;
-                            height: 20px;
+                            height: 22px;
 
                             Text {
                                 text: root.tr_display_card_title;
@@ -343,20 +325,31 @@ export component MainWindow inherits Window {
                                 vertical-alignment: center;
                             }
 
+                            // Refresh rate & Live status pill
                             Rectangle {
-                                height: 20px;
-                                border-radius: 10px;
-                                background: #232738;
+                                height: 22px;
+                                border-radius: 11px;
+                                background: #202434;
+                                border-width: 1px;
+                                border-color: #2b3044;
 
                                 HorizontalLayout {
                                     padding-left: 8px;
                                     padding-right: 8px;
+                                    spacing: 5px;
                                     alignment: center;
 
+                                    // Animated pulsating dot
+                                    Rectangle {
+                                        width: 5px;
+                                        height: 5px;
+                                        y: (parent.height - self.height) / 2;
+                                        border-radius: 2.5px;
+                                        background: #7bd0c1;
+                                    }
+
                                     Text {
-                                        text: root.setting_display_mode == "freq" ? root.tr_mode_freq :
-                                              root.setting_display_mode == "load" ? root.tr_mode_load :
-                                              root.setting_display_mode == "carousel" ? root.tr_mode_carousel : root.tr_mode_temp;
+                                        text: root.setting_interval_ms >= 1000 ? "\{root.setting_interval_ms / 1000}s" : "\{root.setting_interval_ms}ms";
                                         font-size: 9px;
                                         font-weight: 700;
                                         color: #a8c7fa;
@@ -366,7 +359,7 @@ export component MainWindow inherits Window {
                             }
                         }
 
-                        // Big Display Value & Subtitle
+                        // Big Display Value & Dynamic Broadcast Subtitle
                         VerticalLayout {
                             alignment: center;
                             spacing: 2px;

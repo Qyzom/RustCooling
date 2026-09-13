@@ -79,8 +79,8 @@ fn set_autostart(enable: bool) {
 fn apply_translations(w: &MainWindow) {
     let t = I18n::get();
     w.set_tr_app_title(t.app_title.as_str().into());
-    w.set_tr_app_badge(t.app_badge.as_str().into());
     w.set_tr_device_name(t.device_name.as_str().into());
+
     w.set_tr_device_desc_connected(t.device_desc_connected.as_str().into());
     w.set_tr_device_desc_searching(t.device_desc_searching.as_str().into());
     w.set_tr_status_connected(t.status_connected.as_str().into());
@@ -322,7 +322,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             // Retry tray initialization if it wasn't ready at startup (every ~3 seconds = 20 ticks)
-            if tray_retry_counter.fetch_add(1, Ordering::Relaxed) % 20 == 19 {
+            let tick = tray_retry_counter.fetch_add(1, Ordering::Relaxed);
+            if tick % 20 == 19 {
                 if let Ok(mut guard) = tray_for_timer.lock() {
                     if guard.is_none() {
                         if let Ok(t) = SystemTray::new() {
@@ -332,6 +333,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
+
+            // Periodic working set memory trim every ~8 seconds
+            if tick % 50 == 49 {
+                trim_memory();
+            }
+
 
             // Poll tray events
             if let Ok(guard) = tray_for_timer.lock() {

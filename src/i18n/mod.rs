@@ -2,10 +2,12 @@ use serde::Deserialize;
 use std::sync::RwLock;
 
 #[derive(Debug, Deserialize, Clone, Default)]
+#[serde(default)]
 pub struct Translation {
     pub app_title: String,
     pub app_badge: String,
     pub device_name: String,
+
     pub device_desc_connected: String,
     pub device_desc_searching: String,
     pub status_connected: String,

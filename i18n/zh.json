@@ -1,7 +1,7 @@
 {
   "app_title": "RustCooling",
-  "app_badge": "FX",
-  "device_name": "ID-COOLING FX Series",
+  "device_name": "水冷屏显控制器",
+
   "device_desc_connected": "USB HID (VID 1A86, PID E317)",
   "device_desc_searching": "正在搜索 USB 设备...",
   "status_connected": "已连接",

@@ -1,7 +1,7 @@
 {
   "app_title": "RustCooling",
-  "app_badge": "FX",
-  "device_name": "ID-COOLING FX Series",
+  "device_name": "Контроллер дисплея СЖО",
+
   "device_desc_connected": "USB HID (VID 1A86, PID E317)",
   "device_desc_searching": "Поиск устройства USB...",
   "status_connected": "Подключено",
