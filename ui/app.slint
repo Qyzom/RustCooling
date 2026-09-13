@@ -74,7 +74,7 @@ export component MainWindow inherits Window {
     title: "RustCooling";
     no-frame: true;
     width: 360px;
-    height: 420px;
+    height: 370px;
     background: transparent;
     default-font-family: "Unbounded";
 
@@ -83,43 +83,40 @@ export component MainWindow inherits Window {
     in property <int> cpu_load: 0;
     in property <int> cpu_freq: 0;
     in property <bool> is_connected: false;
-    in property <string> broadcast_label: "Температура CPU";
+    in property <string> broadcast_label: "CPU Temperature";
     in property <string> broadcast_value: "—";
 
     // Translation properties
     in property <string> tr_app_title: "RustCooling";
     in property <string> tr_device_name: "USB HID (VID 1A86, PID E317)";
-    in property <string> tr_status_connected: "Подключено";
-    in property <string> tr_status_searching: "Поиск устройства...";
-    in property <string> tr_display_card_title: "ВЫВОД НА ДИСПЛЕЙ";
-    in property <string> tr_chip_temp: "Температура";
-    in property <string> tr_chip_freq: "Частота";
-    in property <string> tr_chip_load: "Загрузка";
-    in property <string> tr_btn_settings: "Настройки";
-    in property <string> tr_settings_title: "НАСТРОЙКИ";
-    in property <string> tr_btn_back: "← Назад";
-    in property <string> tr_setting_display_mode: "Вывод на дисплей помпы";
-    in property <string> tr_mode_temp: "Температура";
-    in property <string> tr_mode_freq: "Частота";
-    in property <string> tr_mode_load: "Загрузка";
-    in property <string> tr_mode_carousel: "Карусель";
-    in property <string> tr_setting_freq_format: "Формат вывода частоты";
-    in property <string> tr_freq_ghz: "ГГц (4.6 GHz)";
-    in property <string> tr_freq_mhz: "МГц (4600 MHz)";
-    in property <string> tr_setting_animation: "Тип анимации";
-    in property <string> tr_anim_smooth: "Плавная";
-    in property <string> tr_anim_roller: "Роллер";
-    in property <string> tr_anim_direct: "Точная";
-    in property <string> tr_setting_language: "Язык интерфейса";
-    in property <string> tr_btn_save_return: "Сохранить и вернуться";
+    in property <string> tr_status_connected: "Connected";
+    in property <string> tr_status_searching: "Searching...";
+    in property <string> tr_display_card_title: "PUMP DISPLAY OUTPUT";
+    in property <string> tr_chip_temp: "Temperature";
+    in property <string> tr_chip_freq: "Frequency";
+    in property <string> tr_chip_load: "Load";
+    in property <string> tr_btn_settings: "Settings";
+    in property <string> tr_settings_title: "SETTINGS";
+    in property <string> tr_btn_back: "← Back";
+    in property <string> tr_setting_display_mode: "Pump Display Output";
+    in property <string> tr_mode_temp: "Temperature";
+    in property <string> tr_mode_freq: "Frequency";
+    in property <string> tr_mode_load: "Load";
+    in property <string> tr_mode_carousel: "Carousel";
+    in property <string> tr_setting_animation: "Animation Style";
+    in property <string> tr_anim_direct: "Direct";
+    in property <string> tr_anim_roller: "Roller";
+    in property <string> tr_anim_smooth: "Smooth";
+    in property <string> tr_setting_language: "Language";
+    in property <string> tr_btn_save_return: "Save & Return";
 
     // Settings View State
     in-out property <bool> show_settings: false;
     in-out property <string> setting_display_mode: "temp";
     in-out property <bool> setting_freq_ghz: true;
     in-out property <int> setting_interval_ms: 1000;
-    in-out property <string> setting_animation: "roller";
-    in-out property <string> setting_language: "ru";
+    in-out property <string> setting_animation: "direct";
+    in-out property <string> setting_language: "en";
 
     // Callbacks to Rust
     callback save_settings(string, bool, int, string, string);
@@ -139,7 +136,7 @@ export component MainWindow inherits Window {
         }
     }
 
-    pure function anim_label(anim: string, tr_roller: string, tr_smooth: string, tr_direct: string) -> string {
+    pure function anim_label(anim: string, tr_direct: string, tr_roller: string, tr_smooth: string) -> string {
         if anim == "roller" {
             return tr_roller;
         } else if anim == "smooth" {
@@ -196,10 +193,10 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    // Window Close Button ✕
+                    // Window Close Button ✕ (Symmetric 16px right margin)
                     close_touch := TouchArea {
-                        width: 32px;
-                        height: 32px;
+                        width: 28px;
+                        height: 28px;
                         y: (parent.height - self.height) / 2;
                         mouse-cursor: pointer;
                         clicked => {
@@ -243,13 +240,13 @@ export component MainWindow inherits Window {
                     height: 100%;
                     padding-left: 16px;
                     padding-right: 16px;
-                    padding-top: 12px;
-                    padding-bottom: 12px;
-                    spacing: 10px;
+                    padding-top: 10px;
+                    padding-bottom: 10px;
+                    spacing: 8px;
 
                     // Device Hardware Status Bar (Unified, NO green capsule)
                     Rectangle {
-                        height: 48px;
+                        height: 44px;
                         background: #171924;
                         border-radius: 12px;
                         border-width: 1px;
@@ -261,7 +258,7 @@ export component MainWindow inherits Window {
 
                             VerticalLayout {
                                 alignment: center;
-                                spacing: 3px;
+                                spacing: 2px;
 
                                 Text {
                                     text: "USB HID (VID 1A86, PID E317)";
@@ -288,10 +285,10 @@ export component MainWindow inherits Window {
                         border-color: #272a38;
 
                         VerticalLayout {
-                            padding: 12px;
-                            spacing: 10px;
+                            padding: 10px;
+                            spacing: 8px;
 
-                            // Card Header Row: Title on left, Refresh Rate & Animation on right
+                            // Card Header Row: Title on left, Refresh Rate in ms & Animation on right
                             HorizontalLayout {
                                 alignment: space-between;
                                 height: 22px;
@@ -304,7 +301,7 @@ export component MainWindow inherits Window {
                                     vertical-alignment: center;
                                 }
 
-                                // Refresh rate & Animation pill
+                                // Refresh rate in ms & Animation pill
                                 Rectangle {
                                     height: 22px;
                                     border-radius: 11px;
@@ -328,7 +325,7 @@ export component MainWindow inherits Window {
                                         }
 
                                         Text {
-                                            text: (root.setting_interval_ms >= 1000 ? "\{root.setting_interval_ms / 1000}s" : "\{root.setting_interval_ms}ms") + " - " + root.anim_label(root.setting_animation, root.tr_anim_roller, root.tr_anim_smooth, root.tr_anim_direct);
+                                            text: "\{root.setting_interval_ms} ms - " + root.anim_label(root.setting_animation, root.tr_anim_direct, root.tr_anim_roller, root.tr_anim_smooth);
                                             font-size: 9px;
                                             font-weight: 700;
                                             color: #a8c7fa;
@@ -345,7 +342,7 @@ export component MainWindow inherits Window {
 
                                 Text {
                                     text: root.broadcast_value;
-                                    font-size: 46px;
+                                    font-size: 44px;
                                     font-weight: 800;
                                     color: root.temp_accent(root.cpu_temp);
                                     horizontal-alignment: center;
@@ -363,7 +360,7 @@ export component MainWindow inherits Window {
                             // Metrics Summary Columns (Number + SPACE + Unit)
                             HorizontalLayout {
                                 spacing: 8px;
-                                height: 48px;
+                                height: 46px;
 
                                 // Temp Box
                                 Rectangle {
@@ -414,7 +411,7 @@ export component MainWindow inherits Window {
                                             horizontal-alignment: center;
                                         }
                                         Text {
-                                            text: root.cpu_freq > 0 ? (root.setting_freq_ghz ? "\{Math.round(root.cpu_freq / 100) / 10} GHz" : "\{root.cpu_freq} MHz") : "—";
+                                            text: root.cpu_freq > 0 ? "\{Math.round(root.cpu_freq / 100) / 10} GHz" : "—";
                                             font-size: 12px;
                                             font-weight: 800;
                                             color: #d0bcff;
@@ -480,7 +477,7 @@ export component MainWindow inherits Window {
                     padding-right: 16px;
                     padding-top: 10px;
                     padding-bottom: 10px;
-                    spacing: 6px;
+                    spacing: 8px;
 
                     // Settings Header Row
                     HorizontalLayout {
@@ -506,7 +503,7 @@ export component MainWindow inherits Window {
                                 clicked => {
                                     root.save_settings(
                                         root.setting_display_mode,
-                                        root.setting_freq_ghz,
+                                        true,
                                         root.setting_interval_ms,
                                         root.setting_language,
                                         root.setting_animation
@@ -520,28 +517,28 @@ export component MainWindow inherits Window {
                     // Option 1: Display Mode
                     Rectangle {
                         background: #171924;
-                        border-radius: 10px;
+                        border-radius: 12px;
                         border-width: 1px;
                         border-color: #272a38;
-                        height: 48px;
+                        height: 52px;
 
                         VerticalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
-                            padding-top: 5px;
-                            padding-bottom: 5px;
-                            spacing: 3px;
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            padding-top: 6px;
+                            padding-bottom: 6px;
+                            spacing: 4px;
 
                             Text {
                                 text: root.tr_setting_display_mode;
-                                font-size: 9px;
+                                font-size: 10px;
                                 font-weight: 700;
                                 color: #d4d6e2;
                             }
 
                             HorizontalLayout {
-                                spacing: 5px;
-                                height: 24px;
+                                spacing: 6px;
+                                height: 26px;
 
                                 SelectPill {
                                     text: root.tr_mode_temp;
@@ -575,76 +572,39 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    // Option 2: Frequency Format
+                    // Option 2: Animation Type (Direct by default)
                     Rectangle {
                         background: #171924;
-                        border-radius: 10px;
+                        border-radius: 12px;
                         border-width: 1px;
                         border-color: #272a38;
-                        height: 48px;
+                        height: 52px;
 
                         VerticalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
-                            padding-top: 5px;
-                            padding-bottom: 5px;
-                            spacing: 3px;
-
-                            Text {
-                                text: root.tr_setting_freq_format;
-                                font-size: 9px;
-                                font-weight: 700;
-                                color: #d4d6e2;
-                            }
-
-                            HorizontalLayout {
-                                spacing: 6px;
-                                height: 24px;
-
-                                SelectPill {
-                                    text: root.tr_freq_ghz;
-                                    is_selected: root.setting_freq_ghz;
-                                    active_color: #d0bcff;
-                                    active_bg: #302648;
-                                    clicked => { root.setting_freq_ghz = true; }
-                                }
-                                SelectPill {
-                                    text: root.tr_freq_mhz;
-                                    is_selected: !root.setting_freq_ghz;
-                                    active_color: #d0bcff;
-                                    active_bg: #302648;
-                                    clicked => { root.setting_freq_ghz = false; }
-                                }
-                            }
-                        }
-                    }
-
-                    // Option 3: Animation Type
-                    Rectangle {
-                        background: #171924;
-                        border-radius: 10px;
-                        border-width: 1px;
-                        border-color: #272a38;
-                        height: 48px;
-
-                        VerticalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
-                            padding-top: 5px;
-                            padding-bottom: 5px;
-                            spacing: 3px;
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            padding-top: 6px;
+                            padding-bottom: 6px;
+                            spacing: 4px;
 
                             Text {
                                 text: root.tr_setting_animation;
-                                font-size: 9px;
+                                font-size: 10px;
                                 font-weight: 700;
                                 color: #d4d6e2;
                             }
 
                             HorizontalLayout {
                                 spacing: 6px;
-                                height: 24px;
+                                height: 26px;
 
+                                SelectPill {
+                                    text: root.tr_anim_direct;
+                                    is_selected: root.setting_animation == "direct";
+                                    active_color: #7bd0c1;
+                                    active_bg: #1b3d35;
+                                    clicked => { root.setting_animation = "direct"; }
+                                }
                                 SelectPill {
                                     text: root.tr_anim_roller;
                                     is_selected: root.setting_animation == "roller";
@@ -659,42 +619,35 @@ export component MainWindow inherits Window {
                                     active_bg: #1b3d35;
                                     clicked => { root.setting_animation = "smooth"; }
                                 }
-                                SelectPill {
-                                    text: root.tr_anim_direct;
-                                    is_selected: root.setting_animation == "direct";
-                                    active_color: #7bd0c1;
-                                    active_bg: #1b3d35;
-                                    clicked => { root.setting_animation = "direct"; }
-                                }
                             }
                         }
                     }
 
-                    // Option 4: Language Selection
+                    // Option 3: Language Selection (English by default)
                     Rectangle {
                         background: #171924;
-                        border-radius: 10px;
+                        border-radius: 12px;
                         border-width: 1px;
                         border-color: #272a38;
-                        height: 48px;
+                        height: 52px;
 
                         VerticalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
-                            padding-top: 5px;
-                            padding-bottom: 5px;
-                            spacing: 3px;
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            padding-top: 6px;
+                            padding-bottom: 6px;
+                            spacing: 4px;
 
                             Text {
                                 text: root.tr_setting_language;
-                                font-size: 9px;
+                                font-size: 10px;
                                 font-weight: 700;
                                 color: #d4d6e2;
                             }
 
                             HorizontalLayout {
                                 spacing: 6px;
-                                height: 24px;
+                                height: 26px;
 
                                 SelectPill {
                                     text: "English";
@@ -705,7 +658,7 @@ export component MainWindow inherits Window {
                                         root.setting_language = "en";
                                         root.save_settings(
                                             root.setting_display_mode,
-                                            root.setting_freq_ghz,
+                                            true,
                                             root.setting_interval_ms,
                                             "en",
                                             root.setting_animation
@@ -721,7 +674,7 @@ export component MainWindow inherits Window {
                                         root.setting_language = "ru";
                                         root.save_settings(
                                             root.setting_display_mode,
-                                            root.setting_freq_ghz,
+                                            true,
                                             root.setting_interval_ms,
                                             "ru",
                                             root.setting_animation
@@ -737,7 +690,7 @@ export component MainWindow inherits Window {
                                         root.setting_language = "zh";
                                         root.save_settings(
                                             root.setting_display_mode,
-                                            root.setting_freq_ghz,
+                                            true,
                                             root.setting_interval_ms,
                                             "zh",
                                             root.setting_animation
@@ -750,18 +703,18 @@ export component MainWindow inherits Window {
 
                     // Save & Return Button
                     AppButton {
-                        height: 36px;
+                        height: 40px;
                         text: root.tr_btn_save_return;
                         bg: #7bd0c1;
                         hover_bg: #90dcd0;
                         text_color: #101218;
                         border_color: #7bd0c1;
                         font_size: 11px;
-                        border_radius: 10px;
+                        border_radius: 12px;
                         clicked => {
                             root.save_settings(
                                 root.setting_display_mode,
-                                root.setting_freq_ghz,
+                                true,
                                 root.setting_interval_ms,
                                 root.setting_language,
                                 root.setting_animation

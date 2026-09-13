@@ -94,9 +94,6 @@ fn apply_translations(w: &MainWindow) {
     w.set_tr_mode_freq(t.mode_freq.as_str().into());
     w.set_tr_mode_load(t.mode_load.as_str().into());
     w.set_tr_mode_carousel(t.mode_carousel.as_str().into());
-    w.set_tr_setting_freq_format(t.setting_freq_format.as_str().into());
-    w.set_tr_freq_ghz(t.freq_ghz.as_str().into());
-    w.set_tr_freq_mhz(t.freq_mhz.as_str().into());
     w.set_tr_setting_animation(t.setting_animation.as_str().into());
     w.set_tr_anim_smooth(t.anim_smooth.as_str().into());
     w.set_tr_anim_roller(t.anim_roller.as_str().into());
@@ -316,7 +313,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let screen_w = GetSystemMetrics(SM_CXSCREEN);
                                 let screen_h = GetSystemMetrics(SM_CYSCREEN);
                                 let x = (screen_w - 360) / 2;
-                                let y = (screen_h - 420) / 2;
+                                let y = (screen_h - 370) / 2;
                                 SetWindowPos(hwnd, std::ptr::null_mut(), x, y, 0, 0, SWP_NOSIZE | SWP_SHOWWINDOW);
                                 SetForegroundWindow(hwnd);
                                 return 0;

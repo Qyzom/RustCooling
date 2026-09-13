@@ -27,7 +27,7 @@ fn default_true() -> bool {
 }
 
 fn default_animation() -> String {
-    "roller".to_string()
+    "direct".to_string()
 }
 
 impl Default for AppConfig {
@@ -41,7 +41,7 @@ impl Default for AppConfig {
             language: "en".to_string(),
             display_mode: "temp".to_string(),
             freq_in_ghz: true,
-            animation_type: "roller".to_string(),
+            animation_type: "direct".to_string(),
         }
     }
 }
