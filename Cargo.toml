@@ -1,0 +1,36 @@
+[package]
+name = "rust-cooling"
+version = "0.1.0"
+edition = "2021"
+authors = ["Qyzom", "RustCooling Contributors"]
+description = "Ultra-lightweight cross-platform LCD display controller for ID-COOLING FX series liquid coolers"
+license = "MIT"
+
+[dependencies]
+# Use lightweight software renderer instead of heavy Skia/OpenGL (~6-10MB RAM instead of ~90MB)
+slint = { version = "1.9", default-features = false, features = ["std", "backend-winit", "renderer-software", "compat-1-2"] }
+hidapi = "2.6"
+sysinfo = { version = "0.33", default-features = false, features = ["system", "component"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dirs = "6.0"
+clap = { version = "4.5", features = ["derive"] }
+log = "0.4"
+env_logger = "0.11"
+tray-icon = "0.19"
+muda = "0.15"
+
+[target.'cfg(windows)'.dependencies]
+auto-launch = "0.5"
+windows-sys = { version = "0.59", features = ["Win32_System_ProcessStatus", "Win32_System_Threading"] }
+wmi = "0.14"
+
+[build-dependencies]
+slint-build = "1.9"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

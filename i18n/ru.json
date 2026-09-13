@@ -1,0 +1,21 @@
+{
+  "app_title": "RustCooling",
+  "app_subtitle": "Контроллер LCD-экрана ID-COOLING FX",
+  "connected": "Подключено",
+  "disconnected": "Не найдено",
+  "display_title": "ТРАНСЛЯЦИЯ НА ПОМПУ",
+  "display_active_metric": "Передача данных на экран водянки",
+  "metric_temperature": "Температура CPU",
+  "metric_frequency": "Тактовая частота",
+  "metric_load": "Загрузка CPU",
+  "chart_cpu_load": "График нагрузки CPU",
+  "chart_cpu_freq": "График частоты ядер",
+  "chart_realtime": "Живая системная телеметрия",
+  "btn_settings": "Настройки",
+  "btn_minimize": "Свернуть в трей",
+  "status_broadcasting": "Синхронизация активна (100мс)",
+  "status_idle": "Поиск USB HID устройства...",
+  "unit_celsius": "°C",
+  "unit_mhz": "МГц",
+  "unit_percent": "%"
+}

@@ -1,0 +1,21 @@
+{
+  "app_title": "RustCooling",
+  "app_subtitle": "ID-COOLING FX 水冷屏幕控制器",
+  "connected": "已连接",
+  "disconnected": "未检测到设备",
+  "display_title": "冷头屏幕数据广播",
+  "display_active_metric": "正在同步数据至冷头屏幕",
+  "metric_temperature": "CPU 温度",
+  "metric_frequency": "核心主频",
+  "metric_load": "CPU 负载",
+  "chart_cpu_load": "CPU 负载监控曲线",
+  "chart_cpu_freq": "核心频率监控曲线",
+  "chart_realtime": "实时硬件遥测",
+  "btn_settings": "设置",
+  "btn_minimize": "最小化到托盘",
+  "status_broadcasting": "屏幕广播同步中 (100ms)",
+  "status_idle": "正在连接 USB HID 设备...",
+  "unit_celsius": "°C",
+  "unit_mhz": "MHz",
+  "unit_percent": "%"
+}

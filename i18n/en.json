@@ -1,0 +1,21 @@
+{
+  "app_title": "RustCooling",
+  "app_subtitle": "ID-COOLING FX LCD Controller",
+  "connected": "Connected",
+  "disconnected": "Disconnected",
+  "display_title": "AIO LCD BROADCAST",
+  "display_active_metric": "Transmitting to Pump Screen",
+  "metric_temperature": "CPU Temperature",
+  "metric_frequency": "Core Frequency",
+  "metric_load": "CPU Utilization",
+  "chart_cpu_load": "CPU Utilization History",
+  "chart_cpu_freq": "Clock Frequency History",
+  "chart_realtime": "Live Hardware Telemetry",
+  "btn_settings": "Settings",
+  "btn_minimize": "Hide to Tray",
+  "status_broadcasting": "Live Sync Active (100ms)",
+  "status_idle": "Connecting to USB HID...",
+  "unit_celsius": "°C",
+  "unit_mhz": "MHz",
+  "unit_percent": "%"
+}
