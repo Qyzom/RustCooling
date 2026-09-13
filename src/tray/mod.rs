@@ -107,4 +107,15 @@ fn create_default_icon() -> Result<Icon, Box<dyn std::error::Error>> {
     Ok(icon)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_create_icon() {
+        let icon_res = create_default_icon();
+        assert!(icon_res.is_ok());
+    }
+}
+
 

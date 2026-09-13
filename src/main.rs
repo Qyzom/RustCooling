@@ -107,8 +107,8 @@ fn apply_translations(w: &MainWindow) {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(windows)]
     unsafe {
-        use windows_sys::Win32::System::Com::CoInitialize;
-        let _ = CoInitialize(std::ptr::null_mut());
+        use windows_sys::Win32::System::Ole::OleInitialize;
+        let _ = OleInitialize(std::ptr::null_mut());
     }
 
     std::panic::set_hook(Box::new(|info| {
@@ -159,16 +159,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    // Initialize System Tray
-    let tray = match SystemTray::new() {
-        Ok(t) => Some(t),
-        Err(e) => {
-            warn!("Failed to initialize system tray icon: {e}");
-            None
-        }
-    };
-    let tray_ref = Arc::new(Mutex::new(tray));
-
     // Initialize Slint GUI
     let main_window = match MainWindow::new() {
         Ok(w) => {
@@ -181,6 +171,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     let state = monitor.get_state();
+
+    // Initialize System Tray after Slint/Winit is initialized
+    let tray = match SystemTray::new() {
+        Ok(t) => {
+            info!("System tray successfully initialized!");
+            Some(t)
+        }
+        Err(e) => {
+            warn!("Failed to initialize system tray icon: {e}");
+            None
+        }
+    };
+    let tray_ref = Arc::new(Mutex::new(tray));
 
     // Set initial settings and translations
     {
@@ -260,13 +263,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     main_window.on_drag_window(|| {
         use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
         use windows_sys::Win32::UI::WindowsAndMessaging::{
-            GetForegroundWindow, SendMessageW, HTCAPTION, WM_NCLBUTTONDOWN,
+            GetForegroundWindow, SendMessageW, WM_SYSCOMMAND,
         };
         unsafe {
             ReleaseCapture();
             let hwnd = GetForegroundWindow();
             if !hwnd.is_null() {
-                SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION as usize, 0);
+                SendMessageW(hwnd, WM_SYSCOMMAND, 0xF012, 0);
             }
         }
     });
@@ -326,21 +329,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if tick % 20 == 19 {
                 if let Ok(mut guard) = tray_for_timer.lock() {
                     if guard.is_none() {
-                        if let Ok(t) = SystemTray::new() {
-                            info!("System tray successfully initialized on retry!");
-                            *guard = Some(t);
+                        match SystemTray::new() {
+                            Ok(t) => {
+                                info!("System tray successfully initialized on retry!");
+                                *guard = Some(t);
+                            }
+                            Err(e) => {
+                                warn!("Tray retry failed: {:?}", e);
+                            }
                         }
                     }
                 }
             }
 
-            // Periodic working set memory trim every ~8 seconds
-            if tick % 50 == 49 {
-                trim_memory();
-            }
-
-
             // Poll tray events
+
             if let Ok(guard) = tray_for_timer.lock() {
                 if let Some(ref tray_manager) = *guard {
                     let handle_show = handle_for_timer.clone();
