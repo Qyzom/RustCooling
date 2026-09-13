@@ -8,33 +8,30 @@ component AppButton {
     in property <color> border_color: #2e3346;
     in property <length> font_size: 11px;
     in property <length> border_radius: 12px;
-    callback clicked();
+    callback clicked <=> ta.clicked;
 
-    Rectangle {
-        width: 100%;
-        height: 100%;
-        border-radius: root.border_radius;
-        background: ta.pressed ? root.bg : (ta.has-hover ? root.hover_bg : root.bg);
-        border-width: 1px;
-        border-color: root.border_color;
-        animate background { duration: 100ms; }
+    ta := TouchArea {
+        mouse-cursor: pointer;
 
-        Text {
+        Rectangle {
             width: 100%;
             height: 100%;
-            text: root.text;
-            font-size: root.font_size;
-            font-weight: 700;
-            color: root.text_color;
-            horizontal-alignment: center;
-            vertical-alignment: center;
-        }
+            border-radius: root.border_radius;
+            background: ta.pressed ? root.bg : (ta.has-hover ? root.hover_bg : root.bg);
+            border-width: 1px;
+            border-color: root.border_color;
+            animate background { duration: 100ms; }
 
-        ta := TouchArea {
-            width: 100%;
-            height: 100%;
-            mouse-cursor: pointer;
-            clicked => { root.clicked(); }
+            Text {
+                width: 100%;
+                height: 100%;
+                text: root.text;
+                font-size: root.font_size;
+                font-weight: 700;
+                color: root.text_color;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
         }
     }
 }
@@ -45,33 +42,30 @@ component SelectPill {
     in property <color> active_color: #7bd0c1;
     in property <color> active_bg: #1b3d35;
     in property <length> font_size: 10px;
-    callback clicked();
+    callback clicked <=> ta.clicked;
 
-    Rectangle {
-        width: 100%;
-        height: 100%;
-        border-radius: 8px;
-        background: root.is_selected ? root.active_bg : (ta.has-hover ? #252837 : #1c1f2b);
-        border-width: 1px;
-        border-color: root.is_selected ? root.active_color : (ta.has-hover ? #363a4d : #252837);
-        animate background { duration: 100ms; }
+    ta := TouchArea {
+        mouse-cursor: pointer;
 
-        Text {
+        Rectangle {
             width: 100%;
             height: 100%;
-            text: root.text;
-            font-size: root.font_size;
-            font-weight: 700;
-            color: root.is_selected ? root.active_color : (ta.has-hover ? #ffffff : #c4c6d2);
-            horizontal-alignment: center;
-            vertical-alignment: center;
-        }
+            border-radius: 8px;
+            background: root.is_selected ? root.active_bg : (ta.has-hover ? #252837 : #1c1f2b);
+            border-width: 1px;
+            border-color: root.is_selected ? root.active_color : (ta.has-hover ? #363a4d : #252837);
+            animate background { duration: 100ms; }
 
-        ta := TouchArea {
-            width: 100%;
-            height: 100%;
-            mouse-cursor: pointer;
-            clicked => { root.clicked(); }
+            Text {
+                width: 100%;
+                height: 100%;
+                text: root.text;
+                font-size: root.font_size;
+                font-weight: 700;
+                color: root.is_selected ? root.active_color : (ta.has-hover ? #ffffff : #c4c6d2);
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
         }
     }
 }
@@ -94,11 +88,9 @@ export component MainWindow inherits Window {
 
     // Translation properties
     in property <string> tr_app_title: "RustCooling";
-    in property <string> tr_device_name: "Контроллер дисплея СЖО";
-    in property <string> tr_device_desc_connected: "USB HID (VID 1A86, PID E317)";
-    in property <string> tr_device_desc_searching: "Поиск устройства USB...";
+    in property <string> tr_device_name: "USB HID (VID 1A86, PID E317)";
     in property <string> tr_status_connected: "Подключено";
-    in property <string> tr_status_searching: "Поиск";
+    in property <string> tr_status_searching: "Поиск устройства...";
     in property <string> tr_display_card_title: "ВЫВОД НА ДИСПЛЕЙ";
     in property <string> tr_chip_temp: "Температура";
     in property <string> tr_chip_freq: "Частота";
@@ -150,7 +142,6 @@ export component MainWindow inherits Window {
         border-radius: 16px;
         border-width: 1px;
         border-color: #272a38;
-        clip: true;
 
         VerticalLayout {
             padding: 0px;
@@ -160,60 +151,61 @@ export component MainWindow inherits Window {
             Rectangle {
                 height: 48px;
                 background: #141620;
-
-                // Drag Area for frameless window (does not intersect close button)
-                TouchArea {
-                    width: parent.width - 48px;
-                    height: parent.height;
-                    x: 0px;
-                    y: 0px;
-
-                    pointer-event(event) => {
-                        if event.kind == PointerEventKind.down {
-                            root.drag_window();
-                        }
-                    }
-                }
+                border-top-left-radius: 16px;
+                border-top-right-radius: 16px;
 
                 HorizontalLayout {
                     padding-left: 16px;
                     padding-right: 16px;
                     alignment: space-between;
 
-                    // Brand Title (Clean, no FX badge)
-                    Text {
-                        text: root.tr_app_title;
-                        font-size: 14px;
-                        font-weight: 800;
-                        color: #e2e4ed;
-                        vertical-alignment: center;
+                    // Brand Title & Window Drag Area
+                    TouchArea {
+                        horizontal-stretch: 1;
+                        mouse-cursor: default;
+
+                        pointer-event(event) => {
+                            if event.kind == PointerEventKind.down {
+                                root.drag_window();
+                            }
+                        }
+
+                        Text {
+                            width: 100%;
+                            height: 100%;
+                            text: root.tr_app_title;
+                            font-size: 14px;
+                            font-weight: 800;
+                            color: #e2e4ed;
+                            vertical-alignment: center;
+                        }
                     }
 
                     // Window Close Button ✕ (Symmetric 16px right margin, centered vertically)
-                    close_btn := Rectangle {
+                    close_touch := TouchArea {
                         width: 32px;
                         height: 32px;
                         y: (parent.height - self.height) / 2;
-                        border-radius: 8px;
-                        background: close_touch.has-hover ? #ba1a1a : transparent;
-                        animate background { duration: 100ms; }
-
-                        Path {
-                            width: 12px;
-                            height: 12px;
-                            x: (parent.width - self.width) / 2;
-                            y: (parent.height - self.height) / 2;
-                            stroke: close_touch.has-hover ? #ffffff : #c4c6d2;
-                            stroke-width: 1.8px;
-                            commands: "M 1 1 L 11 11 M 11 1 L 1 11";
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.close_window();
                         }
 
-                        close_touch := TouchArea {
+                        Rectangle {
                             width: 100%;
                             height: 100%;
-                            mouse-cursor: pointer;
-                            clicked => {
-                                root.close_window();
+                            border-radius: 8px;
+                            background: close_touch.has-hover ? #ba1a1a : transparent;
+                            animate background { duration: 100ms; }
+
+                            Path {
+                                width: 12px;
+                                height: 12px;
+                                x: (parent.width - self.width) / 2;
+                                y: (parent.height - self.height) / 2;
+                                stroke: close_touch.has-hover ? #ffffff : #c4c6d2;
+                                stroke-width: 1.8px;
+                                commands: "M 1 1 L 11 11 M 11 1 L 1 11";
                             }
                         }
                     }
@@ -233,9 +225,9 @@ export component MainWindow inherits Window {
                 padding-bottom: 12px;
                 spacing: 10px;
 
-                // 1. Device Hardware Status Bar
+                // 1. Device Hardware Status Bar (Unified, NO green capsule)
                 Rectangle {
-                    height: 46px;
+                    height: 48px;
                     background: #171924;
                     border-radius: 12px;
                     border-width: 1px;
@@ -244,58 +236,23 @@ export component MainWindow inherits Window {
                     HorizontalLayout {
                         padding-left: 14px;
                         padding-right: 14px;
-                        alignment: space-between;
 
                         VerticalLayout {
                             alignment: center;
-                            spacing: 2px;
+                            spacing: 3px;
 
                             Text {
-                                text: root.tr_device_name;
+                                text: "USB HID (VID 1A86, PID E317)";
                                 font-size: 11px;
                                 font-weight: 700;
                                 color: #d4d6e2;
                             }
 
                             Text {
-                                text: root.is_connected ? root.tr_device_desc_connected : root.tr_device_desc_searching;
-                                font-size: 8px;
-                                font-weight: 500;
-                                color: #8e919f;
-                            }
-                        }
-
-                        // Status Badge (Properly centered dot & text)
-                        Rectangle {
-                            height: 24px;
-                            y: (parent.height - self.height) / 2;
-                            border-radius: 12px;
-                            background: root.is_connected ? #10382b : #381a1f;
-                            border-width: 1px;
-                            border-color: root.is_connected ? #1d5c47 : #5c202a;
-
-                            HorizontalLayout {
-                                padding-left: 10px;
-                                padding-right: 10px;
-                                spacing: 6px;
-                                alignment: center;
-
-                                // Centered status dot
-                                Rectangle {
-                                    width: 6px;
-                                    height: 6px;
-                                    y: (parent.height - self.height) / 2;
-                                    border-radius: 3px;
-                                    background: root.is_connected ? #7bd0c1 : #ffb4ab;
-                                }
-
-                                Text {
-                                    text: root.is_connected ? root.tr_status_connected : root.tr_status_searching;
-                                    font-size: 9px;
-                                    font-weight: 700;
-                                    color: root.is_connected ? #7bd0c1 : #ffb4ab;
-                                    vertical-alignment: center;
-                                }
+                                text: root.is_connected ? ("● " + root.tr_status_connected) : ("○ " + root.tr_status_searching);
+                                font-size: 9px;
+                                font-weight: 700;
+                                color: root.is_connected ? #7bd0c1 : #ffb4ab;
                             }
                         }
                     }
@@ -381,7 +338,7 @@ export component MainWindow inherits Window {
                             }
                         }
 
-                        // Metrics Summary Columns (No 4-letter abbreviations!)
+                        // Metrics Summary Columns (Full translated titles)
                         HorizontalLayout {
                             spacing: 8px;
                             height: 48px;

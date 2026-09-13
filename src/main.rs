@@ -80,9 +80,6 @@ fn apply_translations(w: &MainWindow) {
     let t = I18n::get();
     w.set_tr_app_title(t.app_title.as_str().into());
     w.set_tr_device_name(t.device_name.as_str().into());
-
-    w.set_tr_device_desc_connected(t.device_desc_connected.as_str().into());
-    w.set_tr_device_desc_searching(t.device_desc_searching.as_str().into());
     w.set_tr_status_connected(t.status_connected.as_str().into());
     w.set_tr_status_searching(t.status_searching.as_str().into());
     w.set_tr_display_card_title(t.display_card_title.as_str().into());
