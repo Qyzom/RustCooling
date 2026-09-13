@@ -125,8 +125,15 @@ fn apply_menu_dark_theme() {
 #[cfg(not(windows))]
 fn apply_menu_dark_theme() {}
 
-/// Loads the crisp 32x32 RGBA logo icon embedded at compile time
+/// Loads the native 32x32 logo icon from embedded PE resources on Windows or RGBA bytes on Linux
 fn create_default_icon() -> Result<Icon, Box<dyn std::error::Error>> {
+    #[cfg(windows)]
+    {
+        if let Ok(icon) = Icon::from_resource(1, Some((32, 32))) {
+            return Ok(icon);
+        }
+    }
+
     let rgba_bytes = include_bytes!("../../assets/icons/tray_32x32.rgba");
     let icon = Icon::from_rgba(rgba_bytes.to_vec(), 32, 32)?;
     Ok(icon)
