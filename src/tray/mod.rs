@@ -94,3 +94,32 @@ fn create_default_icon() -> Result<Icon, Box<dyn std::error::Error>> {
     let icon = Icon::from_rgba(rgba, width, height)?;
     Ok(icon)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_tray_icon_creation() {
+        let icon_res = create_default_icon();
+        assert!(icon_res.is_ok(), "Failed to create default icon: {:?}", icon_res.err());
+
+        #[cfg(windows)]
+        unsafe {
+            use windows_sys::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
+            let hr = CoInitializeEx(std::ptr::null(), COINIT_APARTMENTTHREADED as u32);
+            println!("CoInitializeEx result: 0x{:08X}", hr);
+        }
+
+        let tray_res = SystemTray::new();
+        println!("SystemTray::new result: {:?}", tray_res.is_ok());
+        if let Err(ref e) = tray_res {
+            println!("SystemTray error: {:?}", e);
+            let b = TrayIconBuilder::new().with_icon(create_default_icon().unwrap()).build();
+            println!("TrayIconBuilder without menu: {:?}", b.is_ok());
+            if let Err(ref eb) = b {
+                println!("TrayIconBuilder without menu error: {:?}", eb);
+            }
+        }
+    }
+}

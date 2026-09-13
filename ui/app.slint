@@ -5,7 +5,7 @@ export component MainWindow inherits Window {
     no-frame: true;
     width: 400px;
     height: 600px;
-    background: transparent;
+    background: #101218;
     default-font-family: "Unbounded";
 
     // Properties bound to Rust state
@@ -51,12 +51,12 @@ export component MainWindow inherits Window {
         }
     }
 
-    // Outer root container with 16px rounded corners and border
+    // Outer root container with border
     Rectangle {
         width: 100%;
         height: 100%;
         background: #101218;
-        border-radius: 16px;
+        border-radius: 0px;
         border-width: 1px;
         border-color: #272a36;
         clip: true;

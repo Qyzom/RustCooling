@@ -267,6 +267,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     main_window.show()?;
+
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            FindWindowW, GetWindowLongW, SetWindowLongW, GWL_EXSTYLE, WS_EX_APPWINDOW,
+            SetWindowPos, SetForegroundWindow, HWND_TOP, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+        };
+        use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+
+        let title_wide: Vec<u16> = OsStr::new("RustCooling")
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        let hwnd = FindWindowW(std::ptr::null(), title_wide.as_ptr());
+        if !hwnd.is_null() {
+            let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
+            SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_APPWINDOW as i32);
+            SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            SetForegroundWindow(hwnd);
+        }
+    }
+
     if args.minimized {
         let _ = main_window.hide();
         trim_memory();
