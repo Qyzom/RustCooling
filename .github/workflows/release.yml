@@ -27,6 +27,8 @@ jobs:
             libasound2-dev \
             libayatana-appindicator3-dev \
             libglib2.0-dev \
+            libgtk-3-dev \
+            libxdo-dev \
             pkg-config \
             build-essential
 
@@ -60,7 +62,7 @@ jobs:
           Priority: optional
           Architecture: amd64
           Maintainer: Qyzom <t0lotsmail@gmail.com>
-          Depends: libudev1, libfontconfig1, libc6
+          Depends: libudev1, libfontconfig1, libc6, libgtk-3-0, libxdo3
           Homepage: https://github.com/Qyzom/RustCooling
           Description: Ultra-lightweight LCD Display controller for ID-COOLING FX series liquid coolers
            Ultra-lightweight native Rust application for controlling LCD displays on
