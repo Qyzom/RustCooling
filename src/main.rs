@@ -427,7 +427,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             #[cfg(not(windows))]
             {
-                let _ = _w.hide();
+                _w.window().set_minimized(true);
             }
             trim_memory();
         }
@@ -688,6 +688,7 @@ mod window_tests {
         apply_translations(&w);
         let show_res = w.show();
         assert!(show_res.is_ok());
+        w.window().set_minimized(true);
     }
 
     #[test]

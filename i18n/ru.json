@@ -41,7 +41,7 @@
   "setting_open_config": "Открыть папку с настройками",
   "setting_debug_title": "Аппаратная часть (VID / PID)",
   "setting_reset_defaults": "Сбросить настройки",
-  "setting_autostart": "Автозапуск с системой",
+  "setting_autostart": "Запускать вместе с системой",
   "autostart_off": "Выкл",
   "autostart_on": "Вкл",
   "btn_save_return": "Сохранить и вернуться",
