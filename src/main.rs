@@ -211,8 +211,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     use windows_sys::Win32::System::Threading::GetCurrentProcessId;
                     use windows_sys::Win32::UI::WindowsAndMessaging::{
                         EnumWindows, GetWindowThreadProcessId, GetWindowTextW, GetClassNameW, IsWindowVisible,
-                        GetWindowLongW, SetWindowLongW, SetWindowPos, SetForegroundWindow,
-                        GWL_EXSTYLE, WS_EX_APPWINDOW, HWND_TOP, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+                        SetWindowPos, SetForegroundWindow,
                     };
 
                     unsafe extern "system" fn enum_proc(hwnd: HWND, _: LPARAM) -> BOOL {
@@ -231,12 +230,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             info!("Running Loop HWND: {:?}, Class: '{}', Title: '{}', Vis: {}", hwnd, clean_class, clean_title, vis);
 
                             // If this is the main Slint window (not the hidden event target)
-                            if clean_class.contains("Slint") || clean_class.contains("Window") || clean_title.contains("RustCooling") {
-                                let ex_style = GetWindowLongW(hwnd, GWL_EXSTYLE);
-                                SetWindowLongW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_APPWINDOW as i32);
-                                SetWindowPos(hwnd, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                            if clean_title == "RustCooling" || (clean_class.contains("Window") && !clean_class.contains("NV")) {
+                                use windows_sys::Win32::UI::WindowsAndMessaging::{
+                                    GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN, HWND_TOP, SWP_SHOWWINDOW,
+                                };
+
+                                // Center on screen
+                                let screen_w = GetSystemMetrics(SM_CXSCREEN);
+                                let screen_h = GetSystemMetrics(SM_CYSCREEN);
+                                let win_w = 400;
+                                let win_h = 600;
+                                let pos_x = (screen_w - win_w) / 2;
+                                let pos_y = (screen_h - win_h) / 2;
+
+                                SetWindowPos(hwnd, HWND_TOP, pos_x, pos_y, win_w, win_h, SWP_SHOWWINDOW);
                                 SetForegroundWindow(hwnd);
-                                info!("Configured and brought main window to front! HWND: {:?}", hwnd);
+                                info!("Centered ({}, {}) [{}x{}] and brought window to front! HWND: {:?}", pos_x, pos_y, win_w, win_h, hwnd);
                             }
                         }
                         1
@@ -322,6 +331,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Step 5: Calling main_window.show()...");
     main_window.show()?;
+    main_window.window().request_redraw();
     info!("Step 6: main_window.show() returned Ok.");
     info!("Window size: {:?}", main_window.window().size());
     info!("Window is_visible: {:?}", main_window.window().is_visible());
