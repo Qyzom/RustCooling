@@ -160,7 +160,7 @@ impl MonitorService {
                                 *lbl = crate::i18n::I18n::get().metric_load;
                             }
                             if let Ok(mut val) = state.broadcast_value.lock() {
-                                *val = format!("{}%", usage_val);
+                                *val = format!("{} %", usage_val);
                             }
                         }
                     }
@@ -173,7 +173,7 @@ impl MonitorService {
                                 *lbl = crate::i18n::I18n::get().metric_carousel;
                             }
                             if let Ok(mut val) = state.broadcast_value.lock() {
-                                *val = format!("{}°C", temp_val);
+                                *val = format!("{} °C", temp_val);
                             }
                         }
                         thread::sleep(Duration::from_millis(100));
@@ -204,7 +204,7 @@ impl MonitorService {
                                 *lbl = crate::i18n::I18n::get().metric_temperature;
                             }
                             if let Ok(mut val) = state.broadcast_value.lock() {
-                                *val = format!("{}°C", temp_val);
+                                *val = format!("{} °C", temp_val);
                             }
                         }
                     }

@@ -33,6 +33,10 @@ pub struct Translation {
     pub freq_mhz: String,
     #[allow(dead_code)]
     pub setting_interval: String,
+    pub setting_animation: String,
+    pub anim_smooth: String,
+    pub anim_roller: String,
+    pub anim_direct: String,
     pub setting_language: String,
     pub btn_save_return: String,
     pub tray_show: String,

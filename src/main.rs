@@ -97,6 +97,10 @@ fn apply_translations(w: &MainWindow) {
     w.set_tr_setting_freq_format(t.setting_freq_format.as_str().into());
     w.set_tr_freq_ghz(t.freq_ghz.as_str().into());
     w.set_tr_freq_mhz(t.freq_mhz.as_str().into());
+    w.set_tr_setting_animation(t.setting_animation.as_str().into());
+    w.set_tr_anim_smooth(t.anim_smooth.as_str().into());
+    w.set_tr_anim_roller(t.anim_roller.as_str().into());
+    w.set_tr_anim_direct(t.anim_direct.as_str().into());
     w.set_tr_setting_language(t.setting_language.as_str().into());
     w.set_tr_btn_save_return(t.btn_save_return.as_str().into());
 }
@@ -188,6 +192,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         main_window.set_setting_display_mode(cfg.display_mode.as_str().into());
         main_window.set_setting_freq_ghz(cfg.freq_in_ghz);
         main_window.set_setting_interval_ms(cfg.update_interval_ms as i32);
+        main_window.set_setting_animation(cfg.animation_type.as_str().into());
         main_window.set_setting_language(cfg.language.as_str().into());
     }
     apply_translations(&main_window);
@@ -196,8 +201,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_for_save = Arc::clone(&config_ref);
     let win_for_save = main_window.as_weak();
     let tray_for_save = Arc::clone(&tray_ref);
-    main_window.on_save_settings(move |mode, freq_ghz, interval, lang| {
+    main_window.on_save_settings(move |mode, freq_ghz, interval, lang, anim| {
         let lang_str = lang.to_string();
+        let anim_str = anim.to_string();
         I18n::set_language(&lang_str);
         if let Some(w) = win_for_save.upgrade() {
             apply_translations(&w);
@@ -212,8 +218,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             cfg.freq_in_ghz = freq_ghz;
             cfg.update_interval_ms = (interval as u64).max(300);
             cfg.language = lang_str.clone();
+            cfg.animation_type = anim_str.clone();
             let _ = cfg.save();
-            info!("Settings applied: mode={}, freq_ghz={}, interval={}ms, lang={}", mode, freq_ghz, interval, lang_str);
+            info!("Settings applied: mode={}, freq_ghz={}, interval={}ms, lang={}, anim={}", mode, freq_ghz, interval, lang_str, anim_str);
         }
     });
 
@@ -309,7 +316,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let screen_w = GetSystemMetrics(SM_CXSCREEN);
                                 let screen_h = GetSystemMetrics(SM_CYSCREEN);
                                 let x = (screen_w - 360) / 2;
-                                let y = (screen_h - 380) / 2;
+                                let y = (screen_h - 420) / 2;
                                 SetWindowPos(hwnd, std::ptr::null_mut(), x, y, 0, 0, SWP_NOSIZE | SWP_SHOWWINDOW);
                                 SetForegroundWindow(hwnd);
                                 return 0;

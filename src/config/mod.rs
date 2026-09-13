@@ -14,6 +14,8 @@ pub struct AppConfig {
     pub display_mode: String, // "temp", "freq", "load", "carousel"
     #[serde(default = "default_true")]
     pub freq_in_ghz: bool, // true: 4.6 GHz (sends 46 to LCD), false: 4600 MHz
+    #[serde(default = "default_animation")]
+    pub animation_type: String, // "roller", "smooth", "direct"
 }
 
 fn default_display_mode() -> String {
@@ -22,6 +24,10 @@ fn default_display_mode() -> String {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_animation() -> String {
+    "roller".to_string()
 }
 
 impl Default for AppConfig {
@@ -35,6 +41,7 @@ impl Default for AppConfig {
             language: "en".to_string(),
             display_mode: "temp".to_string(),
             freq_in_ghz: true,
+            animation_type: "roller".to_string(),
         }
     }
 }
