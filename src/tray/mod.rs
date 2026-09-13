@@ -125,34 +125,10 @@ fn apply_menu_dark_theme() {
 #[cfg(not(windows))]
 fn apply_menu_dark_theme() {}
 
-/// Generates a crisp 32x32 RGBA cooling icon (cyan/blue circular badge)
+/// Loads the crisp 32x32 RGBA logo icon embedded at compile time
 fn create_default_icon() -> Result<Icon, Box<dyn std::error::Error>> {
-    let width = 32;
-    let height = 32;
-    let mut rgba = Vec::with_capacity((width * height * 4) as usize);
-
-    for y in 0..height {
-        for x in 0..width {
-            let dx = (x as i32 - 16).abs();
-            let dy = (y as i32 - 16).abs();
-            let dist_sq = dx * dx + dy * dy;
-
-            if dist_sq <= 14 * 14 {
-                if dist_sq <= 10 * 10 {
-                    // Inner mint teal
-                    rgba.extend_from_slice(&[123, 208, 193, 255]); // #7bd0c1
-                } else {
-                    // Border matching app surface
-                    rgba.extend_from_slice(&[23, 25, 36, 255]); // #171924
-                }
-            } else {
-                // Transparent
-                rgba.extend_from_slice(&[0, 0, 0, 0]);
-            }
-        }
-    }
-
-    let icon = Icon::from_rgba(rgba, width, height)?;
+    let rgba_bytes = include_bytes!("../../assets/icons/tray_32x32.rgba");
+    let icon = Icon::from_rgba(rgba_bytes.to_vec(), 32, 32)?;
     Ok(icon)
 }
 

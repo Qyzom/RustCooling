@@ -1,0 +1,106 @@
+﻿name: Release Builds
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libudev-dev \
+            libfontconfig1-dev \
+            libgl1-mesa-dev \
+            libxkbcommon-dev \
+            libasound2-dev \
+            libayatana-appindicator3-dev \
+            libglib2.0-dev \
+            pkg-config \
+            build-essential
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build Release Binary
+        run: cargo build --release
+
+      - name: Package Debian (.deb)
+        run: |
+          mkdir -p pkg/DEBIAN
+          mkdir -p pkg/usr/bin
+          mkdir -p pkg/usr/lib/udev/rules.d
+          mkdir -p pkg/usr/share/applications
+          mkdir -p pkg/usr/share/icons/hicolor/256x256/apps
+
+          cp target/release/RustCooling pkg/usr/bin/RustCooling
+          chmod 755 pkg/usr/bin/RustCooling
+          cp packaging/linux/99-idcooling.rules pkg/usr/lib/udev/rules.d/
+          cp packaging/linux/rustcooling.desktop pkg/usr/share/applications/
+          cp assets/icons/logo_256.png pkg/usr/share/icons/hicolor/256x256/apps/rustcooling.png
+
+          cat << 'EOF' > pkg/DEBIAN/control
+          Package: rustcooling
+          Version: 0.1.0
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Maintainer: Qyzom <t0lotsmail@gmail.com>
+          Depends: libudev1, libfontconfig1, libc6
+          Homepage: https://github.com/Qyzom/RustCooling
+          Description: Ultra-lightweight LCD Display controller for ID-COOLING FX series liquid coolers
+           Ultra-lightweight native Rust application for controlling LCD displays on
+           ID-COOLING FX series liquid coolers (FX240, FX280, FX360).
+           Zero telemetry bloat, <15 MB RAM, native hwmon support.
+          EOF
+
+          cat << 'EOF' > pkg/DEBIAN/postinst
+          #!/bin/sh
+          set -e
+          if command -v udevadm >/dev/null 2>&1; then
+            udevadm control --reload-rules || true
+            udevadm trigger || true
+          fi
+          if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications || true
+          fi
+          exit 0
+          EOF
+          chmod 755 pkg/DEBIAN/postinst
+
+          dpkg-deb --build --root-owner-group pkg RustCooling-0.1.0.deb
+
+      - name: Package Tarball (.tar.gz)
+        run: |
+          mkdir -p tarball
+          cp target/release/RustCooling tarball/
+          cp packaging/linux/99-idcooling.rules tarball/
+          cp packaging/linux/rustcooling.desktop tarball/
+          cp packaging/linux/install.sh tarball/
+          cp packaging/linux/uninstall.sh tarball/
+          cp assets/icons/logo_256.png tarball/logo.png
+          tar -czvf RustCooling-0.1.0.tar.gz -C tarball .
+
+      - name: Upload Linux Assets to Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "main" ]; then
+            TAG_NAME="v0.1.0"
+          fi
+          gh release upload "$TAG_NAME" RustCooling-0.1.0.deb RustCooling-0.1.0.tar.gz --clobber || true

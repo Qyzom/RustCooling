@@ -43,6 +43,9 @@ windows-sys = { version = "0.59", features = [
 [build-dependencies]
 slint-build = "1.9"
 
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
+
 [profile.release]
 opt-level = 3
 lto = true
