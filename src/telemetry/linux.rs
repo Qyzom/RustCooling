@@ -2,11 +2,22 @@ use super::{CpuMetrics, TelemetryProvider};
 use std::fs;
 use std::path::Path;
 
-#[derive(Default)]
 pub struct LinuxTelemetry {
     prev_idle: u64,
     prev_total: u64,
     metrics: CpuMetrics,
+    temp_source: String,
+}
+
+impl Default for LinuxTelemetry {
+    fn default() -> Self {
+        Self {
+            prev_idle: 0,
+            prev_total: 0,
+            metrics: CpuMetrics::default(),
+            temp_source: "package".to_string(),
+        }
+    }
 }
 
 impl LinuxTelemetry {
@@ -16,14 +27,23 @@ impl LinuxTelemetry {
         inst
     }
 
-    fn read_cpu_temp() -> Option<f32> {
+    /// Read CPU temperature from Linux hwmon interface according to the selected source:
+    /// "package" (Package / Tctl / Tdie), "core0" (First core), "avg" (Average cores), "max" (Max core).
+    fn read_cpu_temp(&self) -> Option<f32> {
         let hwmon_base = Path::new("/sys/class/hwmon");
         if hwmon_base.exists() {
             if let Ok(entries) = fs::read_dir(hwmon_base) {
                 let mut dirs: Vec<_> = entries.filter_map(|e| e.ok().map(|d| d.path())).collect();
-                
-                // Prioritize known CPU driver names
-                let preferred_drivers = ["coretemp", "k10temp", "zenpower", "cpu_thermal", "soc_thermal", "acpitz"];
+
+                // Prioritize known CPU thermal drivers
+                let preferred_drivers = [
+                    "coretemp",
+                    "k10temp",
+                    "zenpower",
+                    "cpu_thermal",
+                    "soc_thermal",
+                    "acpitz",
+                ];
                 dirs.sort_by_key(|dir| {
                     let name_path = dir.join("name");
                     if let Ok(content) = fs::read_to_string(&name_path) {
@@ -35,6 +55,10 @@ impl LinuxTelemetry {
                     1
                 });
 
+                let mut package_temp: Option<f32> = None;
+                let mut core0_temp: Option<f32> = None;
+                let mut core_temps: Vec<f32> = Vec::new();
+
                 for dir in dirs {
                     if let Ok(files) = fs::read_dir(&dir) {
                         for file in files.filter_map(|f| f.ok()) {
@@ -42,28 +66,46 @@ impl LinuxTelemetry {
                             if file_name.starts_with("temp") && file_name.ends_with("_input") {
                                 let label_name = file_name.replace("_input", "_label");
                                 let label_path = dir.join(label_name);
-                                
-                                if label_path.exists() {
-                                    if let Ok(label_content) = fs::read_to_string(&label_path) {
-                                        let label = label_content.trim().to_lowercase();
-                                        if label.contains("tdie") || label.contains("tctl") || label.contains("package") || label.contains("cpu") {
-                                            if let Ok(val_str) = fs::read_to_string(file.path()) {
-                                                if let Ok(val) = val_str.trim().parse::<f32>() {
-                                                    let c = if val > 1000.0 { val / 1000.0 } else { val };
-                                                    if (10.0..=125.0).contains(&c) {
-                                                        return Some(c);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+
+                                let label = if label_path.exists() {
+                                    fs::read_to_string(&label_path)
+                                        .unwrap_or_default()
+                                        .trim()
+                                        .to_lowercase()
+                                } else {
+                                    String::new()
+                                };
 
                                 if let Ok(val_str) = fs::read_to_string(file.path()) {
                                     if let Ok(val) = val_str.trim().parse::<f32>() {
+                                        // sysfs temps are usually in millidegrees Celsius
                                         let c = if val > 1000.0 { val / 1000.0 } else { val };
-                                        if (10.0..=125.0).contains(&c) {
-                                            return Some(c);
+                                        if (15.0..=120.0).contains(&c) {
+                                            if label.contains("tdie")
+                                                || label.contains("tctl")
+                                                || label.contains("package")
+                                            {
+                                                if package_temp.is_none()
+                                                    || c > package_temp.unwrap()
+                                                {
+                                                    package_temp = Some(c);
+                                                }
+                                            } else if label.contains("core 0")
+                                                || label.contains("core0")
+                                                || label.contains("cpu0")
+                                            {
+                                                if core0_temp.is_none() {
+                                                    core0_temp = Some(c);
+                                                }
+                                                core_temps.push(c);
+                                            } else if label.contains("core")
+                                                || label.contains("cpu")
+                                            {
+                                                core_temps.push(c);
+                                            } else {
+                                                // Generic sensor fallback
+                                                core_temps.push(c);
+                                            }
                                         }
                                     }
                                 }
@@ -71,10 +113,48 @@ impl LinuxTelemetry {
                         }
                     }
                 }
+
+                // Resolve according to selected source
+                let resolved = match self.temp_source.as_str() {
+                    "core0" => core0_temp
+                        .or_else(|| core_temps.first().copied())
+                        .or(package_temp),
+                    "avg" => {
+                        if !core_temps.is_empty() {
+                            let sum: f32 = core_temps.iter().sum();
+                            Some((sum / core_temps.len() as f32).round())
+                        } else {
+                            package_temp
+                        }
+                    }
+                    "max" => {
+                        if !core_temps.is_empty() {
+                            let m = core_temps.iter().cloned().fold(f32::MIN, f32::max);
+                            Some(m.round())
+                        } else {
+                            package_temp
+                        }
+                    }
+                    _ => {
+                        // "package" or default
+                        package_temp.or_else(|| {
+                            if !core_temps.is_empty() {
+                                let m = core_temps.iter().cloned().fold(f32::MIN, f32::max);
+                                Some(m.round())
+                            } else {
+                                None
+                            }
+                        })
+                    }
+                };
+
+                if let Some(t) = resolved {
+                    return Some(t);
+                }
             }
         }
 
-        // Fallback: /sys/class/thermal/thermal_zone*
+        // Secondary Fallback: /sys/class/thermal/thermal_zone*
         let thermal_base = Path::new("/sys/class/thermal");
         if thermal_base.exists() {
             if let Ok(entries) = fs::read_dir(thermal_base) {
@@ -84,8 +164,8 @@ impl LinuxTelemetry {
                         if let Ok(content) = fs::read_to_string(&temp_file) {
                             if let Ok(val) = content.trim().parse::<f32>() {
                                 let c = if val > 1000.0 { val / 1000.0 } else { val };
-                                if (10.0..=125.0).contains(&c) {
-                                    return Some(c);
+                                if (15.0..=120.0).contains(&c) {
+                                    return Some(c.round());
                                 }
                             }
                         }
@@ -97,6 +177,7 @@ impl LinuxTelemetry {
         None
     }
 
+    /// Read CPU load percentage from /proc/stat by calculating delta against previous sample.
     fn read_cpu_load(&mut self) -> Option<f32> {
         if let Ok(content) = fs::read_to_string("/proc/stat") {
             if let Some(first_line) = content.lines().next() {
@@ -134,14 +215,52 @@ impl LinuxTelemetry {
         None
     }
 
+    /// Read CPU frequency in MHz.
+    /// Prioritizes live boost frequencies from /sys/devices/system/cpu/cpufreq,
+    /// and falls back to /proc/cpuinfo.
     fn read_cpu_freq() -> Option<f32> {
+        // 1. Check cpufreq scaling_cur_freq (live boosted frequencies in kHz)
+        for base_str in &["/sys/devices/system/cpu/cpufreq", "/sys/devices/system/cpu"] {
+            let base = Path::new(base_str);
+            if base.exists() {
+                if let Ok(entries) = fs::read_dir(base) {
+                    let mut freqs = Vec::new();
+                    for entry in entries.filter_map(|e| e.ok()) {
+                        let path = entry.path();
+                        let cur_freq_file = if path.join("scaling_cur_freq").exists() {
+                            path.join("scaling_cur_freq")
+                        } else if path.join("cpufreq/scaling_cur_freq").exists() {
+                            path.join("cpufreq/scaling_cur_freq")
+                        } else {
+                            continue;
+                        };
+
+                        if let Ok(content) = fs::read_to_string(&cur_freq_file) {
+                            if let Ok(khz) = content.trim().parse::<f32>() {
+                                if khz > 100_000.0 {
+                                    freqs.push(khz / 1000.0);
+                                }
+                            }
+                        }
+                    }
+                    if !freqs.is_empty() {
+                        let avg = freqs.iter().sum::<f32>() / (freqs.len() as f32);
+                        return Some(avg.round());
+                    }
+                }
+            }
+        }
+
+        // 2. Fallback to /proc/cpuinfo
         if let Ok(content) = fs::read_to_string("/proc/cpuinfo") {
             let mut freqs = Vec::new();
             for line in content.lines() {
                 if line.to_lowercase().starts_with("cpu mhz") {
                     if let Some(val_str) = line.split(':').nth(1) {
                         if let Ok(freq) = val_str.trim().parse::<f32>() {
-                            freqs.push(freq);
+                            if freq > 100.0 {
+                                freqs.push(freq);
+                            }
                         }
                     }
                 }
@@ -152,35 +271,17 @@ impl LinuxTelemetry {
             }
         }
 
-        // Fallback: cpufreq scaling_cur_freq
-        let cpufreq_base = Path::new("/sys/devices/system/cpu/cpufreq");
-        if cpufreq_base.exists() {
-            if let Ok(entries) = fs::read_dir(cpufreq_base) {
-                let mut freqs = Vec::new();
-                for entry in entries.filter_map(|e| e.ok()) {
-                    let cur_freq_file = entry.path().join("scaling_cur_freq");
-                    if cur_freq_file.exists() {
-                        if let Ok(content) = fs::read_to_string(&cur_freq_file) {
-                            if let Ok(khz) = content.trim().parse::<f32>() {
-                                freqs.push(khz / 1000.0);
-                            }
-                        }
-                    }
-                }
-                if !freqs.is_empty() {
-                    let avg = freqs.iter().sum::<f32>() / (freqs.len() as f32);
-                    return Some(avg.round());
-                }
-            }
-        }
-
         None
     }
 }
 
 impl TelemetryProvider for LinuxTelemetry {
+    fn set_temp_source(&mut self, source: &str) {
+        self.temp_source = source.to_string();
+    }
+
     fn update(&mut self) {
-        self.metrics.temperature = Self::read_cpu_temp();
+        self.metrics.temperature = self.read_cpu_temp();
         self.metrics.load_percent = self.read_cpu_load();
         self.metrics.frequency_mhz = Self::read_cpu_freq();
     }

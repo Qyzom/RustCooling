@@ -31,7 +31,21 @@
   "anim_roller": "滚动",
   "anim_direct": "直接",
   "setting_language": "界面语言",
+  "setting_temp_source": "CPU 温度传感器",
+  "temp_src_package": "封装 (Package)",
+  "temp_src_core0": "核心 0",
+  "temp_src_avg": "核心平均",
+  "temp_src_max": "最高核心",
+  "about_title": "RustCooling v0.1.0",
+  "about_desc": "GitHub: Qyzom/RustCooling",
+  "setting_open_config": "打开配置文件夹",
+  "setting_debug_title": "硬件与 USB VID / PID",
+  "setting_reset_defaults": "恢复默认设置",
+  "setting_autostart": "开机自启动",
+  "autostart_off": "关闭",
+  "autostart_on": "开启",
   "btn_save_return": "保存并返回",
-  "tray_show": "显示窗口",
-  "tray_exit": "退出"
+  "tray_show": "显示",
+  "tray_hide": "隐藏",
+  "tray_exit": "停止"
 }

@@ -1,70 +1,164 @@
 import "../assets/fonts/Unbounded.ttf";
 
-component AppButton {
+component AppButton inherits Rectangle {
     in property <string> text;
     in property <color> bg: #1e2230;
     in property <color> hover_bg: #2e3346;
     in property <color> text_color: #e2e4ed;
-    in property <color> border_color: #2e3346;
     in property <length> font_size: 11px;
-    in property <length> border_radius: 12px;
-    callback clicked <=> ta.clicked;
+    callback clicked;
 
-    ta := TouchArea {
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: #2e3346;
+    background: touch.pressed ? root.bg : (touch.has-hover ? root.hover_bg : root.bg);
+    animate background { duration: 100ms; }
+
+    Text {
+        width: 100%;
+        height: 100%;
+        text: root.text;
+        font-size: root.font_size;
+        font-weight: 700;
+        color: root.text_color;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
         mouse-cursor: pointer;
-
-        Rectangle {
-            width: 100%;
-            height: 100%;
-            border-radius: root.border_radius;
-            background: ta.pressed ? root.bg : (ta.has-hover ? root.hover_bg : root.bg);
-            border-width: 1px;
-            border-color: root.border_color;
-            animate background { duration: 100ms; }
-
-            Text {
-                width: 100%;
-                height: 100%;
-                text: root.text;
-                font-size: root.font_size;
-                font-weight: 700;
-                color: root.text_color;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
+        clicked => {
+            root.clicked();
         }
     }
 }
 
-component SelectPill {
+component SelectPill inherits Rectangle {
     in property <string> text;
     in property <bool> is_selected: false;
     in property <color> active_color: #7bd0c1;
     in property <color> active_bg: #1b3d35;
     in property <length> font_size: 10px;
-    callback clicked <=> ta.clicked;
+    callback clicked;
 
-    ta := TouchArea {
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: root.is_selected ? root.active_color : (touch.has-hover ? #363a4d : #252837);
+    background: root.is_selected ? root.active_bg : (touch.has-hover ? #252837 : #1c1f2b);
+    animate background { duration: 100ms; }
+
+    Text {
+        width: 100%;
+        height: 100%;
+        text: root.text;
+        font-size: root.font_size;
+        font-weight: 700;
+        color: root.is_selected ? root.active_color : (touch.has-hover ? #ffffff : #c4c6d2);
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+component SettingHexInput inherits Rectangle {
+    in property <string> label: "VID 0x";
+    in-out property <string> value: "1A86";
+    callback changed(string);
+
+    height: 28px;
+    background: #141620;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: #272a38;
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        spacing: 4px;
+        alignment: center;
+
+        Text {
+            text: root.label;
+            font-size: 10px;
+            font-weight: 700;
+            color: #8c90a2;
+            vertical-alignment: center;
+        }
+
+        TextInput {
+            text <=> root.value;
+            font-size: 11px;
+            font-weight: 700;
+            color: #7bd0c1;
+            vertical-alignment: center;
+            edited => {
+                root.changed(self.text);
+            }
+        }
+    }
+}
+
+component SettingSlider inherits Rectangle {
+    in property <int> min_val: 100;
+    in property <int> max_val: 3000;
+    in property <int> step: 50;
+    in-out property <int> value: 300;
+    callback changed(int);
+
+    height: 24px;
+    background: transparent;
+
+    track := Rectangle {
+        y: (parent.height - self.height) / 2;
+        height: 6px;
+        border-radius: 3px;
+        background: #202434;
+        border-width: 1px;
+        border-color: #2b3044;
+
+        // Active filled track
+        Rectangle {
+            x: 0px;
+            width: Math.max(0px, Math.min(parent.width, (parent.width - 16px) * (root.value - root.min_val) / (root.max_val - root.min_val) + 8px));
+            height: 100%;
+            border-radius: 3px;
+            background: #7bd0c1;
+        }
+
+        // Thumb knob
+        Rectangle {
+            x: Math.max(0px, Math.min(parent.width - 16px, (parent.width - 16px) * (root.value - root.min_val) / (root.max_val - root.min_val)));
+            y: (parent.height - self.height) / 2;
+            width: 16px;
+            height: 16px;
+            border-radius: 8px;
+            background: touch.has-hover ? #90dcd0 : #7bd0c1;
+            border-width: 2px;
+            border-color: #101218;
+            animate background { duration: 100ms; }
+        }
+    }
+
+    touch := TouchArea {
+        width: 100%;
+        height: 100%;
         mouse-cursor: pointer;
 
-        Rectangle {
-            width: 100%;
-            height: 100%;
-            border-radius: 8px;
-            background: root.is_selected ? root.active_bg : (ta.has-hover ? #252837 : #1c1f2b);
-            border-width: 1px;
-            border-color: root.is_selected ? root.active_color : (ta.has-hover ? #363a4d : #252837);
-            animate background { duration: 100ms; }
-
-            Text {
-                width: 100%;
-                height: 100%;
-                text: root.text;
-                font-size: root.font_size;
-                font-weight: 700;
-                color: root.is_selected ? root.active_color : (ta.has-hover ? #ffffff : #c4c6d2);
-                horizontal-alignment: center;
-                vertical-alignment: center;
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.down || (event.kind == PointerEventKind.move && self.pressed) {
+                let ratio = (self.mouse-x - 8px) / (self.width - 16px);
+                let clamped_ratio = Math.max(0.0, Math.min(1.0, ratio));
+                let raw_val = root.min_val + clamped_ratio * (root.max_val - root.min_val);
+                let stepped = Math.round(raw_val / root.step) * root.step;
+                let final_val = Math.max(root.min_val, Math.min(root.max_val, Math.round(stepped)));
+                root.value = final_val;
+                root.changed(final_val);
             }
         }
     }
@@ -74,55 +168,74 @@ export component MainWindow inherits Window {
     title: "RustCooling";
     no-frame: true;
     width: 360px;
-    height: 380px;
+    height: 352px;
     background: transparent;
     default-font-family: "Unbounded";
 
     // Properties bound to Rust telemetry
     in property <int> cpu_temp: 0;
     in property <int> cpu_load: 0;
-    in property <int> cpu_freq: 0;
     in property <bool> is_connected: false;
     in property <string> broadcast_label: "CPU Temperature";
     in property <string> broadcast_value: "—";
+    in property <string> device_vid_pid_text: "USB HID (VID 1A86, PID E317)";
 
     // Translation properties
     in property <string> tr_app_title: "RustCooling";
+    in property <string> tr_setting_autostart: "Autostart";
+    in property <string> tr_autostart_off: "Off";
+    in property <string> tr_autostart_on: "On";
     in property <string> tr_device_name: "USB HID (VID 1A86, PID E317)";
     in property <string> tr_status_connected: "Connected";
     in property <string> tr_status_searching: "Searching...";
     in property <string> tr_display_card_title: "PUMP DISPLAY OUTPUT";
     in property <string> tr_chip_temp: "Temperature";
-    in property <string> tr_chip_freq: "Frequency";
     in property <string> tr_chip_load: "Load";
     in property <string> tr_btn_settings: "Settings";
-    in property <string> tr_settings_title: "SETTINGS";
+    in property <string> tr_settings_title: "Settings";
     in property <string> tr_btn_back: "← Back";
     in property <string> tr_setting_display_mode: "Pump Display Output";
     in property <string> tr_mode_temp: "Temperature";
     in property <string> tr_mode_freq: "Frequency";
     in property <string> tr_mode_load: "Load";
-    in property <string> tr_mode_carousel: "Carousel";
+    in property <string> tr_setting_interval: "Update Interval";
+    in property <string> tr_setting_temp_source: "CPU Temperature Source";
+    in property <string> tr_temp_src_package: "Package / Tctl";
+    in property <string> tr_temp_src_core0: "Core 0";
+    in property <string> tr_temp_src_avg: "Average Cores";
+    in property <string> tr_temp_src_max: "Max Core";
     in property <string> tr_setting_animation: "Animation Style";
     in property <string> tr_anim_direct: "Direct";
     in property <string> tr_anim_roller: "Roller";
     in property <string> tr_anim_smooth: "Smooth";
     in property <string> tr_setting_language: "Language";
-    in property <string> tr_btn_save_return: "Save & Return";
+    in property <string> tr_setting_debug: "Hardware & USB VID / PID";
+    in property <string> tr_setting_reset_defaults: "Reset to Defaults";
+    in property <string> tr_open_config_folder: "Open Settings Folder";
+    in property <string> tr_about_title: "RustCooling v0.1.0";
+    in property <string> tr_about_desc: "GitHub: Qyzom/RustCooling";
 
     // Settings View State
     in-out property <bool> show_settings: false;
     in-out property <string> setting_display_mode: "temp";
-    in-out property <bool> setting_freq_ghz: true;
-    in-out property <int> setting_interval_ms: 1000;
+    in-out property <bool> setting_autostart: false;
+    in-out property <int> setting_interval_ms: 300;
     in-out property <string> setting_animation: "direct";
     in-out property <string> setting_language: "en";
+    in-out property <string> setting_temp_source: "package";
+    in-out property <string> setting_vid_hex: "1A86";
+    in-out property <string> setting_pid_hex: "E317";
 
     // Callbacks to Rust
-    callback save_settings(string, bool, int, string, string);
+    callback save_settings(string, bool, int, string, string, string, string, string);
+    callback reset_to_defaults();
+    callback open_config_folder();
     callback minimize_window();
     callback close_window();
     callback drag_window();
+    callback open_settings();
+    callback close_settings();
+    callback open_url(string);
 
     pure function temp_accent(temp: int) -> color {
         if temp < 50 {
@@ -161,14 +274,14 @@ export component MainWindow inherits Window {
 
             // ==================== TITLE BAR ====================
             Rectangle {
-                height: 48px;
+                height: 44px;
                 background: #141620;
                 border-top-left-radius: 16px;
                 border-top-right-radius: 16px;
 
                 HorizontalLayout {
-                    padding-left: 16px;
-                    padding-right: 16px;
+                    padding-left: 14px;
+                    padding-right: 14px;
                     alignment: space-between;
 
                     // Brand Title & Window Drag Area
@@ -185,15 +298,15 @@ export component MainWindow inherits Window {
                         Text {
                             width: 100%;
                             height: 100%;
-                            text: root.tr_app_title;
-                            font-size: 14px;
+                            text: root.show_settings ? (root.tr_app_title + " - " + root.tr_settings_title) : root.tr_app_title;
+                            font-size: 13px;
                             font-weight: 800;
                             color: #e2e4ed;
                             vertical-alignment: center;
                         }
                     }
 
-                    // Window Close Button ✕ (Symmetric 16px right margin, centered vertically)
+                    // Window Close Button ✕ (Symmetric 14px right margin, centered vertically)
                     close_touch := TouchArea {
                         width: 28px;
                         height: 28px;
@@ -231,20 +344,19 @@ export component MainWindow inherits Window {
 
             // ==================== CONTENT VIEWS WRAPPER ====================
             content_container := Rectangle {
-                vertical-stretch: 1;
+                clip: true;
 
                 // ==================== 1. MONITOR VIEW ====================
-                VerticalLayout {
-                    visible: !root.show_settings;
+                if !root.show_settings : VerticalLayout {
                     width: 100%;
                     height: 100%;
-                    padding-left: 16px;
-                    padding-right: 16px;
-                    padding-top: 10px;
-                    padding-bottom: 10px;
-                    spacing: 8px;
+                    padding-left: 14px;
+                    padding-right: 14px;
+                    padding-top: 12px;
+                    padding-bottom: 14px;
+                    spacing: 10px;
 
-                    // Device Hardware Status Bar (Unified, NO green capsule)
+                    // Device Hardware Status Bar (Unified)
                     Rectangle {
                         height: 44px;
                         background: #171924;
@@ -261,7 +373,7 @@ export component MainWindow inherits Window {
                                 spacing: 2px;
 
                                 Text {
-                                    text: "USB HID (VID 1A86, PID E317)";
+                                    text: root.device_vid_pid_text;
                                     font-size: 11px;
                                     font-weight: 700;
                                     color: #d4d6e2;
@@ -280,18 +392,21 @@ export component MainWindow inherits Window {
                     // Main Pump Display Card
                     Rectangle {
                         background: #151722;
-                        border-radius: 14px;
+                        border-radius: 12px;
                         border-width: 1px;
                         border-color: #272a38;
 
                         VerticalLayout {
-                            padding: 10px;
+                            padding-left: 14px;
+                            padding-right: 14px;
+                            padding-top: 12px;
+                            padding-bottom: 12px;
                             spacing: 8px;
 
                             // Card Header Row: Title on left, Refresh Rate in ms & Animation on right
                             HorizontalLayout {
                                 alignment: space-between;
-                                height: 22px;
+                                height: 24px;
 
                                 Text {
                                     text: root.tr_display_card_title;
@@ -304,6 +419,7 @@ export component MainWindow inherits Window {
                                 // Refresh rate in ms & Animation pill
                                 Rectangle {
                                     height: 22px;
+                                    y: (parent.height - self.height) / 2;
                                     border-radius: 11px;
                                     background: #202434;
                                     border-width: 1px;
@@ -315,7 +431,7 @@ export component MainWindow inherits Window {
                                         spacing: 6px;
                                         alignment: center;
 
-                                        // Animated pulsating dot
+                                        // Animated dot
                                         Rectangle {
                                             width: 5px;
                                             height: 5px;
@@ -357,14 +473,14 @@ export component MainWindow inherits Window {
                                 }
                             }
 
-                            // Metrics Summary Columns (Number + SPACE + Unit)
+                            // Metrics Summary Columns: Temperature & Load
                             HorizontalLayout {
                                 spacing: 8px;
                                 height: 46px;
 
-                                // Temp Box
+                                // 1. Temperature Box (Left)
                                 Rectangle {
-                                    horizontal-stretch: 1;
+                                    width: (parent.width - 8px) / 2;
                                     background: #1c1f2d;
                                     border-radius: 10px;
                                     border-width: 1px;
@@ -376,14 +492,14 @@ export component MainWindow inherits Window {
 
                                         Text {
                                             text: root.tr_chip_temp;
-                                            font-size: 8px;
+                                            font-size: 9px;
                                             font-weight: 600;
                                             color: #8c909e;
                                             horizontal-alignment: center;
                                         }
                                         Text {
                                             text: root.cpu_temp > 0 ? "\{root.cpu_temp} °C" : "—";
-                                            font-size: 12px;
+                                            font-size: 13px;
                                             font-weight: 800;
                                             color: root.temp_accent(root.cpu_temp);
                                             horizontal-alignment: center;
@@ -391,38 +507,9 @@ export component MainWindow inherits Window {
                                     }
                                 }
 
-                                // Freq Box
+                                // 2. Load Box (Right)
                                 Rectangle {
-                                    horizontal-stretch: 1;
-                                    background: #1c1f2d;
-                                    border-radius: 10px;
-                                    border-width: 1px;
-                                    border-color: #252837;
-
-                                    VerticalLayout {
-                                        alignment: center;
-                                        spacing: 2px;
-
-                                        Text {
-                                            text: root.tr_chip_freq;
-                                            font-size: 8px;
-                                            font-weight: 600;
-                                            color: #8c909e;
-                                            horizontal-alignment: center;
-                                        }
-                                        Text {
-                                            text: root.cpu_freq > 0 ? "\{Math.round(root.cpu_freq / 100) / 10} GHz" : "—";
-                                            font-size: 12px;
-                                            font-weight: 800;
-                                            color: #d0bcff;
-                                            horizontal-alignment: center;
-                                        }
-                                    }
-                                }
-
-                                // Load Box
-                                Rectangle {
-                                    horizontal-stretch: 1;
+                                    width: (parent.width - 8px) / 2;
                                     background: #1c1f2d;
                                     border-radius: 10px;
                                     border-width: 1px;
@@ -434,14 +521,14 @@ export component MainWindow inherits Window {
 
                                         Text {
                                             text: root.tr_chip_load;
-                                            font-size: 8px;
+                                            font-size: 9px;
                                             font-weight: 600;
                                             color: #8c909e;
                                             horizontal-alignment: center;
                                         }
                                         Text {
                                             text: root.cpu_load >= 0 ? "\{root.cpu_load} %" : "—";
-                                            font-size: 12px;
+                                            font-size: 13px;
                                             font-weight: 800;
                                             color: #a8c7fa;
                                             horizontal-alignment: center;
@@ -452,284 +539,735 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    // Bottom Row: [ Settings ]
+                    // Bottom Row: [ Settings ] with symmetric 14px bottom padding
                     AppButton {
                         height: 40px;
                         text: root.tr_btn_settings;
-                        bg: #1e2230;
-                        hover_bg: #2e3346;
-                        text_color: #e2e4ed;
-                        border_color: #2e3346;
-                        font_size: 11px;
-                        border_radius: 12px;
                         clicked => {
-                            root.show_settings = true;
+                            root.open_settings();
                         }
                     }
                 }
 
-                // ==================== 2. SETTINGS VIEW ====================
-                VerticalLayout {
-                    visible: root.show_settings;
+                // ==================== 2. SETTINGS VIEW (SCROLLABLE) ====================
+                if root.show_settings : VerticalLayout {
                     width: 100%;
                     height: 100%;
-                    padding-left: 16px;
-                    padding-right: 16px;
-                    padding-top: 10px;
-                    padding-bottom: 10px;
+                    padding-left: 0px;
+                    padding-right: 0px;
+                    padding-top: 6px;
+                    padding-bottom: 12px;
                     spacing: 8px;
 
-                    // Settings Header Row: Large, easily clickable Back Button
+                    // Scrollable Area containing all Setting Cards (No scrollbar, symmetric 14px margins)
+                    Flickable {
+                        vertical-stretch: 1;
+                        viewport-height: settings_layout.preferred-height;
+
+                        settings_layout := VerticalLayout {
+                            padding-left: 14px;
+                            padding-right: 14px;
+                            padding-top: 2px;
+                            padding-bottom: 6px;
+                            spacing: 8px;
+
+                            // Card 1: Display Mode (Temperature, Frequency, Load) in 1 row
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+                                height: 60px;
+
+                                VerticalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    padding-top: 8px;
+                                    padding-bottom: 8px;
+                                    spacing: 6px;
+
+                                    Text {
+                                        text: root.tr_setting_display_mode;
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        color: #d4d6e2;
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 6px;
+                                        height: 26px;
+
+                                        SelectPill {
+                                            text: root.tr_mode_temp;
+                                            is_selected: root.setting_display_mode == "temp";
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_display_mode = "temp";
+                                                root.save_settings(
+                                                    "temp",
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    root.setting_animation,
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                        SelectPill {
+                                            text: root.tr_mode_freq;
+                                            is_selected: root.setting_display_mode == "freq";
+                                            active_color: #d0bcff;
+                                            active_bg: #302648;
+                                            clicked => {
+                                                root.setting_display_mode = "freq";
+                                                root.save_settings(
+                                                    "freq",
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    root.setting_animation,
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                        SelectPill {
+                                            text: root.tr_mode_load;
+                                            is_selected: root.setting_display_mode == "load";
+                                            active_color: #a8c7fa;
+                                            active_bg: #192d47;
+                                            clicked => {
+                                                root.setting_display_mode = "load";
+                                                root.save_settings(
+                                                    "load",
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    root.setting_animation,
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Card 2: Polling Interval Slider (100 to 3000 ms)
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+                                height: 60px;
+
+                                VerticalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    padding-top: 8px;
+                                    padding-bottom: 8px;
+                                    spacing: 6px;
+
+                                    HorizontalLayout {
+                                        alignment: space-between;
+
+                                        Text {
+                                            text: root.tr_setting_interval;
+                                            font-size: 10px;
+                                            font-weight: 700;
+                                            color: #d4d6e2;
+                                            vertical-alignment: center;
+                                        }
+
+                                        Text {
+                                            text: "\{root.setting_interval_ms} ms";
+                                            font-size: 11px;
+                                            font-weight: 800;
+                                            color: #7bd0c1;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+
+                                    SettingSlider {
+                                        min_val: 100;
+                                        max_val: 3000;
+                                        step: 50;
+                                        value <=> root.setting_interval_ms;
+                                        changed(val) => {
+                                            root.setting_interval_ms = val;
+                                            root.save_settings(
+                                                root.setting_display_mode,
+                                                root.setting_autostart,
+                                                val,
+                                                root.setting_language,
+                                                root.setting_animation,
+                                                root.setting_temp_source,
+                                                root.setting_vid_hex,
+                                                root.setting_pid_hex
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Card 3: CPU Temperature Source (Package, Core 0, Average, Max Core)
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+                                height: 86px;
+
+                                VerticalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    padding-top: 8px;
+                                    padding-bottom: 8px;
+                                    spacing: 6px;
+
+                                    Text {
+                                        text: root.tr_setting_temp_source;
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        color: #d4d6e2;
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 6px;
+                                        height: 24px;
+
+                                        SelectPill {
+                                            text: root.tr_temp_src_package;
+                                            is_selected: root.setting_temp_source == "package";
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_temp_source = "package";
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    root.setting_animation,
+                                                    "package",
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                        SelectPill {
+                                            text: root.tr_temp_src_core0;
+                                            is_selected: root.setting_temp_source == "core0";
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_temp_source = "core0";
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    root.setting_animation,
+                                                    "core0",
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 6px;
+                                        height: 24px;
+
+                                        SelectPill {
+                                            text: root.tr_temp_src_avg;
+                                            is_selected: root.setting_temp_source == "avg";
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_temp_source = "avg";
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    root.setting_animation,
+                                                    "avg",
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                        SelectPill {
+                                            text: root.tr_temp_src_max;
+                                            is_selected: root.setting_temp_source == "max";
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_temp_source = "max";
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    root.setting_animation,
+                                                    "max",
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Card 4: Animation Type (Direct, Roller, Smooth)
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+                                height: 60px;
+
+                                VerticalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    padding-top: 8px;
+                                    padding-bottom: 8px;
+                                    spacing: 6px;
+
+                                    Text {
+                                        text: root.tr_setting_animation;
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        color: #d4d6e2;
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 6px;
+                                        height: 26px;
+
+                                        SelectPill {
+                                            text: root.tr_anim_direct;
+                                            is_selected: root.setting_animation == "direct";
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_animation = "direct";
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    "direct",
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                        SelectPill {
+                                            text: root.tr_anim_roller;
+                                            is_selected: root.setting_animation == "roller";
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_animation = "roller";
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    "roller",
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                        SelectPill {
+                                            text: root.tr_anim_smooth;
+                                            is_selected: root.setting_animation == "smooth";
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_animation = "smooth";
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    "smooth",
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Card 5: Language Selection
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+                                height: 60px;
+
+                                VerticalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    padding-top: 8px;
+                                    padding-bottom: 8px;
+                                    spacing: 6px;
+
+                                    Text {
+                                        text: root.tr_setting_language;
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        color: #d4d6e2;
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 6px;
+                                        height: 26px;
+
+                                        SelectPill {
+                                            text: "English";
+                                            is_selected: root.setting_language == "en";
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_language = "en";
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    "en",
+                                                    root.setting_animation,
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                        SelectPill {
+                                            text: "Русский";
+                                            is_selected: root.setting_language == "ru";
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_language = "ru";
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    "ru",
+                                                    root.setting_animation,
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                        SelectPill {
+                                            text: "中文";
+                                            is_selected: root.setting_language == "zh";
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_language = "zh";
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    "zh",
+                                                    root.setting_animation,
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Card 6: Autostart with System (Off / On)
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+                                height: 60px;
+
+                                VerticalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    padding-top: 8px;
+                                    padding-bottom: 8px;
+                                    spacing: 6px;
+
+                                    Text {
+                                        text: root.tr_setting_autostart;
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        color: #d4d6e2;
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 6px;
+                                        height: 26px;
+
+                                        SelectPill {
+                                            text: root.tr_autostart_off;
+                                            is_selected: !root.setting_autostart;
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_autostart = false;
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    false,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    root.setting_animation,
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                        SelectPill {
+                                            text: root.tr_autostart_on;
+                                            is_selected: root.setting_autostart;
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_autostart = true;
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    true,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    root.setting_animation,
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Card 6: Hardware & USB VID / PID Debug Section
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+                                height: 66px;
+
+                                VerticalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    padding-top: 8px;
+                                    padding-bottom: 8px;
+                                    spacing: 6px;
+
+                                    Text {
+                                        text: root.tr_setting_debug;
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        color: #d4d6e2;
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 8px;
+
+                                        SettingHexInput {
+                                            label: "VID 0x";
+                                            value <=> root.setting_vid_hex;
+                                            changed(val) => {
+                                                root.setting_vid_hex = val;
+                                            }
+                                        }
+
+                                        SettingHexInput {
+                                            label: "PID 0x";
+                                            value <=> root.setting_pid_hex;
+                                            changed(val) => {
+                                                root.setting_pid_hex = val;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Card 7: Reset to Defaults Button
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+                                height: 42px;
+
+                                touch_reset := TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => {
+                                        root.reset_to_defaults();
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 12px;
+                                        alignment: space-between;
+
+                                        Text {
+                                            text: root.tr_setting_reset_defaults;
+                                            font-size: 10px;
+                                            font-weight: 700;
+                                            color: touch_reset.has-hover ? #ffb4ab : #d4d6e2;
+                                            vertical-alignment: center;
+                                            animate color { duration: 100ms; }
+                                        }
+
+                                        Text {
+                                            text: "→";
+                                            font-size: 13px;
+                                            font-weight: 800;
+                                            color: touch_reset.has-hover ? #ffb4ab : #8c90a2;
+                                            vertical-alignment: center;
+                                            animate color { duration: 100ms; }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Card 8: Flat Button to Open Config Directory (No emoji)
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+                                height: 42px;
+
+                                touch_cfg := TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => {
+                                        root.open_config_folder();
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 12px;
+                                        alignment: space-between;
+
+                                        Text {
+                                            text: root.tr_open_config_folder;
+                                            font-size: 10px;
+                                            font-weight: 700;
+                                            color: touch_cfg.has-hover ? #ffffff : #d4d6e2;
+                                            vertical-alignment: center;
+                                            animate color { duration: 100ms; }
+                                        }
+
+                                        Text {
+                                            text: "↗";
+                                            font-size: 13px;
+                                            font-weight: 700;
+                                            color: touch_cfg.has-hover ? #ffffff : #7bd0c1;
+                                            vertical-alignment: center;
+                                            animate color { duration: 100ms; }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Card 9: About & GitHub Link
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+                                height: 50px;
+
+                                touch_about := TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => {
+                                        root.open_url("https://github.com/Qyzom/RustCooling");
+                                    }
+
+                                    HorizontalLayout {
+                                        padding-left: 12px;
+                                        padding-right: 12px;
+                                        alignment: space-between;
+
+                                        VerticalLayout {
+                                            alignment: center;
+                                            spacing: 2px;
+
+                                            Text {
+                                                text: root.tr_about_title;
+                                                font-size: 10px;
+                                                font-weight: 700;
+                                                color: #e2e4ed;
+                                            }
+
+                                            Text {
+                                                text: root.tr_about_desc;
+                                                font-size: 9px;
+                                                font-weight: 600;
+                                                color: touch_about.has-hover ? #90dcd0 : #7bd0c1;
+                                                animate color { duration: 100ms; }
+                                            }
+                                        }
+
+                                        // External link arrow icon ↗
+                                        Text {
+                                            text: "↗";
+                                            font-size: 13px;
+                                            font-weight: 800;
+                                            color: touch_about.has-hover ? #ffffff : #7bd0c1;
+                                            vertical-alignment: center;
+                                            animate color { duration: 100ms; }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Fixed Bottom [ ← Back ] Button with symmetric 14px lateral padding
                     HorizontalLayout {
-                        alignment: space-between;
-                        height: 32px;
-
-                        Text {
-                            text: root.tr_settings_title;
-                            font-size: 13px;
-                            font-weight: 800;
-                            color: #e2e4ed;
-                            vertical-alignment: center;
-                        }
-
-                        // Prominent, comfortable Back Button
-                        Rectangle {
-                            width: 100px;
-                            height: 32px;
-
-                            AppButton {
-                                text: root.tr_btn_back;
-                                font_size: 11px;
-                                bg: #1e2230;
-                                hover_bg: #2e3346;
-                                border_color: #2e3346;
-                                border_radius: 10px;
-                                clicked => {
-                                    root.save_settings(
-                                        root.setting_display_mode,
-                                        true,
-                                        root.setting_interval_ms,
-                                        root.setting_language,
-                                        root.setting_animation
-                                    );
-                                    root.show_settings = false;
-                                }
-                            }
-                        }
-                    }
-
-                    // Option 1: Display Mode (2x2 Grid so all 4 buttons have plenty of room!)
-                    Rectangle {
-                        background: #171924;
-                        border-radius: 12px;
-                        border-width: 1px;
-                        border-color: #272a38;
-                        height: 78px;
-
-                        VerticalLayout {
-                            padding-left: 12px;
-                            padding-right: 12px;
-                            padding-top: 6px;
-                            padding-bottom: 6px;
-                            spacing: 5px;
-
-                            Text {
-                                text: root.tr_setting_display_mode;
-                                font-size: 10px;
-                                font-weight: 700;
-                                color: #d4d6e2;
-                            }
-
-                            HorizontalLayout {
-                                spacing: 6px;
-                                height: 24px;
-
-                                SelectPill {
-                                    text: root.tr_mode_temp;
-                                    is_selected: root.setting_display_mode == "temp";
-                                    active_color: #7bd0c1;
-                                    active_bg: #1b3d35;
-                                    clicked => { root.setting_display_mode = "temp"; }
-                                }
-                                SelectPill {
-                                    text: root.tr_mode_freq;
-                                    is_selected: root.setting_display_mode == "freq";
-                                    active_color: #d0bcff;
-                                    active_bg: #302648;
-                                    clicked => { root.setting_display_mode = "freq"; }
-                                }
-                            }
-
-                            HorizontalLayout {
-                                spacing: 6px;
-                                height: 24px;
-
-                                SelectPill {
-                                    text: root.tr_mode_load;
-                                    is_selected: root.setting_display_mode == "load";
-                                    active_color: #a8c7fa;
-                                    active_bg: #192d47;
-                                    clicked => { root.setting_display_mode = "load"; }
-                                }
-                                SelectPill {
-                                    text: root.tr_mode_carousel;
-                                    is_selected: root.setting_display_mode == "carousel";
-                                    active_color: #fde293;
-                                    active_bg: #382c18;
-                                    clicked => { root.setting_display_mode = "carousel"; }
-                                }
-                            }
-                        }
-                    }
-
-                    // Option 2: Animation Type (Direct by default)
-                    Rectangle {
-                        background: #171924;
-                        border-radius: 12px;
-                        border-width: 1px;
-                        border-color: #272a38;
-                        height: 52px;
-
-                        VerticalLayout {
-                            padding-left: 12px;
-                            padding-right: 12px;
-                            padding-top: 6px;
-                            padding-bottom: 6px;
-                            spacing: 4px;
-
-                            Text {
-                                text: root.tr_setting_animation;
-                                font-size: 10px;
-                                font-weight: 700;
-                                color: #d4d6e2;
-                            }
-
-                            HorizontalLayout {
-                                spacing: 6px;
-                                height: 26px;
-
-                                SelectPill {
-                                    text: root.tr_anim_direct;
-                                    is_selected: root.setting_animation == "direct";
-                                    active_color: #7bd0c1;
-                                    active_bg: #1b3d35;
-                                    clicked => { root.setting_animation = "direct"; }
-                                }
-                                SelectPill {
-                                    text: root.tr_anim_roller;
-                                    is_selected: root.setting_animation == "roller";
-                                    active_color: #7bd0c1;
-                                    active_bg: #1b3d35;
-                                    clicked => { root.setting_animation = "roller"; }
-                                }
-                                SelectPill {
-                                    text: root.tr_anim_smooth;
-                                    is_selected: root.setting_animation == "smooth";
-                                    active_color: #7bd0c1;
-                                    active_bg: #1b3d35;
-                                    clicked => { root.setting_animation = "smooth"; }
-                                }
-                            }
-                        }
-                    }
-
-                    // Option 3: Language Selection (English by default)
-                    Rectangle {
-                        background: #171924;
-                        border-radius: 12px;
-                        border-width: 1px;
-                        border-color: #272a38;
-                        height: 52px;
-
-                        VerticalLayout {
-                            padding-left: 12px;
-                            padding-right: 12px;
-                            padding-top: 6px;
-                            padding-bottom: 6px;
-                            spacing: 4px;
-
-                            Text {
-                                text: root.tr_setting_language;
-                                font-size: 10px;
-                                font-weight: 700;
-                                color: #d4d6e2;
-                            }
-
-                            HorizontalLayout {
-                                spacing: 6px;
-                                height: 26px;
-
-                                SelectPill {
-                                    text: "English";
-                                    is_selected: root.setting_language == "en";
-                                    active_color: #7bd0c1;
-                                    active_bg: #1b3d35;
-                                    clicked => {
-                                        root.setting_language = "en";
-                                        root.save_settings(
-                                            root.setting_display_mode,
-                                            true,
-                                            root.setting_interval_ms,
-                                            "en",
-                                            root.setting_animation
-                                        );
-                                    }
-                                }
-                                SelectPill {
-                                    text: "Русский";
-                                    is_selected: root.setting_language == "ru";
-                                    active_color: #7bd0c1;
-                                    active_bg: #1b3d35;
-                                    clicked => {
-                                        root.setting_language = "ru";
-                                        root.save_settings(
-                                            root.setting_display_mode,
-                                            true,
-                                            root.setting_interval_ms,
-                                            "ru",
-                                            root.setting_animation
-                                        );
-                                    }
-                                }
-                                SelectPill {
-                                    text: "中文";
-                                    is_selected: root.setting_language == "zh";
-                                    active_color: #7bd0c1;
-                                    active_bg: #1b3d35;
-                                    clicked => {
-                                        root.setting_language = "zh";
-                                        root.save_settings(
-                                            root.setting_display_mode,
-                                            true,
-                                            root.setting_interval_ms,
-                                            "zh",
-                                            root.setting_animation
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Save & Return Button
-                    AppButton {
                         height: 40px;
-                        text: root.tr_btn_save_return;
-                        bg: #7bd0c1;
-                        hover_bg: #90dcd0;
-                        text_color: #101218;
-                        border_color: #7bd0c1;
-                        font_size: 11px;
-                        border_radius: 12px;
-                        clicked => {
-                            root.save_settings(
-                                root.setting_display_mode,
-                                true,
-                                root.setting_interval_ms,
-                                root.setting_language,
-                                root.setting_animation
-                            );
-                            root.show_settings = false;
+                        padding-left: 14px;
+                        padding-right: 14px;
+
+                        AppButton {
+                            text: root.tr_btn_back;
+                            clicked => {
+                                root.save_settings(
+                                    root.setting_display_mode,
+                                    root.setting_autostart,
+                                    root.setting_interval_ms,
+                                    root.setting_language,
+                                    root.setting_animation,
+                                    root.setting_temp_source,
+                                    root.setting_vid_hex,
+                                    root.setting_pid_hex
+                                );
+                                root.close_settings();
+                            }
                         }
                     }
                 }

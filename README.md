@@ -5,101 +5,163 @@
 [![Slint](https://img.shields.io/badge/UI-Slint_1.9-blueviolet.svg)](https://slint.dev/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-brightgreen.svg)]()
 
-> Lightweight, cross-platform controller and telemetry daemon for **ID-COOLING FX Series** liquid cooler LCD displays. Built in Rust with Material Design 3 and native Slint GUI.
+Lightweight, cross-platform controller and telemetry daemon for **ID-COOLING FX Series** liquid cooler LCD displays (QinHeng WCH controller, VID `0x1A86`, PID `0xE317`). Written in Rust with a native Slint user interface.
 
 ---
 
-## Highlights
+## Features
 
-- **Ultra-low Memory Footprint:** Consumes only ~**10–14 MB** of RAM with active GUI and ~**4–8 MB** when minimized to system tray (compared to 180–300 MB in official Electron-based software).
-- **Single Monolithic Binary:** No separate background daemons, drivers, or auxiliary processes. Everything runs in one native executable.
-- **Material Design 3 Interface:** Clean, dark Material You aesthetic featuring the **Unbounded** typeface, live sparkline trend graphs, and active broadcast status.
-- **Native Contextual Localization:** Multi-language architecture with separate JSON translation files (English, Russian, Chinese supported out-of-the-box).
-- **Rock-solid Hardware Bridge:** Communicates directly with the QinHeng WCH controller (`VID 0x1A86, PID 0xE317`) over USB HID with automatic reconnects and graceful shutdown.
-- **Staggered Frame Dispatch:** Smooth 100ms multi-stage packet scheduling and deduplication to prevent screen microcontroller buffer overruns.
+- **Low Resource Usage:** ~10–14 MB RAM with window open; ~4–8 MB when minimized to system tray.
+- **Single Monolithic Binary:** Telemetry monitoring, GUI, system tray, and USB HID driver bundled into a standalone executable.
+- **Cross-Platform:** Full feature parity on Windows and Linux (temperature sources, autostart, system tray, settings persistence).
+- **Multiple Display Modes:** CPU Temperature, Clock Frequency, Utilization Percentage, or Carousel mode.
+- **Configurable Transitions:** Direct instantaneous update, Roller, or Smooth animation styles.
+- **Internationalization:** Embedded multi-language support (English, Russian, Chinese) switchable at runtime.
+- **Daemon Mode:** Headless CLI mode for background execution (`--daemon`).
 
 ---
 
-## Architecture Overview
+## Operating Principles & Architecture
+
+### 1. USB HID Protocol
+The display communicates via standard USB HID reports. Every command packet consists of a **65-byte buffer** (1-byte `0x00` Report ID followed by a 64-byte payload):
+
+| Offset | Field | Value / Description |
+| :---: | :--- | :--- |
+| `[0]` | Report ID | `0x00` (required by HIDAPI on Windows and Linux) |
+| `[1]` | Header 1 | `0x55` |
+| `[2]` | Header 2 | `0xBB` |
+| `[3]` | Data Length | `0x02` (2 bytes of value payload) |
+| `[4]` | Command ID | `0x01` (Temp °C), `0x02` (Clock GHz/10), `0x03` (Load %), `0x04` (Show 1/0) |
+| `[5]` | Value High | `(value >> 8) & 0xFF` (Big-Endian) |
+| `[6]` | Value Low | `value & 0xFF` |
+| `[7]` | Checksum | `(byte[1] + byte[2] + ... + byte[6]) & 0xFF` (modulo 256 sum) |
+| `[8..64]` | Padding | 57 bytes of zeroes (`0x00`) |
+
+### 2. Telemetry Acquisition
+- **Windows:**
+  - **Load & Clock:** Retrieved via `sysinfo` and WMI performance counters (`Win32_PerfFormattedData_Counters_ProcessorInformation`).
+  - **Temperature:** Physical hardware sensor readout from `sysinfo::Components` (`Package`, `Tctl`, `Core #`). If blocked by Windows driver permissions, falls back to dynamic thermal calculation coupled with CPU frequency boost and utilization.
+- **Linux:**
+  - **Temperature:** Direct sysfs parsing of `/sys/class/hwmon/` (`coretemp`, `k10temp`, `zenpower`, etc.) supporting selectable sources (`package`, `core0`, `avg`, `max`), with fallback to `/sys/class/thermal/`.
+  - **Load:** Jiffy-delta accounting from `/proc/stat` across updates.
+  - **Clock:** Dynamic boosted core frequency from `/sys/devices/system/cpu/cpufreq/` or `/proc/cpuinfo`.
+
+### 3. Background Service Lifecycle
+The `MonitorService` runs on a dedicated background thread:
+1. Connects to the HID device (`0x1A86:0xE317` by default; custom VID/PID supported).
+2. Sends `CMD_SHOW(1)` to turn on the screen.
+3. Periodically samples system telemetry, applies stepping animations if configured, and writes reports to the display.
+4. On application exit or SIGINT, sends `CMD_SHOW(0)` and cleanly joins worker threads before shutdown.
+
+### 4. Configuration & Autostart
+- **Config Storage:** Stored as JSON in standard XDG / OS directories:
+  - Linux: `~/.config/RustCooling/config.json`
+  - Windows: `%APPDATA%\RustCooling\config.json`
+- **Autostart:**
+  - Linux: Creates/removes `~/.config/autostart/rust-cooling.desktop` complying with the FreeDesktop Autostart specification.
+  - Windows: Configured via standard registry Run keys with `--minimized` flag.
+
+---
+
+## Project Structure
 
 ```
-rust-cooling/
+RustCooling/
 ├── assets/
-│   └── fonts/              # Unbounded font family (OFL-1.1 licensed)
-├── i18n/                   # Localized translation files
-│   ├── en.json             # English (Default)
+│   └── fonts/              # Embedded Unbounded font family (SIL OFL 1.1)
+├── i18n/                   # Translation dictionaries
+│   ├── en.json             # English
 │   ├── ru.json             # Russian
 │   └── zh.json             # Chinese
 ├── ui/
-│   └── app.slint           # Material 3 UI layout & sparkline components
+│   └── app.slint           # Slint UI layout and components
 └── src/
     ├── config/             # Persistent JSON application configuration
-    ├── hid/                # USB HID device connector with auto-reconnect
-    ├── i18n/               # Embedded translation engine
-    ├── protocol/           # 64-byte frame packing and checksum calculation
-    ├── service/            # Staggered telemetry dispatcher loop
-    ├── telemetry/          # Native Windows (WMI/Sysinfo) & Linux (sysfs/hwmon)
-    ├── tray/               # Cross-platform system tray integration
-    └── main.rs             # Application entry point & lifecycle manager
+    ├── hid/                # Cross-platform USB HID connection manager
+    ├── i18n/               # Embedded localization provider
+    ├── protocol/           # Packet framing and checksum verification
+    ├── service/            # Telemetry dispatching and animation engine
+    ├── telemetry/          # Platform-specific metric readers (Linux / Windows)
+    ├── tray/               # System tray icon and context menu
+    └── main.rs             # Application entry point and UI event bindings
 ```
 
 ---
 
-## Protocol Specification
+## Linux Setup & Prerequisites
 
-Each communication frame consists of a 64-byte payload (with a 0x00 Report ID prefix on Windows):
+### 1. Build Dependencies
+To compile RustCooling on Linux, install the required development packages:
 
-| Byte Offset | Field | Description |
-| :---: | :--- | :--- |
-| `[0]` | Header 1 | `0x55` |
-| `[1]` | Header 2 | `0xBB` |
-| `[2]` | Data Length | `0x02` (2 bytes payload) |
-| `[3]` | Command ID | `0x01` (Temp), `0x02` (Clock), `0x03` (Load), `0x04` (Show) |
-| `[4]` | Value High | `(value >> 8) & 0xFF` (Big-Endian) |
-| `[5]` | Value Low | `value & 0xFF` |
-| `[6]` | Checksum | `(byte[0] + ... + byte[5]) & 0xFF` |
-| `[7..63]` | Padding | 57 bytes of zeros (`0x00`) |
+- **Debian / Ubuntu / Linux Mint:**
+  ```bash
+  sudo apt update
+  sudo apt install -y pkg-config libudev-dev libgtk-3-dev libayatana-appindicator3-dev
+  ```
+
+- **Arch Linux / Manjaro:**
+  ```bash
+  sudo pacman -S --needed pkgconf systemd gtk3 libayatana-appindicator
+  ```
+
+- **Fedora / RHEL:**
+  ```bash
+  sudo dnf install -y pkgconf-pkg-config systemd-devel gtk3-devel libayatana-appindicator-gtk3-devel
+  ```
+
+### 2. USB Permissions (udev Rule)
+By default, Linux limits raw access to USB HID devices (`/dev/hidraw*`) to root. To allow RustCooling to access the LCD display without `sudo`:
+
+```bash
+echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="e317", MODE="0666", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/99-rustcooling.rules
+sudo udevadm control --reload-rules && sudo udevadm trigger
+```
 
 ---
 
 ## Building from Source
 
-### Prerequisites
-
-- [Rust toolchain](https://rustup.rs/) (version 1.80 or newer recommended).
-
-### Build
+Ensure you have a recent [Rust toolchain](https://rustup.rs/) installed (edition 2021, Rust 1.80+ recommended).
 
 ```bash
 # Clone the repository
 git clone https://github.com/Qyzom/RustCooling.git
 cd RustCooling
 
-# Run unit tests
+# Run automated tests
 cargo test
 
-# Build optimized release binary
+# Build release binary
 cargo build --release
 ```
 
-The resulting standalone executable will be located in `target/release/rust-cooling`.
+The resulting executable will be located at:
+- **Linux:** `target/release/rust-cooling`
+- **Windows:** `target/release/rust-cooling.exe`
 
-### Running
+---
+
+## CLI Options
 
 ```bash
-# Normal desktop mode (shows Material 3 GUI)
-cargo run --release
+# Launch GUI
+./rust-cooling
 
-# Start minimized directly to system tray
-cargo run --release -- --minimized
+# Launch minimized to system tray
+./rust-cooling --minimized
 
-# Run as headless daemon without GUI (e.g. systemd or background services)
-cargo run --release -- --daemon
+# Run as headless background daemon (without GUI)
+./rust-cooling --daemon
+
+# Override polling interval (in milliseconds)
+./rust-cooling --interval 500
 ```
 
 ---
 
-## License
+## License & Compliance
 
-This project is licensed under the [MIT License](LICENSE).
-Fonts included in `assets/fonts/` are licensed under the [SIL Open Font License 1.1](assets/fonts/OFL.txt).
+- **Software:** [MIT License](LICENSE).
+- **Typeface:** The embedded *Unbounded* typeface is distributed under the [SIL Open Font License 1.1](assets/fonts/OFL.txt).
+- **Libraries:** Built with open-source dependencies complying with MIT, Apache-2.0, and Slint Royalty-Free Desktop terms.

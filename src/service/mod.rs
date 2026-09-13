@@ -13,9 +13,6 @@ pub struct MonitorState {
     pub is_connected: Arc<AtomicBool>,
     pub broadcast_label: Arc<Mutex<String>>,
     pub broadcast_value: Arc<Mutex<String>>,
-    pub temp_history: Arc<Mutex<Vec<f32>>>,
-    pub load_history: Arc<Mutex<Vec<f32>>>,
-    pub freq_history: Arc<Mutex<Vec<f32>>>,
 }
 
 impl MonitorState {
@@ -25,9 +22,6 @@ impl MonitorState {
             is_connected: Arc::new(AtomicBool::new(false)),
             broadcast_label: Arc::new(Mutex::new(crate::i18n::I18n::get().metric_temperature)),
             broadcast_value: Arc::new(Mutex::new("—".to_string())),
-            temp_history: Arc::new(Mutex::new(vec![0.0; 16])),
-            load_history: Arc::new(Mutex::new(vec![0.0; 16])),
-            freq_history: Arc::new(Mutex::new(vec![0.0; 16])),
         }
     }
 }
@@ -37,6 +31,7 @@ pub struct MonitorService {
     state: MonitorState,
     running: Arc<AtomicBool>,
     device: Arc<DeviceManager>,
+    worker_handle: Mutex<Option<thread::JoinHandle<()>>>,
 }
 
 impl MonitorService {
@@ -46,6 +41,7 @@ impl MonitorService {
             state: MonitorState::new(),
             running: Arc::new(AtomicBool::new(false)),
             device: Arc::new(DeviceManager::new()),
+            worker_handle: Mutex::new(None),
         }
     }
 
@@ -63,22 +59,67 @@ impl MonitorService {
         let state = self.state.clone();
         let device = Arc::clone(&self.device);
 
-        thread::spawn(move || {
+        let handle = thread::spawn(move || {
             info!("Monitor background service started.");
             let mut telemetry = create_telemetry_provider();
             let mut was_connected = false;
+            let mut active_vid = 0u16;
+            let mut active_pid = 0u16;
+            let mut last_displayed_val: Option<u16> = None;
+            let mut last_display_mode = String::new();
 
             while running.load(Ordering::Relaxed) {
+                // Read current display configuration
+                let (
+                    display_mode,
+                    interval_ms,
+                    temp_source,
+                    animation_type,
+                    custom_vid,
+                    custom_pid,
+                ) = {
+                    let cfg = config.lock().unwrap();
+                    (
+                        cfg.display_mode.clone(),
+                        cfg.update_interval_ms.clamp(100, 3000),
+                        cfg.temp_source.clone(),
+                        cfg.animation_type.clone(),
+                        cfg.custom_vid,
+                        cfg.custom_pid,
+                    )
+                };
+
+                // Reset animation state if mode changed
+                if display_mode != last_display_mode {
+                    last_displayed_val = None;
+                    last_display_mode = display_mode.clone();
+                }
+
+                // Reconnect if VID/PID changed
+                if active_vid != 0 && (custom_vid != active_vid || custom_pid != active_pid) {
+                    info!(
+                        "VID/PID configuration changed: 0x{:04X}:0x{:04X} -> 0x{:04X}:0x{:04X}",
+                        active_vid, active_pid, custom_vid, custom_pid
+                    );
+                    device.close_device();
+                    state.is_connected.store(false, Ordering::SeqCst);
+                }
+                active_vid = custom_vid;
+                active_pid = custom_pid;
+
                 // Ensure device is connected
                 if !device.is_connected() {
-                    if device.open_device() {
-                        info!("ID-COOLING LCD Display connected.");
+                    if device.open_device(custom_vid, custom_pid) {
+                        info!(
+                            "LCD Display connected (VID: 0x{:04X}, PID: 0x{:04X}).",
+                            custom_vid, custom_pid
+                        );
                         let _ = device.send_show(true);
                         state.is_connected.store(true, Ordering::SeqCst);
                         was_connected = true;
                     } else {
                         if was_connected {
-                            warn!("ID-COOLING LCD Display disconnected. Retrying in 2 seconds...");
+                            warn!("LCD Display disconnected. Retrying in 2 seconds...");
                             state.is_connected.store(false, Ordering::SeqCst);
                             was_connected = false;
                         }
@@ -87,7 +128,8 @@ impl MonitorService {
                     }
                 }
 
-                // Update Telemetry
+                // Update Telemetry with chosen temp source
+                telemetry.set_temp_source(&temp_source);
                 telemetry.update();
                 let metrics = telemetry.get_metrics();
 
@@ -95,46 +137,10 @@ impl MonitorService {
                     *m = metrics.clone();
                 }
 
-                // Update history buffers
-                if let Some(t) = metrics.temperature {
-                    if let Ok(mut hist) = state.temp_history.lock() {
-                        if hist.len() >= 16 {
-                            hist.remove(0);
-                        }
-                        hist.push(t);
-                    }
-                }
-                if let Some(l) = metrics.load_percent {
-                    if let Ok(mut hist) = state.load_history.lock() {
-                        if hist.len() >= 16 {
-                            hist.remove(0);
-                        }
-                        hist.push(l);
-                    }
-                }
-                if let Some(f) = metrics.frequency_mhz {
-                    if let Ok(mut hist) = state.freq_history.lock() {
-                        if hist.len() >= 16 {
-                            hist.remove(0);
-                        }
-                        hist.push(f);
-                    }
-                }
-
-                // Read current display configuration
-                let (display_mode, freq_in_ghz, interval_ms) = {
-                    let cfg = config.lock().unwrap();
-                    (cfg.display_mode.clone(), cfg.freq_in_ghz, cfg.update_interval_ms.max(300))
-                };
-
                 match display_mode.as_str() {
                     "freq" => {
                         if let Some(freq_f) = metrics.frequency_mhz {
-                            let send_val = if freq_in_ghz {
-                                ((freq_f / 100.0).round() as u16).min(99)
-                            } else {
-                                freq_f.round() as u16
-                            };
+                            let send_val = ((freq_f / 100.0).round() as u16).min(99);
                             if !device.send_frequency(send_val) {
                                 state.is_connected.store(false, Ordering::SeqCst);
                             }
@@ -142,26 +148,78 @@ impl MonitorService {
                                 *lbl = crate::i18n::I18n::get().metric_frequency;
                             }
                             if let Ok(mut val) = state.broadcast_value.lock() {
-                                *val = if freq_in_ghz {
-                                    format!("{:.1} GHz", freq_f / 1000.0)
-                                } else {
-                                    format!("{} MHz", freq_f.round())
-                                };
+                                *val = format!("{:.1} GHz", freq_f / 1000.0);
                             }
                         }
+                        thread::sleep(Duration::from_millis(interval_ms));
                     }
                     "load" => {
+                        if let Ok(mut lbl) = state.broadcast_label.lock() {
+                            *lbl = crate::i18n::I18n::get().metric_load;
+                        }
                         if let Some(usage_f) = metrics.load_percent {
-                            let usage_val = usage_f.round() as u16;
-                            if !device.send_usage(usage_val) {
-                                state.is_connected.store(false, Ordering::SeqCst);
+                            let target_val = usage_f.round().clamp(0.0, 100.0) as u16;
+                            match last_displayed_val {
+                                None => {
+                                    if !device.send_usage(target_val) {
+                                        state.is_connected.store(false, Ordering::SeqCst);
+                                    }
+                                    if let Ok(mut val) = state.broadcast_value.lock() {
+                                        *val = format!("{} %", target_val);
+                                    }
+                                    last_displayed_val = Some(target_val);
+                                    thread::sleep(Duration::from_millis(interval_ms));
+                                }
+                                Some(prev_val) => {
+                                    if prev_val == target_val || animation_type == "direct" {
+                                        if !device.send_usage(target_val) {
+                                            state.is_connected.store(false, Ordering::SeqCst);
+                                        }
+                                        if let Ok(mut val) = state.broadcast_value.lock() {
+                                            *val = format!("{} %", target_val);
+                                        }
+                                        last_displayed_val = Some(target_val);
+                                        thread::sleep(Duration::from_millis(interval_ms));
+                                    } else {
+                                        let diff = target_val as i32 - prev_val as i32;
+                                        let steps = diff.unsigned_abs() as usize;
+                                        let step_dir = if diff > 0 { 1 } else { -1 };
+
+                                        let step_delay_ms = calculate_step_delay(
+                                            &animation_type,
+                                            steps,
+                                            interval_ms,
+                                        );
+
+                                        let mut curr = prev_val as i32;
+                                        for _ in 0..steps {
+                                            if !running.load(Ordering::Relaxed) {
+                                                break;
+                                            }
+                                            curr += step_dir;
+                                            let curr_u16 = curr.clamp(0, 100) as u16;
+                                            if !device.send_usage(curr_u16) {
+                                                state.is_connected.store(false, Ordering::SeqCst);
+                                                break;
+                                            }
+                                            if let Ok(mut val) = state.broadcast_value.lock() {
+                                                *val = format!("{} %", curr_u16);
+                                            }
+                                            thread::sleep(Duration::from_millis(step_delay_ms));
+                                        }
+
+                                        last_displayed_val = Some(target_val);
+                                        let time_spent = step_delay_ms * steps as u64;
+                                        if time_spent < interval_ms {
+                                            thread::sleep(Duration::from_millis(
+                                                interval_ms - time_spent,
+                                            ));
+                                        }
+                                    }
+                                }
                             }
-                            if let Ok(mut lbl) = state.broadcast_label.lock() {
-                                *lbl = crate::i18n::I18n::get().metric_load;
-                            }
-                            if let Ok(mut val) = state.broadcast_value.lock() {
-                                *val = format!("{} %", usage_val);
-                            }
+                        } else {
+                            thread::sleep(Duration::from_millis(interval_ms));
                         }
                     }
                     "carousel" => {
@@ -179,11 +237,7 @@ impl MonitorService {
                         thread::sleep(Duration::from_millis(100));
 
                         if let Some(freq_f) = metrics.frequency_mhz {
-                            let send_val = if freq_in_ghz {
-                                ((freq_f / 100.0).round() as u16).min(99)
-                            } else {
-                                freq_f.round() as u16
-                            };
+                            let send_val = ((freq_f / 100.0).round() as u16).min(99);
                             let _ = device.send_frequency(send_val);
                         }
                         thread::sleep(Duration::from_millis(100));
@@ -192,30 +246,81 @@ impl MonitorService {
                             let usage_val = usage_f.round() as u16;
                             let _ = device.send_usage(usage_val);
                         }
+                        let remaining_ms = interval_ms.saturating_sub(200);
+                        thread::sleep(Duration::from_millis(remaining_ms));
                     }
                     _ => {
                         // Default: "temp"
+                        if let Ok(mut lbl) = state.broadcast_label.lock() {
+                            *lbl = crate::i18n::I18n::get().metric_temperature;
+                        }
                         if let Some(temp_f) = metrics.temperature {
-                            let temp_val = temp_f.round() as u16;
-                            if !device.send_temperature(temp_val) {
-                                state.is_connected.store(false, Ordering::SeqCst);
+                            let target_val = temp_f.round().clamp(0.0, 199.0) as u16;
+                            match last_displayed_val {
+                                None => {
+                                    if !device.send_temperature(target_val) {
+                                        state.is_connected.store(false, Ordering::SeqCst);
+                                    }
+                                    if let Ok(mut val) = state.broadcast_value.lock() {
+                                        *val = format!("{} °C", target_val);
+                                    }
+                                    last_displayed_val = Some(target_val);
+                                    thread::sleep(Duration::from_millis(interval_ms));
+                                }
+                                Some(prev_val) => {
+                                    if prev_val == target_val || animation_type == "direct" {
+                                        if !device.send_temperature(target_val) {
+                                            state.is_connected.store(false, Ordering::SeqCst);
+                                        }
+                                        if let Ok(mut val) = state.broadcast_value.lock() {
+                                            *val = format!("{} °C", target_val);
+                                        }
+                                        last_displayed_val = Some(target_val);
+                                        thread::sleep(Duration::from_millis(interval_ms));
+                                    } else {
+                                        let diff = target_val as i32 - prev_val as i32;
+                                        let steps = diff.unsigned_abs() as usize;
+                                        let step_dir = if diff > 0 { 1 } else { -1 };
+
+                                        let step_delay_ms = calculate_step_delay(
+                                            &animation_type,
+                                            steps,
+                                            interval_ms,
+                                        );
+
+                                        let mut curr = prev_val as i32;
+                                        for _ in 0..steps {
+                                            if !running.load(Ordering::Relaxed) {
+                                                break;
+                                            }
+                                            curr += step_dir;
+                                            let curr_u16 = curr.clamp(0, 199) as u16;
+                                            if !device.send_temperature(curr_u16) {
+                                                state.is_connected.store(false, Ordering::SeqCst);
+                                                break;
+                                            }
+                                            if let Ok(mut val) = state.broadcast_value.lock() {
+                                                *val = format!("{} °C", curr_u16);
+                                            }
+                                            thread::sleep(Duration::from_millis(step_delay_ms));
+                                        }
+
+                                        last_displayed_val = Some(target_val);
+                                        let time_spent = step_delay_ms * steps as u64;
+                                        if time_spent < interval_ms {
+                                            thread::sleep(Duration::from_millis(
+                                                interval_ms - time_spent,
+                                            ));
+                                        }
+                                    }
+                                }
                             }
-                            if let Ok(mut lbl) = state.broadcast_label.lock() {
-                                *lbl = crate::i18n::I18n::get().metric_temperature;
-                            }
-                            if let Ok(mut val) = state.broadcast_value.lock() {
-                                *val = format!("{} °C", temp_val);
-                            }
+                        } else {
+                            thread::sleep(Duration::from_millis(interval_ms));
                         }
                     }
                 }
-
-                // Sleep the remainder of the configured update interval
-                let elapsed_ms = if display_mode == "carousel" { 200 } else { 0 };
-                let remaining_ms = interval_ms.saturating_sub(elapsed_ms);
-                thread::sleep(Duration::from_millis(remaining_ms));
             }
-
 
             // Graceful shutdown: turn off display
             debug!("Sending CMD_SHOW(0) and closing device...");
@@ -224,9 +329,58 @@ impl MonitorService {
             state.is_connected.store(false, Ordering::SeqCst);
             info!("Monitor background service stopped.");
         });
+
+        if let Ok(mut guard) = self.worker_handle.lock() {
+            *guard = Some(handle);
+        }
     }
 
     pub fn stop(&self) {
         self.running.store(false, Ordering::SeqCst);
+        if let Ok(mut guard) = self.worker_handle.lock() {
+            if let Some(handle) = guard.take() {
+                let _ = handle.join();
+            }
+        }
+    }
+}
+
+pub fn calculate_step_delay(animation_type: &str, steps: usize, interval_ms: u64) -> u64 {
+    if steps == 0 {
+        return interval_ms;
+    }
+    if animation_type == "roller" {
+        let base_delay = 10u64;
+        if (steps as u64 * base_delay) > interval_ms {
+            ((interval_ms as f64) / (steps as f64)).floor().max(1.0) as u64
+        } else {
+            base_delay
+        }
+    } else {
+        // smooth
+        ((interval_ms as f64) / (steps as f64)).floor().max(1.0) as u64
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_calculate_step_delay_smooth() {
+        // 1000ms / 10 steps = 100ms
+        assert_eq!(calculate_step_delay("smooth", 10, 1000), 100);
+        // 300ms / 5 steps = 60ms
+        assert_eq!(calculate_step_delay("smooth", 5, 300), 60);
+        // large steps
+        assert_eq!(calculate_step_delay("smooth", 100, 100), 1);
+    }
+
+    #[test]
+    fn test_calculate_step_delay_roller() {
+        // 10 steps * 10ms = 100ms <= 1000ms -> fixed 10ms base delay
+        assert_eq!(calculate_step_delay("roller", 10, 1000), 10);
+        // 100 steps * 10ms = 1000ms > 300ms -> accelerates to 300ms / 100 = 3ms
+        assert_eq!(calculate_step_delay("roller", 100, 300), 3);
     }
 }

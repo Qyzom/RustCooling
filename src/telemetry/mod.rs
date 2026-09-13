@@ -13,6 +13,7 @@ pub struct CpuMetrics {
 pub trait TelemetryProvider: Send + Sync {
     fn update(&mut self);
     fn get_metrics(&self) -> CpuMetrics;
+    fn set_temp_source(&mut self, _source: &str) {}
 }
 
 pub fn create_telemetry_provider() -> Box<dyn TelemetryProvider> {
@@ -29,7 +30,9 @@ pub fn create_telemetry_provider() -> Box<dyn TelemetryProvider> {
         struct Dummy;
         impl TelemetryProvider for Dummy {
             fn update(&mut self) {}
-            fn get_metrics(&self) -> CpuMetrics { CpuMetrics::default() }
+            fn get_metrics(&self) -> CpuMetrics {
+                CpuMetrics::default()
+            }
         }
         Box::new(Dummy)
     }

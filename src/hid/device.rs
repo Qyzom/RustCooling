@@ -1,12 +1,7 @@
-use crate::protocol::{build_windows_report, Command};
-#[cfg(not(windows))]
-use crate::protocol::build_frame;
+use crate::protocol::{build_hid_report, Command};
 use hidapi::{HidApi, HidDevice};
-use std::sync::{Arc, Mutex};
 use log::{debug, info, warn};
-
-pub const VENDOR_ID: u16 = 0x1A86;
-pub const PRODUCT_ID: u16 = 0xE317;
+use std::sync::{Arc, Mutex};
 
 pub struct DeviceManager {
     hid_api: Arc<Mutex<Option<HidApi>>>,
@@ -38,7 +33,7 @@ impl DeviceManager {
         }
     }
 
-    pub fn open_device(&self) -> bool {
+    pub fn open_device(&self, vid: u16, pid: u16) -> bool {
         self.close_device();
 
         if let Err(e) = self.init_api() {
@@ -57,16 +52,22 @@ impl DeviceManager {
                 warn!("HID refresh error: {e}");
             }
 
-            match api.open(VENDOR_ID, PRODUCT_ID) {
+            match api.open(vid, pid) {
                 Ok(dev) => {
-                    info!("Successfully connected to ID-COOLING LCD Display (VID: 0x{:04X}, PID: 0x{:04X})", VENDOR_ID, PRODUCT_ID);
+                    info!(
+                        "Successfully connected to LCD Display (VID: 0x{:04X}, PID: 0x{:04X})",
+                        vid, pid
+                    );
                     if let Ok(mut dev_guard) = self.device.lock() {
                         *dev_guard = Some(dev);
                     }
                     true
                 }
                 Err(e) => {
-                    debug!("Display device not found or busy: {e}");
+                    debug!(
+                        "Display device not found or busy (VID: 0x{:04X}, PID: 0x{:04X}): {e}",
+                        vid, pid
+                    );
                     false
                 }
             }
@@ -88,10 +89,8 @@ impl DeviceManager {
         };
 
         if let Some(ref dev) = *dev_guard {
-            #[cfg(windows)]
-            let payload = build_windows_report(command, value);
-            #[cfg(not(windows))]
-            let payload = build_frame(command, value);
+            // Build canonical 65-byte HID report (0x00 Report ID + 64-byte payload)
+            let payload = build_hid_report(command, value);
 
             match dev.write(&payload) {
                 Ok(written) if written == payload.len() => {
@@ -99,7 +98,11 @@ impl DeviceManager {
                     true
                 }
                 Ok(written) => {
-                    warn!("Incomplete HID write: {} / {} bytes. Reconnecting...", written, payload.len());
+                    warn!(
+                        "Incomplete HID write: {} / {} bytes. Reconnecting...",
+                        written,
+                        payload.len()
+                    );
                     *dev_guard = None;
                     false
                 }
@@ -137,4 +140,3 @@ impl Drop for DeviceManager {
         self.close_device();
     }
 }
-

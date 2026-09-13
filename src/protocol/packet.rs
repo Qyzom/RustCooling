@@ -9,8 +9,16 @@ pub enum Command {
     Show = 0x04,
 }
 
-pub fn calculate_checksum(header1: u8, header2: u8, len: u8, cmd: u8, val_hi: u8, val_lo: u8) -> u8 {
-    ((header1 as u16 + header2 as u16 + len as u16 + cmd as u16 + val_hi as u16 + val_lo as u16) & 0xFF) as u8
+pub fn calculate_checksum(
+    header1: u8,
+    header2: u8,
+    len: u8,
+    cmd: u8,
+    val_hi: u8,
+    val_lo: u8,
+) -> u8 {
+    ((header1 as u16 + header2 as u16 + len as u16 + cmd as u16 + val_hi as u16 + val_lo as u16)
+        & 0xFF) as u8
 }
 
 /// Builds a 64-byte frame according to the ID-COOLING FX LCD protocol:
@@ -36,14 +44,22 @@ pub fn build_frame(command: Command, value: u16) -> [u8; REPORT_LENGTH] {
     frame
 }
 
-/// Builds a 65-byte buffer with prepended Report ID 0x00 for Windows HID API:
-/// [0x00, frame[0..64]]
-pub fn build_windows_report(command: Command, value: u16) -> [u8; REPORT_LENGTH + 1] {
+/// Builds a 65-byte HID report buffer with a prepended Report ID (0x00).
+/// HIDAPI on Windows, Linux (hidraw), and macOS expects the Report ID as the first byte.
+/// Structure: [0x00, 0x55, 0xBB, 0x02, cmd, val_hi, val_lo, cksum, 0x00 x 57]
+pub fn build_hid_report(command: Command, value: u16) -> [u8; REPORT_LENGTH + 1] {
     let mut report = [0u8; REPORT_LENGTH + 1];
     let frame = build_frame(command, value);
-    report[0] = 0x00; // Report ID
+    report[0] = 0x00; // Unnumbered Report ID required by HIDAPI
     report[1..].copy_from_slice(&frame);
     report
+}
+
+/// Backwards-compatible alias for `build_hid_report`.
+#[allow(dead_code)]
+#[inline]
+pub fn build_windows_report(command: Command, value: u16) -> [u8; REPORT_LENGTH + 1] {
+    build_hid_report(command, value)
 }
 
 #[cfg(test)]
@@ -61,7 +77,7 @@ mod tests {
         assert_eq!(frame[4], 0x00);
         assert_eq!(frame[5], 0x2D);
         // cksum = (0x55 + 0xBB + 0x02 + 0x01 + 0x00 + 0x2D) & 0xFF = 0x140 & 0xFF = 0x40
-        let expected_cksum = (0x55u16 + 0xBBu16 + 0x02u16 + 0x01u16 + 0x00u16 + 0x2Du16) as u8;
+        let expected_cksum = (0x55u16 + 0xBBu16 + 0x02u16 + 0x01u16 + 0x2Du16) as u8;
         assert_eq!(frame[6], expected_cksum);
         assert_eq!(&frame[7..], &[0u8; 57]);
     }
@@ -95,5 +111,15 @@ mod tests {
         assert_eq!(report[0], 0x00);
         assert_eq!(report[1], 0x55);
         assert_eq!(report[2], 0xBB);
+    }
+
+    #[test]
+    fn test_build_hid_report() {
+        let report = build_hid_report(Command::Frequency, 3600);
+        assert_eq!(report.len(), 65);
+        assert_eq!(report[0], 0x00);
+        assert_eq!(report[1], 0x55);
+        assert_eq!(report[2], 0xBB);
+        assert_eq!(report[4], 0x02);
     }
 }
