@@ -268,9 +268,8 @@ fn apply_translations(w: &MainWindow) {
     w.set_tr_temp_src_avg(t.temp_src_avg.as_str().into());
     w.set_tr_temp_src_max(t.temp_src_max.as_str().into());
     w.set_tr_setting_animation(t.setting_animation.as_str().into());
-    w.set_tr_anim_smooth(t.anim_smooth.as_str().into());
-    w.set_tr_anim_roller(t.anim_roller.as_str().into());
-    w.set_tr_anim_direct(t.anim_direct.as_str().into());
+    w.set_tr_anim_disabled(t.anim_disabled.as_str().into());
+    w.set_tr_anim_enabled(t.anim_enabled.as_str().into());
     w.set_tr_setting_language(t.setting_language.as_str().into());
     w.set_tr_setting_autostart(t.setting_autostart.as_str().into());
     w.set_tr_autostart_off(t.autostart_off.as_str().into());
@@ -424,7 +423,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         main_window.set_setting_display_mode(cfg.display_mode.as_str().into());
         main_window.set_setting_autostart(actual_autostart);
         main_window.set_setting_interval_ms(cfg.update_interval_ms as i32);
-        main_window.set_setting_animation(cfg.animation_type.as_str().into());
+        main_window.set_setting_animation_enabled(cfg.animation_enabled);
         main_window.set_setting_language(cfg.language.as_str().into());
         main_window.set_setting_temp_source(cfg.temp_source.as_str().into());
         main_window.set_setting_vid_hex(format!("{:04X}", cfg.custom_vid).into());
@@ -470,7 +469,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             w.set_setting_display_mode(default_cfg.display_mode.as_str().into());
             w.set_setting_autostart(default_cfg.auto_start);
             w.set_setting_interval_ms(default_cfg.update_interval_ms as i32);
-            w.set_setting_animation(default_cfg.animation_type.as_str().into());
+            w.set_setting_animation_enabled(default_cfg.animation_enabled);
             w.set_setting_language(default_cfg.language.as_str().into());
             w.set_setting_temp_source(default_cfg.temp_source.as_str().into());
             w.set_setting_vid_hex(format!("{:04X}", default_cfg.custom_vid).into());
@@ -494,9 +493,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_for_save = Arc::clone(&config_ref);
     let win_for_save = main_window.as_weak();
     let tray_for_save = Rc::clone(&tray_ref);
-    main_window.on_save_settings(move |mode, autostart, interval, lang, anim, temp_src, vid_hex, pid_hex| {
+    main_window.on_save_settings(move |mode, autostart, interval, lang, anim_enabled, temp_src, vid_hex, pid_hex| {
         let lang_str = lang.to_string();
-        let anim_str = anim.to_string();
         let temp_src_str = temp_src.to_string();
         I18n::set_language(&lang_str);
         if let Some(w) = win_for_save.upgrade() {
@@ -516,13 +514,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             cfg.auto_start = actual_autostart;
             cfg.update_interval_ms = (interval as u64).clamp(100, 3000);
             cfg.language = lang_str.clone();
-            cfg.animation_type = anim_str.clone();
+            cfg.animation_enabled = anim_enabled;
             cfg.temp_source = temp_src_str.clone();
             cfg.custom_vid = parsed_vid;
             cfg.custom_pid = parsed_pid;
             let _ = cfg.save();
-            info!("Settings applied: mode={}, autostart={}, interval={}ms, lang={}, anim={}, temp_src={}, vid=0x{:04X}, pid=0x{:04X}",
-                mode, actual_autostart, interval, lang_str, anim_str, temp_src_str, parsed_vid, parsed_pid);
+            info!("Settings applied: mode={}, autostart={}, interval={}ms, lang={}, anim_enabled={}, temp_src={}, vid=0x{:04X}, pid=0x{:04X}",
+                mode, actual_autostart, interval, lang_str, anim_enabled, temp_src_str, parsed_vid, parsed_pid);
         }
         if let Some(w) = win_for_save.upgrade() {
             w.set_setting_autostart(actual_autostart);
@@ -815,7 +813,7 @@ mod window_tests {
             true,
             500,
             "ru".into(),
-            "direct".into(),
+            false,
             "core0".into(),
             "1A86".into(),
             "E317".into(),

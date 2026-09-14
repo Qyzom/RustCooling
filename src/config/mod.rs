@@ -17,9 +17,9 @@ pub struct AppConfig {
     /// CPU temperature source sensor: "package", "core0", "avg", "max".
     #[serde(default = "default_temp_source")]
     pub temp_source: String,
-    /// Value transition animation style: "direct", "roller", "smooth".
-    #[serde(default = "default_animation")]
-    pub animation_type: String,
+    /// Whether transition animation is enabled (roller effect with 50 ms tick).
+    #[serde(default = "default_false")]
+    pub animation_enabled: bool,
     /// UI language code: "en", "ru", "zh", "de", "fr".
     #[serde(default = "default_language")]
     pub language: String,
@@ -41,10 +41,6 @@ fn default_interval() -> u64 {
 
 fn default_display_mode() -> String {
     "temp".to_string()
-}
-
-fn default_animation() -> String {
-    "direct".to_string()
 }
 
 fn default_temp_source() -> String {
@@ -70,7 +66,7 @@ impl Default for AppConfig {
             update_interval_ms: 300,
             display_mode: "temp".to_string(),
             temp_source: "package".to_string(),
-            animation_type: "direct".to_string(),
+            animation_enabled: false,
             language: "en".to_string(),
             custom_vid: 0x1A86,
             custom_pid: 0xE317,
@@ -108,11 +104,19 @@ impl AppConfig {
 
         if path.exists() {
             if let Ok(data) = fs::read_to_string(&path) {
-                if let Ok(mut cfg) = serde_json::from_str::<AppConfig>(&data) {
-                    if cfg.update_interval_ms > 3000 || cfg.update_interval_ms < 100 {
-                        cfg.update_interval_ms = cfg.update_interval_ms.clamp(100, 3000);
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&data) {
+                    if let Ok(mut cfg) = serde_json::from_value::<AppConfig>(val.clone()) {
+                        // Migrate legacy animation_type string if animation_enabled was not in JSON
+                        if val.get("animation_enabled").is_none() {
+                            if let Some(anim_type) = val.get("animation_type").and_then(|v| v.as_str()) {
+                                cfg.animation_enabled = anim_type == "roller" || anim_type == "smooth";
+                            }
+                        }
+                        if cfg.update_interval_ms > 3000 || cfg.update_interval_ms < 100 {
+                            cfg.update_interval_ms = cfg.update_interval_ms.clamp(100, 3000);
+                        }
+                        return cfg;
                     }
-                    return cfg;
                 }
             }
         }

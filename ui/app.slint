@@ -205,10 +205,9 @@ export component MainWindow inherits Window {
     in property <string> tr_temp_src_core0: "Core 0";
     in property <string> tr_temp_src_avg: "Average Cores";
     in property <string> tr_temp_src_max: "Max Core";
-    in property <string> tr_setting_animation: "Animation Style";
-    in property <string> tr_anim_direct: "Direct";
-    in property <string> tr_anim_roller: "Roller";
-    in property <string> tr_anim_smooth: "Smooth";
+    in property <string> tr_setting_animation: "Transition Animation";
+    in property <string> tr_anim_disabled: "Disabled";
+    in property <string> tr_anim_enabled: "Enabled";
     in property <string> tr_setting_language: "Language";
     in property <string> tr_setting_debug: "Hardware & USB VID / PID";
     in property <string> tr_setting_reset_defaults: "Reset to Defaults";
@@ -221,14 +220,14 @@ export component MainWindow inherits Window {
     in-out property <string> setting_display_mode: "temp";
     in-out property <bool> setting_autostart: false;
     in-out property <int> setting_interval_ms: 300;
-    in-out property <string> setting_animation: "direct";
+    in-out property <bool> setting_animation_enabled: false;
     in-out property <string> setting_language: "en";
     in-out property <string> setting_temp_source: "package";
     in-out property <string> setting_vid_hex: "1A86";
     in-out property <string> setting_pid_hex: "E317";
 
     // Callbacks to Rust
-    callback save_settings(string, bool, int, string, string, string, string, string);
+    callback save_settings(string, bool, int, string, bool, string, string, string);
     callback reset_to_defaults();
     callback open_config_folder();
     callback close_window();
@@ -248,16 +247,6 @@ export component MainWindow inherits Window {
             return #ffb77c; // Coral Peach
         } else {
             return #ffb4ab; // Crimson Alert
-        }
-    }
-
-    pure function anim_label(anim: string, tr_direct: string, tr_roller: string, tr_smooth: string) -> string {
-        if anim == "roller" {
-            return tr_roller;
-        } else if anim == "smooth" {
-            return tr_smooth;
-        } else {
-            return tr_direct;
         }
     }
 
@@ -447,7 +436,7 @@ export component MainWindow inherits Window {
                                         }
 
                                         Text {
-                                            text: "\{root.setting_interval_ms} ms - " + root.anim_label(root.setting_animation, root.tr_anim_direct, root.tr_anim_roller, root.tr_anim_smooth);
+                                            text: "\{root.setting_interval_ms} ms - " + (root.setting_animation_enabled ? root.tr_anim_enabled : root.tr_anim_disabled);
                                             font-size: 9px;
                                             font-weight: 700;
                                             color: #a8c7fa;
@@ -615,7 +604,7 @@ export component MainWindow inherits Window {
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     root.setting_language,
-                                                    root.setting_animation,
+                                                    root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -634,7 +623,7 @@ export component MainWindow inherits Window {
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     root.setting_language,
-                                                    root.setting_animation,
+                                                    root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -692,7 +681,7 @@ export component MainWindow inherits Window {
                                                 root.setting_autostart,
                                                 val,
                                                 root.setting_language,
-                                                root.setting_animation,
+                                                root.setting_animation_enabled,
                                                 root.setting_temp_source,
                                                 root.setting_vid_hex,
                                                 root.setting_pid_hex
@@ -740,7 +729,7 @@ export component MainWindow inherits Window {
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     root.setting_language,
-                                                    root.setting_animation,
+                                                    root.setting_animation_enabled,
                                                     "package",
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -759,7 +748,7 @@ export component MainWindow inherits Window {
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     root.setting_language,
-                                                    root.setting_animation,
+                                                    root.setting_animation_enabled,
                                                     "core0",
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -784,7 +773,7 @@ export component MainWindow inherits Window {
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     root.setting_language,
-                                                    root.setting_animation,
+                                                    root.setting_animation_enabled,
                                                     "avg",
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -803,7 +792,7 @@ export component MainWindow inherits Window {
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     root.setting_language,
-                                                    root.setting_animation,
+                                                    root.setting_animation_enabled,
                                                     "max",
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -814,7 +803,7 @@ export component MainWindow inherits Window {
                                 }
                             }
 
-                            // Card 4: Animation Type (Direct, Roller, Smooth)
+                            // Card 4: Animation (Disabled / Enabled)
                             Rectangle {
                                 background: #171924;
                                 border-radius: 12px;
@@ -841,18 +830,18 @@ export component MainWindow inherits Window {
                                         height: 26px;
 
                                         SelectPill {
-                                            text: root.tr_anim_direct;
-                                            is_selected: root.setting_animation == "direct";
+                                            text: root.tr_anim_disabled;
+                                            is_selected: !root.setting_animation_enabled;
                                             active_color: #7bd0c1;
                                             active_bg: #1b3d35;
                                             clicked => {
-                                                root.setting_animation = "direct";
+                                                root.setting_animation_enabled = false;
                                                 root.save_settings(
                                                     root.setting_display_mode,
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     root.setting_language,
-                                                    "direct",
+                                                    false,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -860,37 +849,18 @@ export component MainWindow inherits Window {
                                             }
                                         }
                                         SelectPill {
-                                            text: root.tr_anim_roller;
-                                            is_selected: root.setting_animation == "roller";
+                                            text: root.tr_anim_enabled;
+                                            is_selected: root.setting_animation_enabled;
                                             active_color: #7bd0c1;
                                             active_bg: #1b3d35;
                                             clicked => {
-                                                root.setting_animation = "roller";
+                                                root.setting_animation_enabled = true;
                                                 root.save_settings(
                                                     root.setting_display_mode,
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     root.setting_language,
-                                                    "roller",
-                                                    root.setting_temp_source,
-                                                    root.setting_vid_hex,
-                                                    root.setting_pid_hex
-                                                );
-                                            }
-                                        }
-                                        SelectPill {
-                                            text: root.tr_anim_smooth;
-                                            is_selected: root.setting_animation == "smooth";
-                                            active_color: #7bd0c1;
-                                            active_bg: #1b3d35;
-                                            clicked => {
-                                                root.setting_animation = "smooth";
-                                                root.save_settings(
-                                                    root.setting_display_mode,
-                                                    root.setting_autostart,
-                                                    root.setting_interval_ms,
-                                                    root.setting_language,
-                                                    "smooth",
+                                                    true,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -939,7 +909,7 @@ export component MainWindow inherits Window {
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     "en",
-                                                    root.setting_animation,
+                                                    root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -958,7 +928,7 @@ export component MainWindow inherits Window {
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     "ru",
-                                                    root.setting_animation,
+                                                    root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -977,7 +947,7 @@ export component MainWindow inherits Window {
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     "zh",
-                                                    root.setting_animation,
+                                                    root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -1002,7 +972,7 @@ export component MainWindow inherits Window {
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     "de",
-                                                    root.setting_animation,
+                                                    root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -1021,7 +991,7 @@ export component MainWindow inherits Window {
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     "fr",
-                                                    root.setting_animation,
+                                                    root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -1070,7 +1040,7 @@ export component MainWindow inherits Window {
                                                     false,
                                                     root.setting_interval_ms,
                                                     root.setting_language,
-                                                    root.setting_animation,
+                                                    root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -1089,7 +1059,7 @@ export component MainWindow inherits Window {
                                                     true,
                                                     root.setting_interval_ms,
                                                     root.setting_language,
-                                                    root.setting_animation,
+                                                    root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
                                                     root.setting_pid_hex
@@ -1292,7 +1262,7 @@ export component MainWindow inherits Window {
                                     root.setting_autostart,
                                     root.setting_interval_ms,
                                     root.setting_language,
-                                    root.setting_animation,
+                                    root.setting_animation_enabled,
                                     root.setting_temp_source,
                                     root.setting_vid_hex,
                                     root.setting_pid_hex

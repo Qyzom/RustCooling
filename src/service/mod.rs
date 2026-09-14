@@ -74,7 +74,7 @@ impl MonitorService {
                     display_mode,
                     interval_ms,
                     temp_source,
-                    animation_type,
+                    animation_enabled,
                     custom_vid,
                     custom_pid,
                 ) = {
@@ -83,7 +83,7 @@ impl MonitorService {
                         cfg.display_mode.clone(),
                         cfg.update_interval_ms.clamp(100, 3000),
                         cfg.temp_source.clone(),
-                        cfg.animation_type.clone(),
+                        cfg.animation_enabled,
                         cfg.custom_vid,
                         cfg.custom_pid,
                     )
@@ -173,7 +173,7 @@ impl MonitorService {
                                     thread::sleep(Duration::from_millis(interval_ms));
                                 }
                                 Some(prev_val) => {
-                                    if prev_val == target_val || animation_type == "direct" {
+                                    if prev_val == target_val || !animation_enabled {
                                         let ok_t = device.send_temperature(target_val);
                                         let ok_u = device.send_usage(target_val);
                                         if !ok_t || !ok_u {
@@ -190,7 +190,6 @@ impl MonitorService {
                                         let step_dir = if diff > 0 { 1 } else { -1 };
 
                                         let step_delay_ms = calculate_step_delay(
-                                            &animation_type,
                                             steps,
                                             interval_ms,
                                         );
@@ -274,7 +273,7 @@ impl MonitorService {
                                     thread::sleep(Duration::from_millis(interval_ms));
                                 }
                                 Some(prev_val) => {
-                                    if prev_val == target_val || animation_type == "direct" {
+                                    if prev_val == target_val || !animation_enabled {
                                         if !device.send_temperature(target_val) {
                                             state.is_connected.store(false, Ordering::SeqCst);
                                         }
@@ -289,7 +288,6 @@ impl MonitorService {
                                         let step_dir = if diff > 0 { 1 } else { -1 };
 
                                         let step_delay_ms = calculate_step_delay(
-                                            &animation_type,
                                             steps,
                                             interval_ms,
                                         );
@@ -351,20 +349,15 @@ impl MonitorService {
     }
 }
 
-pub fn calculate_step_delay(animation_type: &str, steps: usize, interval_ms: u64) -> u64 {
+pub fn calculate_step_delay(steps: usize, interval_ms: u64) -> u64 {
     if steps == 0 {
         return interval_ms;
     }
-    if animation_type == "roller" {
-        let base_delay = 10u64;
-        if (steps as u64 * base_delay) > interval_ms {
-            ((interval_ms as f64) / (steps as f64)).floor().max(1.0) as u64
-        } else {
-            base_delay
-        }
-    } else {
-        // smooth
+    let base_delay = 50u64;
+    if (steps as u64 * base_delay) > interval_ms {
         ((interval_ms as f64) / (steps as f64)).floor().max(1.0) as u64
+    } else {
+        base_delay
     }
 }
 
@@ -373,20 +366,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_calculate_step_delay_smooth() {
-        // 1000ms / 10 steps = 100ms
-        assert_eq!(calculate_step_delay("smooth", 10, 1000), 100);
-        // 300ms / 5 steps = 60ms
-        assert_eq!(calculate_step_delay("smooth", 5, 300), 60);
-        // large steps
-        assert_eq!(calculate_step_delay("smooth", 100, 100), 1);
-    }
-
-    #[test]
     fn test_calculate_step_delay_roller() {
-        // 10 steps * 10ms = 100ms <= 1000ms -> fixed 10ms base delay
-        assert_eq!(calculate_step_delay("roller", 10, 1000), 10);
-        // 100 steps * 10ms = 1000ms > 300ms -> accelerates to 300ms / 100 = 3ms
-        assert_eq!(calculate_step_delay("roller", 100, 300), 3);
+        // 10 steps * 50ms = 500ms <= 1000ms -> fixed 50ms base delay
+        assert_eq!(calculate_step_delay(10, 1000), 50);
+        // 100 steps * 50ms = 5000ms > 300ms -> accelerates to 300ms / 100 = 3ms
+        assert_eq!(calculate_step_delay(100, 300), 3);
+        // 1 step * 50ms = 50ms <= 300ms -> 50ms
+        assert_eq!(calculate_step_delay(1, 300), 50);
+        // 0 steps -> interval
+        assert_eq!(calculate_step_delay(0, 500), 500);
     }
 }

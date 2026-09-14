@@ -6,7 +6,7 @@ fn main() {
         let mut res = winres::WindowsResource::new();
         res.set_icon("assets/icons/logo.ico");
         res.set("ProductName", "RustCooling");
-        res.set("FileDescription", "RustCooling - ID-COOLING FX Series LCD Display Controller");
+        res.set("FileDescription", "RustCooling");
         res.set("LegalCopyright", "Copyright (c) 2025-2026 Qyzom");
         if let Err(e) = res.compile() {
             eprintln!("WINRES ERROR: {e:?}");
