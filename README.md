@@ -27,15 +27,15 @@
 
 ---
 
-### ✨ Key Features
+### Key Features
 
-| ⚡ Extreme Efficiency | 🐧 Native Linux | 🎛️ Total Control | 🛡️ Pure & Portable |
+| Extreme Efficiency | Native Linux | Total Control | Pure & Portable |
 | :--- | :--- | :--- | :--- |
 | • **< 12 MB** RAM active GUI<br/>• **< 3 MB** in system tray<br/>• **0.0%** idle CPU usage<br/>• **< 50 ms** instant startup | • Direct `/sys/class/hwmon`<br/>• AMD Tctl & Intel Package<br/>• Zero root/Wine required<br/>• Bundled udev permissions | • CPU Temp & CPU Load<br/>• Carousel & smooth modes<br/>• Native dark tray menu<br/>• **5 Languages** (EN, RU, ZH, DE, FR) | • Single monolithic binary<br/>• No .NET or Electron runtime<br/>• Built-in `--daemon` mode<br/>• Zero telemetry or auto-updater |
 
 ---
 
-### 📊 Benchmark & Comparison
+### Benchmark & Comparison
 
 > [!NOTE]
 > RustCooling is a complete ground-up rewrite in **100% Rust** of [**idc-lite**](https://github.com/Qyzom/idc-lite) (the author's first C# / .NET project).
@@ -45,39 +45,39 @@
 | **Technology Stack** | Electron / Node.js + C++ | C# / .NET 8 + WPF | **100% Pure Rust + Slint UI** |
 | **RAM (Active GUI)** | ~150 – 300 MB | ~60 – 120 MB | **< 12 MB** (~10.8 MB) |
 | **RAM (System Tray)** | ~80 – 150 MB | ~35 – 60 MB | **< 3 MB** (~1.1 MB) |
-| **RAM (Headless Daemon)** | ❌ None | ⚠️ Separate process (~20 MB) | **~2 – 4 MB** (`--daemon`) |
+| **RAM (Headless Daemon)** | None | Separate process (~20 MB) | **~2 – 4 MB** (`--daemon`) |
 | **CPU Utilization** | 2.0% – 5.0% continuous | ~1.0% | **0.0%** (Event-driven) |
-| **Linux Support** | ❌ None (Windows only) | ⚠️ Experimental | **Native (hwmon / sysfs / udev)** |
+| **Linux Support** | None (Windows only) | Experimental | **Native (hwmon / sysfs / udev)** |
 | **Startup Time** | 3.0 – 6.0 sec | 1.5 – 3.0 sec | **< 50 ms** |
 | **Runtime Dependencies** | Chromium WebEngine | .NET Runtime | **Zero (Native machine code)** |
 | **Interface Languages** | EN, ZH | EN, RU, ZH | **EN, RU, ZH, DE, FR** |
-| **Headless Daemon** | ❌ No | ⚠️ Separate binary | **Built-in (`--daemon` flag)** |
+| **Headless Daemon** | No | Separate binary | **Built-in (`--daemon` flag)** |
 
 ---
 
-### 📦 Downloads & Quick Start
+### Downloads & Quick Start
 
 Pre-built releases are available on the [**Releases Page**](https://github.com/Qyzom/RustCooling/releases/latest).
 
-#### 🪟 Windows (Portable)
+#### Windows (Portable)
 1. Download **[`RustCooling-0.1.2.exe`](https://github.com/Qyzom/RustCooling/releases/latest)**.
 2. Run the executable — completely portable, zero installer or runtime dependencies needed.
 3. *(Optional)* Toggle **"Launch at Startup"** in the Settings panel.
 
-#### 🐧 Linux (Debian / Ubuntu / Linux Mint)
+#### Linux (Debian / Ubuntu / Linux Mint)
 ```bash
 sudo dpkg -i RustCooling-0.1.2.deb
 ```
 *Desktop entry and udev rules (`0666` for VID `1A86`, PID `E317`) are installed automatically.*
 
-#### 🐧 Linux (Arch / Fedora / Generic Tarball)
+#### Linux (Arch / Fedora / Generic Tarball)
 ```bash
 tar -xzf RustCooling-0.1.2.tar.gz
 cd RustCooling-0.1.2
 sudo ./install.sh
 ```
 
-#### ⚙️ Headless Daemon Mode (CLI / systemd)
+#### Headless Daemon Mode (CLI / systemd)
 For minimal window managers (Hyprland, Sway, i3) or home servers:
 ```bash
 # Run headless background telemetry
@@ -114,7 +114,7 @@ systemctl --user enable --now rustcooling.service
 ---
 
 <details>
-<summary><b>🔧 Technical Architecture & Protocol Specification</b></summary>
+<summary><b>Technical Architecture & Protocol Specification</b></summary>
 
 <br/>
 
@@ -142,7 +142,7 @@ systemctl --user enable --now rustcooling.service
 
 ---
 
-### 🛠️ Building from Source
+### Building from Source
 
 ```bash
 # Prerequisites: Rust 1.80+ (on Linux: libudev-dev, libfontconfig1-dev, libgl1-mesa-dev, libayatana-appindicator3-dev)
@@ -155,7 +155,7 @@ The compiled binary will be located in `target/release/RustCooling` (`.exe` on W
 
 ---
 
-### 📌 Maintenance Status & Daily Driver Guarantee
+### Maintenance Status & Daily Driver Guarantee
 
 > [!IMPORTANT]
 > **If you see no commits for several months or a year, the project is NOT abandoned!**  
