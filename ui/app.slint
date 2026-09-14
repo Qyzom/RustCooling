@@ -623,25 +623,6 @@ export component MainWindow inherits Window {
                                             }
                                         }
                                         SelectPill {
-                                            text: root.tr_mode_freq;
-                                            is_selected: root.setting_display_mode == "freq";
-                                            active_color: #d0bcff;
-                                            active_bg: #302648;
-                                            clicked => {
-                                                root.setting_display_mode = "freq";
-                                                root.save_settings(
-                                                    "freq",
-                                                    root.setting_autostart,
-                                                    root.setting_interval_ms,
-                                                    root.setting_language,
-                                                    root.setting_animation,
-                                                    root.setting_temp_source,
-                                                    root.setting_vid_hex,
-                                                    root.setting_pid_hex
-                                                );
-                                            }
-                                        }
-                                        SelectPill {
                                             text: root.tr_mode_load;
                                             is_selected: root.setting_display_mode == "load";
                                             active_color: #a8c7fa;

@@ -161,7 +161,9 @@ impl MonitorService {
                             let target_val = usage_f.round().clamp(0.0, 100.0) as u16;
                             match last_displayed_val {
                                 None => {
-                                    if !device.send_usage(target_val) {
+                                    let ok_t = device.send_temperature(target_val);
+                                    let ok_u = device.send_usage(target_val);
+                                    if !ok_t || !ok_u {
                                         state.is_connected.store(false, Ordering::SeqCst);
                                     }
                                     if let Ok(mut val) = state.broadcast_value.lock() {
@@ -172,7 +174,9 @@ impl MonitorService {
                                 }
                                 Some(prev_val) => {
                                     if prev_val == target_val || animation_type == "direct" {
-                                        if !device.send_usage(target_val) {
+                                        let ok_t = device.send_temperature(target_val);
+                                        let ok_u = device.send_usage(target_val);
+                                        if !ok_t || !ok_u {
                                             state.is_connected.store(false, Ordering::SeqCst);
                                         }
                                         if let Ok(mut val) = state.broadcast_value.lock() {
@@ -198,7 +202,9 @@ impl MonitorService {
                                             }
                                             curr += step_dir;
                                             let curr_u16 = curr.clamp(0, 100) as u16;
-                                            if !device.send_usage(curr_u16) {
+                                            let ok_t = device.send_temperature(curr_u16);
+                                            let ok_u = device.send_usage(curr_u16);
+                                            if !ok_t || !ok_u {
                                                 state.is_connected.store(false, Ordering::SeqCst);
                                                 break;
                                             }

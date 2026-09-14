@@ -186,6 +186,37 @@ fn set_autostart(enable: bool) {
     }
 }
 
+pub fn is_autostart_registered() -> bool {
+    #[cfg(windows)]
+    {
+        if let Ok(current_exe) = std::env::current_exe() {
+            let app_name = "RustCooling";
+            let current_exe_str = current_exe.to_string_lossy();
+            if let Ok(auto) = AutoLaunchBuilder::new()
+                .set_app_name(app_name)
+                .set_app_path(&current_exe_str)
+                .set_args(&["--minimized"])
+                .build()
+            {
+                return auto.is_enabled().unwrap_or(false);
+            }
+        }
+        false
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(config_dir) = dirs::config_dir() {
+            let desktop_file = config_dir.join("autostart").join("RustCooling.desktop");
+            return desktop_file.exists();
+        }
+        false
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
+    {
+        false
+    }
+}
+
 fn open_path_or_url(target: &str) {
     #[cfg(windows)]
     unsafe {
@@ -389,8 +420,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Set initial settings and translations
     {
         let cfg = config_ref.lock().unwrap();
+        let actual_autostart = is_autostart_registered();
         main_window.set_setting_display_mode(cfg.display_mode.as_str().into());
-        main_window.set_setting_autostart(cfg.auto_start);
+        main_window.set_setting_autostart(actual_autostart);
         main_window.set_setting_interval_ms(cfg.update_interval_ms as i32);
         main_window.set_setting_animation(cfg.animation_type.as_str().into());
         main_window.set_setting_language(cfg.language.as_str().into());
@@ -477,10 +509,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let parsed_pid = parse_hex_u16(&pid_hex).unwrap_or(0xE317);
 
         set_autostart(autostart);
+        let actual_autostart = is_autostart_registered();
 
         if let Ok(mut cfg) = config_for_save.lock() {
             cfg.display_mode = mode.to_string();
-            cfg.auto_start = autostart;
+            cfg.auto_start = actual_autostart;
             cfg.update_interval_ms = (interval as u64).clamp(100, 3000);
             cfg.language = lang_str.clone();
             cfg.animation_type = anim_str.clone();
@@ -489,9 +522,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             cfg.custom_pid = parsed_pid;
             let _ = cfg.save();
             info!("Settings applied: mode={}, autostart={}, interval={}ms, lang={}, anim={}, temp_src={}, vid=0x{:04X}, pid=0x{:04X}",
-                mode, autostart, interval, lang_str, anim_str, temp_src_str, parsed_vid, parsed_pid);
+                mode, actual_autostart, interval, lang_str, anim_str, temp_src_str, parsed_vid, parsed_pid);
         }
         if let Some(w) = win_for_save.upgrade() {
+            w.set_setting_autostart(actual_autostart);
             w.set_device_vid_pid_text(format!("USB HID (VID {:04X}, PID {:04X})", parsed_vid, parsed_pid).into());
         }
     });
@@ -501,6 +535,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     main_window.on_open_settings(move || {
         info!("UI Event: Open Settings clicked");
         if let Some(w) = win_for_open.upgrade() {
+            let actual_autostart = is_autostart_registered();
+            w.set_setting_autostart(actual_autostart);
             w.set_show_settings(true);
         }
     });
@@ -683,6 +719,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         main_window.window().request_redraw();
         info!("Step 6: main_window.show() returned Ok.");
+
+        // Automatically trim startup working set after the window is shown and rendered
+        slint::Timer::single_shot(Duration::from_millis(500), || {
+            trim_memory();
+            info!("Post-startup working set trimmed successfully.");
+        });
     } else {
         info!("Step 5: Starting minimized to system tray.");
         trim_memory();

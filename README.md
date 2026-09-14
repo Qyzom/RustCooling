@@ -31,7 +31,7 @@
 
 | ⚡ Extreme Efficiency | 🐧 Native Linux | 🎛️ Total Control | 🛡️ Pure & Portable |
 | :--- | :--- | :--- | :--- |
-| • **< 12 MB** RAM active GUI<br/>• **< 3 MB** in system tray<br/>• **0.0%** idle CPU usage<br/>• **< 50 ms** instant startup | • Direct `/sys/class/hwmon`<br/>• AMD Tctl & Intel Package<br/>• Zero root/Wine required<br/>• Bundled udev permissions | • Temp, Clock & CPU Load<br/>• Carousel & smooth modes<br/>• Native dark tray menu<br/>• **5 Languages** (EN, RU, ZH, DE, FR) | • Single monolithic binary<br/>• No .NET or Electron runtime<br/>• Built-in `--daemon` mode<br/>• Zero telemetry or auto-updater |
+| • **< 12 MB** RAM active GUI<br/>• **< 3 MB** in system tray<br/>• **0.0%** idle CPU usage<br/>• **< 50 ms** instant startup | • Direct `/sys/class/hwmon`<br/>• AMD Tctl & Intel Package<br/>• Zero root/Wine required<br/>• Bundled udev permissions | • CPU Temp & CPU Load<br/>• Carousel & smooth modes<br/>• Native dark tray menu<br/>• **5 Languages** (EN, RU, ZH, DE, FR) | • Single monolithic binary<br/>• No .NET or Electron runtime<br/>• Built-in `--daemon` mode<br/>• Zero telemetry or auto-updater |
 
 ---
 
@@ -137,7 +137,7 @@ systemctl --user enable --now rustcooling.service
 
 - **Staggered Dispatch:** 100 ms cadence between metric frames guarantees the microcontroller processes and updates the LCD without dropping packets.
 - **Value Deduplication:** Redundant USB transfers are skipped if telemetry values remain unchanged.
-- **Working Set Trimming:** Calls `EmptyWorkingSet` when minimized on Windows to release unused physical RAM pages.
+- **Working Set Trimming:** Calls `EmptyWorkingSet` at startup and when minimized on Windows to release unused physical RAM pages.
 </details>
 
 ---

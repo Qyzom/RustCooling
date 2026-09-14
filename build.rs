@@ -8,6 +8,18 @@ fn main() {
         res.set("ProductName", "RustCooling");
         res.set("FileDescription", "RustCooling - ID-COOLING FX Series LCD Display Controller");
         res.set("LegalCopyright", "Copyright (c) 2025-2026 Qyzom");
-        res.compile().unwrap();
+        if let Err(e) = res.compile() {
+            eprintln!("WINRES ERROR: {e:?}");
+            panic!("winres failed: {e:?}");
+        }
+
+        // On GNU/MinGW targets, GNU ld ignores static archive members from libresource.a
+        // because they don't export unresolved code symbols. Passing resource.o directly
+        // forces GNU ld to include the Windows PE resource (.rsrc) section with icons!
+        let out_dir = std::env::var("OUT_DIR").unwrap();
+        let res_o = std::path::Path::new(&out_dir).join("resource.o");
+        if res_o.exists() {
+            println!("cargo:rustc-link-arg={}", res_o.display());
+        }
     }
 }
