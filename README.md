@@ -25,17 +25,34 @@ This project is a complete, ground-up rewrite in **100% Rust** of the author's v
 
 ---
 
+## Interface & Screenshots
+
+<div align="center">
+
+### Main Hardware Monitor (1)
+<img src="images/1.png" alt="RustCooling Main Screen" width="480"/>
+
+### Settings & Hardware Configuration (2, 3, 4)
+| Display Mode & Animation (2) | CPU Thermal Source & Language (3) | Hardware & USB VID/PID (4) |
+| :---: | :---: | :---: |
+| <img src="images/2.png" width="300"/> | <img src="images/3.png" width="300"/> | <img src="images/4.png" width="300"/> |
+
+</div>
+
+---
+
 ## Architectural Comparison
 
 | Feature | Original Vendor Software | [idc-lite](https://github.com/Qyzom/idc-lite) (1st Project) | **RustCooling** (Current) |
 | :--- | :--- | :--- | :--- |
 | **Language / Stack** | Electron / Node.js + C++ | C# / .NET 8 + WPF / Tauri | **100% Pure Rust** + Slint UI |
-| **RAM (GUI Open)** | ~150 – 300 MB | ~60 – 120 MB | **~25 – 45 MB** (GPU Accelerated + Vector Font) |
-| **RAM (System Tray)** | ~80 – 150 MB (background bloat) | ~35 – 60 MB | **< 5 MB** (Physical Working Set Paging) |
-| **RAM (Restored)** | ~150 – 300 MB | ~60 – 120 MB | **~12 – 20 MB** (Instant Unload / Zero-Lag) |
+| **RAM (GUI Open)** | ~150 – 300 MB | ~60 – 120 MB | **< 12 MB** (~10.8 MB in Task Manager) |
+| **RAM (System Tray)** | ~80 – 150 MB (background bloat) | ~35 – 60 MB | **< 3 MB** (~1.1 MB in Task Manager) |
+| **RAM (Headless Daemon)** | ❌ No daemon | ⚠️ Separate process (~20 MB) | **~2 – 4 MB** (`--daemon` mode) |
+| **CPU Usage** | 2.0% – 5.0% continuous | ~1.0% | **0.0%** (Ultra-lean event-driven loop) |
 | **Linux Support** | ❌ None (Windows only) | ⚠️ Experimental / partial | ** Native (hwmon, sysfs, udev)** |
 | **Startup Time** | ~3.0 – 6.0 seconds | ~1.5 – 3.0 seconds | **< 50 milliseconds** |
-| **Proprietary Bloat** | High (background telemetry, auto-updaters) | Moderate (.NET runtime overhead) | **Zero (100% open-source & clean)** |
+| **Proprietary Bloat** | High (telemetry, auto-updaters) | Moderate (.NET runtime overhead) | **Zero (100% open-source & clean)** |
 | **UI Engine** | Chromium WebEngine | WebView2 / WPF | **FemtoVG (Native OpenGL)** |
 | **Localization** | English, Simplified Chinese | English, Russian | **EN, RU, ZH, DE, ES** |
 | **Headless Daemon** | ❌ No | ⚠️ Separate daemon binary | ** Built-in (`--daemon` flag)** |

@@ -1,32 +1,33 @@
 use crate::i18n::I18n;
-use muda::{Menu, MenuEvent, MenuItem};
-use std::sync::atomic::{AtomicBool, Ordering};
-use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
+use muda::{Menu, MenuItem};
+use tray_icon::{Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrayAction {
+    Show,
+    Toggle,
+    Exit,
+}
 
 pub struct SystemTray {
     _tray_icon: TrayIcon,
-    show_item_id: muda::MenuId,
-    exit_item_id: muda::MenuId,
     show_item: MenuItem,
     exit_item: MenuItem,
-    is_visible: AtomicBool,
 }
 
 impl SystemTray {
-    pub fn new(initial_visible: bool) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new<F>(on_action: F) -> Result<Self, Box<dyn std::error::Error>>
+    where
+        F: Fn(TrayAction) + Send + Sync + 'static,
+    {
         let t = I18n::get();
         let tray_menu = Menu::new();
-        let show_label = if initial_visible {
-            &t.tray_hide
-        } else {
-            &t.tray_show
-        };
-        let show_item = MenuItem::new(show_label, true, None);
+        let show_item = MenuItem::new(&t.tray_show, true, None);
         let show_item_id = show_item.id().clone();
         let exit_item = MenuItem::new(&t.tray_exit, true, None);
         let exit_item_id = exit_item.id().clone();
 
-        // 2 compact items: Show/Hide and Exit (no separator)
+        // 2 compact items: Show and Exit
         tray_menu.append(&show_item)?;
         tray_menu.append(&exit_item)?;
 
@@ -41,56 +42,48 @@ impl SystemTray {
             .with_icon(icon)
             .build()?;
 
+        let action_cb = std::sync::Arc::new(on_action);
+
+        let cb_menu = std::sync::Arc::clone(&action_cb);
+        muda::MenuEvent::set_event_handler(Some(move |event: muda::MenuEvent| {
+            if event.id == show_item_id {
+                cb_menu(TrayAction::Show);
+            } else if event.id == exit_item_id {
+                cb_menu(TrayAction::Exit);
+            }
+        }));
+
+        let cb_tray = std::sync::Arc::clone(&action_cb);
+        tray_icon::TrayIconEvent::set_event_handler(Some(move |event: tray_icon::TrayIconEvent| {
+            match event {
+                tray_icon::TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } => {
+                    cb_tray(TrayAction::Toggle);
+                }
+                tray_icon::TrayIconEvent::DoubleClick {
+                    button: MouseButton::Left,
+                    ..
+                } => {
+                    cb_tray(TrayAction::Show);
+                }
+                _ => {}
+            }
+        }));
+
         Ok(Self {
             _tray_icon: tray_icon,
-            show_item_id,
-            exit_item_id,
             show_item,
             exit_item,
-            is_visible: AtomicBool::new(initial_visible),
         })
-    }
-
-    pub fn set_window_visible(&self, visible: bool) {
-        self.is_visible.store(visible, Ordering::SeqCst);
-        let t = I18n::get();
-        let label = if visible { &t.tray_hide } else { &t.tray_show };
-        self.show_item.set_text(label);
     }
 
     pub fn update_labels(&self) {
         let t = I18n::get();
-        let visible = self.is_visible.load(Ordering::SeqCst);
-        let label = if visible { &t.tray_hide } else { &t.tray_show };
-        self.show_item.set_text(label);
+        self.show_item.set_text(&t.tray_show);
         self.exit_item.set_text(&t.tray_exit);
-    }
-
-    pub fn poll_events<FToggle, FExit>(&self, on_toggle: FToggle, on_exit: FExit)
-    where
-        FToggle: Fn(),
-        FExit: Fn(),
-    {
-        // Poll tray icon clicks (left click toggles the window)
-        while let Ok(event) = TrayIconEvent::receiver().try_recv() {
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                ..
-            } = event
-            {
-                on_toggle();
-            }
-        }
-
-        // Poll menu items (right click context menu)
-        while let Ok(event) = MenuEvent::receiver().try_recv() {
-            if event.id == self.show_item_id {
-                on_toggle();
-            } else if event.id == self.exit_item_id {
-                on_exit();
-            }
-        }
     }
 }
 
@@ -152,5 +145,17 @@ mod tests {
     #[test]
     fn test_tray_menu_dark_theme() {
         apply_menu_dark_theme();
+    }
+
+    #[test]
+    fn test_event_handlers_exist() {
+        muda::MenuEvent::set_event_handler(Some(|_event: muda::MenuEvent| {}));
+        tray_icon::TrayIconEvent::set_event_handler(Some(|event: tray_icon::TrayIconEvent| {
+            match event {
+                tray_icon::TrayIconEvent::Click { .. } => {}
+                tray_icon::TrayIconEvent::DoubleClick { .. } => {}
+                _ => {}
+            }
+        }));
     }
 }

@@ -54,6 +54,78 @@ pub fn trim_memory() {
     }
 }
 
+#[cfg(windows)]
+pub fn get_main_window_hwnd() -> windows_sys::Win32::Foundation::HWND {
+    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
+    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetWindowLongW, GetWindowTextW, GetWindowThreadProcessId, GWL_STYLE, WS_CHILD,
+    };
+
+    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let mut pid = 0;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+        if pid == GetCurrentProcessId() {
+            let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
+            if (style & WS_CHILD) == 0 {
+                let mut buf = [0u16; 64];
+                let len = GetWindowTextW(hwnd, buf.as_mut_ptr(), 64);
+                let title = String::from_utf16_lossy(&buf[..len as usize]);
+                if title.contains("RustCooling") {
+                    let out = lparam as *mut HWND;
+                    *out = hwnd;
+                    return 0;
+                }
+            }
+        }
+        1
+    }
+
+    let mut result: HWND = std::ptr::null_mut();
+    unsafe {
+        EnumWindows(Some(enum_proc), &mut result as *mut _ as LPARAM);
+    }
+    result
+}
+
+pub fn show_and_focus_window(w: &MainWindow) {
+    w.window().set_minimized(false);
+    let _ = w.show();
+    w.window().request_redraw();
+    #[cfg(windows)]
+    {
+        let hwnd = get_main_window_hwnd();
+        if !hwnd.is_null() {
+            unsafe {
+                use windows_sys::Win32::UI::WindowsAndMessaging::{
+                    BringWindowToTop, SetForegroundWindow, ShowWindow, SW_RESTORE,
+                };
+                ShowWindow(hwnd, SW_RESTORE);
+                SetForegroundWindow(hwnd);
+                BringWindowToTop(hwnd);
+            }
+        }
+    }
+}
+
+pub fn hide_window_to_tray(w: &MainWindow) {
+    w.window().dispatch_event(slint::platform::WindowEvent::PointerExited);
+    let _ = w.hide();
+    #[cfg(windows)]
+    {
+        let hwnd = get_main_window_hwnd();
+        if !hwnd.is_null() {
+            unsafe {
+                windows_sys::Win32::UI::WindowsAndMessaging::ShowWindow(
+                    hwnd,
+                    windows_sys::Win32::UI::WindowsAndMessaging::SW_HIDE,
+                );
+            }
+        }
+    }
+    trim_memory();
+}
+
 fn set_autostart(enable: bool) {
     #[cfg(windows)]
     {
@@ -241,8 +313,68 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let initial_visible = !args.minimized;
     let is_window_visible = Arc::new(AtomicBool::new(initial_visible));
 
+    // Instant event handler for tray icon and context menu
+    let win_handle_for_tray = main_window.as_weak();
+    let vis_for_tray = Arc::clone(&is_window_visible);
+
+    let on_tray_action = move |action: tray::TrayAction| {
+        let win_weak = win_handle_for_tray.clone();
+        let vis = Arc::clone(&vis_for_tray);
+
+        let _ = slint::invoke_from_event_loop(move || {
+            match action {
+                tray::TrayAction::Show => {
+                    info!("Tray event: Show requested");
+                    if let Some(w) = win_weak.upgrade() {
+                        show_and_focus_window(&w);
+                        vis.store(true, Ordering::SeqCst);
+                    }
+                }
+                tray::TrayAction::Toggle => {
+                    info!("Tray event: Toggle requested");
+                    if let Some(w) = win_weak.upgrade() {
+                        let is_showing = {
+                            #[cfg(windows)]
+                            {
+                                let hwnd = get_main_window_hwnd();
+                                if !hwnd.is_null() {
+                                    unsafe {
+                                        use windows_sys::Win32::UI::WindowsAndMessaging::{
+                                            IsIconic, IsWindowVisible,
+                                        };
+                                        IsWindowVisible(hwnd) != 0 && IsIconic(hwnd) == 0
+                                    }
+                                } else {
+                                    vis.load(Ordering::SeqCst)
+                                }
+                            }
+                            #[cfg(not(windows))]
+                            {
+                                vis.load(Ordering::SeqCst)
+                            }
+                        };
+
+                        if is_showing {
+                            hide_window_to_tray(&w);
+                            vis.store(false, Ordering::SeqCst);
+                        } else {
+                            show_and_focus_window(&w);
+                            vis.store(true, Ordering::SeqCst);
+                        }
+                    }
+                }
+                tray::TrayAction::Exit => {
+                    info!("Tray event: Exit requested");
+                    let _ = slint::quit_event_loop();
+                }
+            }
+        });
+    };
+
+    let on_tray_action_retry = on_tray_action.clone();
+
     // Initialize System Tray after Slint/Winit is initialized on the UI thread
-    let tray = match SystemTray::new(initial_visible) {
+    let tray = match SystemTray::new(on_tray_action) {
         Ok(t) => {
             info!("System tray successfully initialized!");
             Some(t)
@@ -382,16 +514,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Minimize window callback
-    let win_for_min = main_window.as_weak();
-    main_window.on_minimize_window(move || {
-        info!("Minimize requested");
-        if let Some(w) = win_for_min.upgrade() {
-            w.window().set_minimized(true);
-            trim_memory();
-        }
-    });
-
     // Close window (top-right cross) -> hides window to system tray (or exits if tray unavailable)
     let win_for_close = main_window.as_weak();
     let vis_for_close = Arc::clone(&is_window_visible);
@@ -401,13 +523,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if has_tray {
             info!("Close requested -> hiding window to system tray");
             if let Some(w) = win_for_close.upgrade() {
-                w.window().dispatch_event(slint::platform::WindowEvent::PointerExited);
-                let _ = w.hide();
+                hide_window_to_tray(&w);
                 vis_for_close.store(false, Ordering::SeqCst);
-                if let Some(ref t) = *tray_for_close.borrow() {
-                    t.set_window_visible(false);
-                }
-                trim_memory();
             }
         } else {
             info!("Close requested, but no system tray is active -> quitting event loop");
@@ -472,7 +589,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         drag_for_end.borrow_mut().is_dragging = false;
     });
 
-    // Periodic UI update & tray event polling timer (60ms)
+    // Periodic UI update timer (60ms)
     let handle_for_timer = main_window.as_weak();
     let vis_for_timer = Arc::clone(&is_window_visible);
     let tray_for_timer = Rc::clone(&tray_ref);
@@ -492,8 +609,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Attempt a single retry for tray initialization if it wasn't ready at startup (after ~1.5s)
             let tick = tray_retry_counter.fetch_add(1, Ordering::Relaxed);
             if tick == 25 && tray_for_timer.borrow().is_none() {
-                let vis = vis_for_timer.load(Ordering::SeqCst);
-                match SystemTray::new(vis) {
+                match SystemTray::new(on_tray_action_retry.clone()) {
                     Ok(t) => {
                         info!("System tray successfully initialized on retry!");
                         *tray_for_timer.borrow_mut() = Some(t);
@@ -502,48 +618,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         warn!("Tray retry unavailable: {:?}", e);
                     }
                 }
-            }
-
-            // Poll tray events
-            if let Some(ref tray_manager) = *tray_for_timer.borrow() {
-                let handle_toggle = handle_for_timer.clone();
-                let vis_toggle = Arc::clone(&vis_for_timer);
-                let handle_exit = handle_for_timer.clone();
-                let tray_inner = Rc::clone(&tray_for_timer);
-
-                tray_manager.poll_events(
-                    move || {
-                        let currently_visible = vis_toggle.load(Ordering::SeqCst);
-                        if currently_visible {
-                            info!("Tray action -> hiding window");
-                            if let Some(w) = handle_toggle.upgrade() {
-                                w.window().dispatch_event(slint::platform::WindowEvent::PointerExited);
-                                let _ = w.hide();
-                                vis_toggle.store(false, Ordering::SeqCst);
-                                if let Some(ref t) = *tray_inner.borrow() {
-                                    t.set_window_visible(false);
-                                }
-                                trim_memory();
-                            }
-                        } else {
-                            info!("Tray action -> restoring window");
-                            if let Some(w) = handle_toggle.upgrade() {
-                                let _ = w.show();
-                                vis_toggle.store(true, Ordering::SeqCst);
-                                if let Some(ref t) = *tray_inner.borrow() {
-                                    t.set_window_visible(true);
-                                }
-                                w.window().request_redraw();
-                            }
-                        }
-                    },
-                    move || {
-                        info!("Tray EXIT clicked -> requesting quit_event_loop()");
-                        if let Some(_w) = handle_exit.upgrade() {
-                            let _ = slint::quit_event_loop();
-                        }
-                    },
-                );
             }
 
             // Sync metrics to UI when visible (throttled/deduplicated)
@@ -585,6 +659,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
     );
+
+
 
     // Center window on screen using Slint's native API before showing
     #[cfg(windows)]
