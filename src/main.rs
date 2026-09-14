@@ -29,7 +29,7 @@ slint::include_modules!();
 #[derive(Parser, Debug)]
 #[command(name = "RustCooling")]
 #[command(author = "Qyzom & Contributors")]
-#[command(version = "0.1.1")]
+#[command(version = "0.1.2")]
 #[command(about = "RustCooling - Lightweight LCD Display controller for ID-COOLING FX series coolers", long_about = None)]
 struct CliArgs {
     /// Run in headless daemon mode without GUI (for background / systemd)
@@ -281,7 +281,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_ref = Arc::new(Mutex::new(config));
 
     info!("==================================================");
-    info!(" RustCooling v0.1.1 - ID-COOLING FX LCD Controller");
+    info!(" RustCooling v0.1.2 - ID-COOLING FX LCD Controller");
     info!("==================================================");
 
     let monitor = MonitorService::new(Arc::clone(&config_ref));

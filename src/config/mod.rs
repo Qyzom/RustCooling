@@ -20,7 +20,7 @@ pub struct AppConfig {
     /// Value transition animation style: "direct", "roller", "smooth".
     #[serde(default = "default_animation")]
     pub animation_type: String,
-    /// UI language code: "en", "ru", "zh".
+    /// UI language code: "en", "ru", "zh", "de", "fr".
     #[serde(default = "default_language")]
     pub language: String,
     /// USB Vendor ID of the target display controller (default: 0x1A86).

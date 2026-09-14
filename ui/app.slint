@@ -213,7 +213,7 @@ export component MainWindow inherits Window {
     in property <string> tr_setting_debug: "Hardware & USB VID / PID";
     in property <string> tr_setting_reset_defaults: "Reset to Defaults";
     in property <string> tr_open_config_folder: "Open Settings Folder";
-    in property <string> tr_about_title: "RustCooling v0.1.1";
+    in property <string> tr_about_title: "RustCooling v0.1.2";
     in property <string> tr_about_desc: "GitHub: Qyzom/RustCooling";
 
     // Settings View State
@@ -926,7 +926,7 @@ export component MainWindow inherits Window {
                                 border-radius: 12px;
                                 border-width: 1px;
                                 border-color: #272a38;
-                                height: 60px;
+                                height: 86px;
 
                                 VerticalLayout {
                                     padding-left: 12px;
@@ -944,7 +944,7 @@ export component MainWindow inherits Window {
 
                                     HorizontalLayout {
                                         spacing: 6px;
-                                        height: 26px;
+                                        height: 24px;
 
                                         SelectPill {
                                             text: "English";
@@ -996,6 +996,50 @@ export component MainWindow inherits Window {
                                                     root.setting_autostart,
                                                     root.setting_interval_ms,
                                                     "zh",
+                                                    root.setting_animation,
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 6px;
+                                        height: 24px;
+
+                                        SelectPill {
+                                            text: "Deutsch";
+                                            is_selected: root.setting_language == "de";
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_language = "de";
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    "de",
+                                                    root.setting_animation,
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    root.setting_pid_hex
+                                                );
+                                            }
+                                        }
+                                        SelectPill {
+                                            text: "Français";
+                                            is_selected: root.setting_language == "fr";
+                                            active_color: #7bd0c1;
+                                            active_bg: #1b3d35;
+                                            clicked => {
+                                                root.setting_language = "fr";
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    "fr",
                                                     root.setting_animation,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,

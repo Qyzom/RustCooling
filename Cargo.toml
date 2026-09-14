@@ -1,6 +1,6 @@
 [package]
 name = "RustCooling"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 authors = ["Qyzom", "RustCooling Contributors"]
 description = "Ultra-lightweight cross-platform LCD display controller for ID-COOLING FX series liquid coolers"

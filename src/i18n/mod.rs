@@ -93,8 +93,30 @@ impl I18n {
         let json_str = match lang {
             "ru" => include_str!("../../i18n/ru.json"),
             "zh" => include_str!("../../i18n/zh.json"),
+            "de" => include_str!("../../i18n/de.json"),
+            "fr" => include_str!("../../i18n/fr.json"),
             _ => include_str!("../../i18n/en.json"),
         };
-        serde_json::from_str(json_str).unwrap_or_default()
+        let clean_json = json_str.trim_start_matches('\u{feff}');
+        serde_json::from_str(clean_json).unwrap_or_default()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_all_translations_load_properly() {
+        for lang in &["en", "ru", "zh", "de", "fr"] {
+            let t = I18n::parse_embedded(lang);
+            assert!(!t.app_title.is_empty(), "app_title empty for {}", lang);
+            assert!(!t.device_name.is_empty(), "device_name empty for {}", lang);
+            assert!(!t.about_title.is_empty(), "about_title empty for {}", lang);
+            assert_eq!(t.about_title, "RustCooling v0.1.2", "about_title mismatch for {}", lang);
+            assert!(!t.setting_language.is_empty(), "setting_language empty for {}", lang);
+            assert!(!t.status_connected.is_empty(), "status_connected empty for {}", lang);
+        }
+    }
+}
+

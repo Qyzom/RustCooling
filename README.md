@@ -54,7 +54,7 @@ This project is a complete, ground-up rewrite in **100% Rust** of the author's v
 | **Startup Time** | ~3.0 – 6.0 seconds | ~1.5 – 3.0 seconds | **< 50 milliseconds** |
 | **Proprietary Bloat** | High (telemetry, auto-updaters) | Moderate (.NET runtime overhead) | **Zero (100% open-source & clean)** |
 | **UI Engine** | Chromium WebEngine | WebView2 / WPF | **FemtoVG (Native OpenGL)** |
-| **Localization** | EN, ZH | EN, RU, ZH | **EN, RU, ZH** |
+| **Localization** | EN, ZH | EN, RU, ZH | **EN, RU, ZH, DE, FR** |
 | **Headless Daemon** | ❌ No | ⚠️ Separate daemon binary | **Built-in (`--daemon` flag)** |
 
 ---
@@ -114,25 +114,25 @@ The ID-COOLING FX Series LCD pump cap communicates via standard USB HID reports:
 Pre-built standalone releases are available on the [**Releases page**](https://github.com/Qyzom/RustCooling/releases):
 
 ### Windows
-1. Download **`RustCooling-0.1.1.exe`**.
+1. Download **`RustCooling-0.1.2.exe`**.
 2. Run the executable. It is completely portable — no installer or runtime dependencies required.
 3. Open **Settings** within the UI to toggle **Autostart on Boot**.
 
 ### Linux (Debian / Ubuntu / Linux Mint)
-1. Download **`RustCooling-0.1.1.deb`**.
+1. Download **`RustCooling-0.1.2.deb`**.
 2. Install the package:
    ```bash
-   sudo dpkg -i RustCooling-0.1.1.deb
+   sudo dpkg -i RustCooling-0.1.2.deb
    sudo apt-get install -f  # resolves dependencies if needed
    ```
 3. Launch `RustCooling` from your desktop application launcher or run `RustCooling` from the terminal.
 
 ### Linux (Arch Linux / Fedora / Generic Tarball)
-1. Download **`RustCooling-0.1.1.tar.gz`**.
+1. Download **`RustCooling-0.1.2.tar.gz`**.
 2. Extract and run the installer:
    ```bash
-   tar -xzf RustCooling-0.1.1.tar.gz
-   cd RustCooling-0.1.1
+   tar -xzf RustCooling-0.1.2.tar.gz
+   cd RustCooling-0.1.2
    sudo ./install.sh
    ```
 
