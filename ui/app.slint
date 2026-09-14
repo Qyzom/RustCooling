@@ -213,7 +213,7 @@ export component MainWindow inherits Window {
     in property <string> tr_setting_debug: "Hardware & USB VID / PID";
     in property <string> tr_setting_reset_defaults: "Reset to Defaults";
     in property <string> tr_open_config_folder: "Open Settings Folder";
-    in property <string> tr_about_title: "RustCooling v0.1.0";
+    in property <string> tr_about_title: "RustCooling v0.1.1";
     in property <string> tr_about_desc: "GitHub: Qyzom/RustCooling";
 
     // Settings View State
@@ -233,7 +233,9 @@ export component MainWindow inherits Window {
     callback open_config_folder();
     callback minimize_window();
     callback close_window();
-    callback drag_window();
+    callback drag_start();
+    callback drag_move();
+    callback drag_end();
     callback open_settings();
     callback close_settings();
     callback open_url(string);
@@ -292,7 +294,11 @@ export component MainWindow inherits Window {
 
                         pointer-event(event) => {
                             if event.kind == PointerEventKind.down {
-                                root.drag_window();
+                                root.drag_start();
+                            } else if event.kind == PointerEventKind.move {
+                                root.drag_move();
+                            } else if event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel {
+                                root.drag_end();
                             }
                         }
 

@@ -1,4 +1,4 @@
-﻿name: Release Builds
+name: Release Builds
 
 on:
   push:
@@ -43,6 +43,13 @@ jobs:
 
       - name: Package Debian (.deb)
         run: |
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${TAG_NAME#v}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
+            VERSION="0.1.1"
+          fi
+          echo "Packaging version: $VERSION"
+
           mkdir -p pkg/DEBIAN
           mkdir -p pkg/usr/bin
           mkdir -p pkg/usr/lib/udev/rules.d
@@ -55,9 +62,9 @@ jobs:
           cp packaging/linux/rustcooling.desktop pkg/usr/share/applications/
           cp assets/icons/logo_256.png pkg/usr/share/icons/hicolor/256x256/apps/rustcooling.png
 
-          cat << 'EOF' > pkg/DEBIAN/control
+          cat << EOF > pkg/DEBIAN/control
           Package: rustcooling
-          Version: 0.1.0
+          Version: ${VERSION}
           Section: utils
           Priority: optional
           Architecture: amd64
@@ -84,10 +91,16 @@ jobs:
           EOF
           chmod 755 pkg/DEBIAN/postinst
 
-          dpkg-deb --build --root-owner-group pkg RustCooling-0.1.0.deb
+          dpkg-deb --build --root-owner-group pkg "RustCooling-${VERSION}.deb"
 
       - name: Package Tarball (.tar.gz)
         run: |
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${TAG_NAME#v}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
+            VERSION="0.1.1"
+          fi
+
           mkdir -p tarball
           cp target/release/RustCooling tarball/
           cp packaging/linux/99-idcooling.rules tarball/
@@ -95,14 +108,16 @@ jobs:
           cp packaging/linux/install.sh tarball/
           cp packaging/linux/uninstall.sh tarball/
           cp assets/icons/logo_256.png tarball/logo.png
-          tar -czvf RustCooling-0.1.0.tar.gz -C tarball .
+          tar -czvf "RustCooling-${VERSION}.tar.gz" -C tarball .
 
       - name: Upload Linux Assets to Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG_NAME="${{ github.ref_name }}"
-          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "main" ]; then
-            TAG_NAME="v0.1.0"
+          VERSION="${TAG_NAME#v}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
+            VERSION="0.1.1"
+            TAG_NAME="v0.1.1"
           fi
-          gh release upload "$TAG_NAME" RustCooling-0.1.0.deb RustCooling-0.1.0.tar.gz --clobber || true
+          gh release upload "$TAG_NAME" "RustCooling-${VERSION}.deb" "RustCooling-${VERSION}.tar.gz" --clobber || true

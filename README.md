@@ -1,4 +1,4 @@
-﻿# RustCooling
+# RustCooling
 
 <div align="center">
 
@@ -30,8 +30,9 @@ This project is a complete, ground-up rewrite in **100% Rust** of the author's v
 | Feature | Original Vendor Software | [idc-lite](https://github.com/Qyzom/idc-lite) (1st Project) | **RustCooling** (Current) |
 | :--- | :--- | :--- | :--- |
 | **Language / Stack** | Electron / Node.js + C++ | C# / .NET 8 + WPF / Tauri | **100% Pure Rust** + Slint UI |
-| **RAM (GUI Open)** | ~150 – 300 MB | ~60 – 120 MB | **< 15 MB** |
-| **RAM (System Tray)** | ~80 – 150 MB (background bloat) | ~35 – 60 MB | **< 5 MB** (Working Set Trim) |
+| **RAM (GUI Open)** | ~150 – 300 MB | ~60 – 120 MB | **~25 – 45 MB** (GPU Accelerated + Vector Font) |
+| **RAM (System Tray)** | ~80 – 150 MB (background bloat) | ~35 – 60 MB | **< 5 MB** (Physical Working Set Paging) |
+| **RAM (Restored)** | ~150 – 300 MB | ~60 – 120 MB | **~12 – 20 MB** (Instant Unload / Zero-Lag) |
 | **Linux Support** | ❌ None (Windows only) | ⚠️ Experimental / partial | ** Native (hwmon, sysfs, udev)** |
 | **Startup Time** | ~3.0 – 6.0 seconds | ~1.5 – 3.0 seconds | **< 50 milliseconds** |
 | **Proprietary Bloat** | High (background telemetry, auto-updaters) | Moderate (.NET runtime overhead) | **Zero (100% open-source & clean)** |
@@ -96,25 +97,25 @@ The ID-COOLING FX Series LCD pump cap communicates via standard USB HID reports:
 Pre-built standalone releases are available on the [**Releases page**](https://github.com/Qyzom/RustCooling/releases):
 
 ### Windows
-1. Download **`RustCooling-0.1.0.exe`**.
+1. Download **`RustCooling-0.1.1.exe`**.
 2. Run the executable. It is completely portable — no installer or runtime dependencies required.
 3. Open **Settings** within the UI to toggle **Autostart on Boot**.
 
 ### Linux (Debian / Ubuntu / Linux Mint)
-1. Download **`RustCooling-0.1.0.deb`**.
+1. Download **`RustCooling-0.1.1.deb`**.
 2. Install the package:
    ```bash
-   sudo dpkg -i RustCooling-0.1.0.deb
+   sudo dpkg -i RustCooling-0.1.1.deb
    sudo apt-get install -f  # resolves dependencies if needed
    ```
 3. Launch `RustCooling` from your desktop application launcher or run `RustCooling` from the terminal.
 
 ### Linux (Arch Linux / Fedora / Generic Tarball)
-1. Download **`RustCooling-0.1.0.tar.gz`**.
+1. Download **`RustCooling-0.1.1.tar.gz`**.
 2. Extract and run the installer:
    ```bash
-   tar -xzf RustCooling-0.1.0.tar.gz
-   cd RustCooling-0.1.0
+   tar -xzf RustCooling-0.1.1.tar.gz
+   cd RustCooling-0.1.1
    sudo ./install.sh
    ```
 

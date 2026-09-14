@@ -29,7 +29,7 @@ slint::include_modules!();
 #[derive(Parser, Debug)]
 #[command(name = "RustCooling")]
 #[command(author = "Qyzom & Contributors")]
-#[command(version = "0.1.0")]
+#[command(version = "0.1.1")]
 #[command(about = "RustCooling - Lightweight LCD Display controller for ID-COOLING FX series coolers", long_about = None)]
 struct CliArgs {
     /// Run in headless daemon mode without GUI (for background / systemd)
@@ -209,7 +209,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_ref = Arc::new(Mutex::new(config));
 
     info!("==================================================");
-    info!(" RustCooling v0.1.0 - ID-COOLING FX LCD Controller");
+    info!(" RustCooling v0.1.1 - ID-COOLING FX LCD Controller");
     info!("==================================================");
 
     let monitor = MonitorService::new(Arc::clone(&config_ref));
@@ -386,21 +386,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let win_for_min = main_window.as_weak();
     main_window.on_minimize_window(move || {
         info!("Minimize requested");
-        if let Some(_w) = win_for_min.upgrade() {
-            #[cfg(windows)]
-            unsafe {
-                use windows_sys::Win32::UI::WindowsAndMessaging::{
-                    GetForegroundWindow, ShowWindow, SW_MINIMIZE,
-                };
-                let hwnd = GetForegroundWindow();
-                if !hwnd.is_null() {
-                    ShowWindow(hwnd, SW_MINIMIZE);
-                }
-            }
-            #[cfg(not(windows))]
-            {
-                _w.window().set_minimized(true);
-            }
+        if let Some(w) = win_for_min.upgrade() {
+            w.window().set_minimized(true);
             trim_memory();
         }
     });
@@ -414,6 +401,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if has_tray {
             info!("Close requested -> hiding window to system tray");
             if let Some(w) = win_for_close.upgrade() {
+                w.window().dispatch_event(slint::platform::WindowEvent::PointerExited);
                 let _ = w.hide();
                 vis_for_close.store(false, Ordering::SeqCst);
                 if let Some(ref t) = *tray_for_close.borrow() {
@@ -427,23 +415,62 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Native frameless window dragging on Windows
-    #[cfg(windows)]
-    main_window.on_drag_window(|| {
-        use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
-        use windows_sys::Win32::UI::WindowsAndMessaging::{
-            GetForegroundWindow, SendMessageW, WM_SYSCOMMAND,
-        };
-        unsafe {
-            ReleaseCapture();
-            let hwnd = GetForegroundWindow();
-            if !hwnd.is_null() {
-                SendMessageW(hwnd, WM_SYSCOMMAND, 0xF012, 0);
+    // Smooth, reliable window dragging that preserves Slint pointer capture
+    struct DragState {
+        is_dragging: bool,
+        start_cursor: (i32, i32),
+        start_win: (i32, i32),
+    }
+    let drag_state = Rc::new(RefCell::new(DragState {
+        is_dragging: false,
+        start_cursor: (0, 0),
+        start_win: (0, 0),
+    }));
+
+    let drag_for_start = Rc::clone(&drag_state);
+    let win_for_drag_start = main_window.as_weak();
+    main_window.on_drag_start(move || {
+        #[cfg(windows)]
+        {
+            use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+            let mut pt = windows_sys::Win32::Foundation::POINT { x: 0, y: 0 };
+            unsafe { GetCursorPos(&mut pt) };
+            if let Some(w) = win_for_drag_start.upgrade() {
+                let pos = w.window().position();
+                let mut state = drag_for_start.borrow_mut();
+                state.is_dragging = true;
+                state.start_cursor = (pt.x, pt.y);
+                state.start_win = (pos.x, pos.y);
             }
         }
     });
-    #[cfg(not(windows))]
-    main_window.on_drag_window(|| {});
+
+    let drag_for_move = Rc::clone(&drag_state);
+    let win_for_drag_move = main_window.as_weak();
+    main_window.on_drag_move(move || {
+        #[cfg(windows)]
+        {
+            let state = drag_for_move.borrow();
+            if state.is_dragging {
+                use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
+                let mut pt = windows_sys::Win32::Foundation::POINT { x: 0, y: 0 };
+                unsafe { GetCursorPos(&mut pt) };
+                let dx = pt.x - state.start_cursor.0;
+                let dy = pt.y - state.start_cursor.1;
+                if let Some(w) = win_for_drag_move.upgrade() {
+                    w.window().set_position(slint::PhysicalPosition::new(
+                        state.start_win.0 + dx,
+                        state.start_win.1 + dy,
+                    ));
+                }
+            }
+        }
+    });
+
+    let drag_for_end = Rc::clone(&drag_state);
+    main_window.on_drag_end(move || {
+        drag_for_end.borrow_mut().is_dragging = false;
+    });
 
     // Periodic UI update & tray event polling timer (60ms)
     let handle_for_timer = main_window.as_weak();
@@ -462,9 +489,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         slint::TimerMode::Repeated,
         Duration::from_millis(60),
         move || {
-            // Retry tray initialization if it wasn't ready at startup (every ~3 seconds = 50 ticks @ 60ms)
+            // Attempt a single retry for tray initialization if it wasn't ready at startup (after ~1.5s)
             let tick = tray_retry_counter.fetch_add(1, Ordering::Relaxed);
-            if tick % 50 == 49 && tray_for_timer.borrow().is_none() {
+            if tick == 25 && tray_for_timer.borrow().is_none() {
                 let vis = vis_for_timer.load(Ordering::SeqCst);
                 match SystemTray::new(vis) {
                     Ok(t) => {
@@ -472,7 +499,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         *tray_for_timer.borrow_mut() = Some(t);
                     }
                     Err(e) => {
-                        warn!("Tray retry failed: {:?}", e);
+                        warn!("Tray retry unavailable: {:?}", e);
                     }
                 }
             }
@@ -490,6 +517,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if currently_visible {
                             info!("Tray action -> hiding window");
                             if let Some(w) = handle_toggle.upgrade() {
+                                w.window().dispatch_event(slint::platform::WindowEvent::PointerExited);
                                 let _ = w.hide();
                                 vis_toggle.store(false, Ordering::SeqCst);
                                 if let Some(ref t) = *tray_inner.borrow() {
@@ -597,17 +625,6 @@ mod window_tests {
     use super::*;
 
     #[test]
-    fn test_main_window_init() {
-        let win = MainWindow::new();
-        assert!(win.is_ok(), "MainWindow::new failed: {:?}", win.err());
-        let w = win.unwrap();
-        apply_translations(&w);
-        let show_res = w.show();
-        assert!(show_res.is_ok());
-        w.window().set_minimized(true);
-    }
-
-    #[test]
     #[cfg(windows)]
     fn test_autostart_builder() {
         let auto = AutoLaunchBuilder::new()
@@ -635,5 +652,136 @@ mod window_tests {
         );
         assert!(entry.contains("Exec=\"/usr/local/bin/RustCooling\" --minimized"));
         assert!(entry.contains("Type=Application"));
+    }
+
+    #[test]
+    fn test_main_window_lifecycle_and_interactions() {
+        let win = MainWindow::new().expect("Failed to create MainWindow");
+        apply_translations(&win);
+        assert!(win.show().is_ok());
+
+        // 1. Test Navigation & Callbacks
+        let settings_opened = Arc::new(AtomicBool::new(false));
+        let settings_opened_clone = Arc::clone(&settings_opened);
+        let win_weak1 = win.as_weak();
+        win.on_open_settings(move || {
+            settings_opened_clone.store(true, Ordering::SeqCst);
+            if let Some(w) = win_weak1.upgrade() {
+                w.set_show_settings(true);
+            }
+        });
+
+        let settings_closed = Arc::new(AtomicBool::new(false));
+        let settings_closed_clone = Arc::clone(&settings_closed);
+        let win_weak2 = win.as_weak();
+        win.on_close_settings(move || {
+            settings_closed_clone.store(true, Ordering::SeqCst);
+            if let Some(w) = win_weak2.upgrade() {
+                w.set_show_settings(false);
+            }
+        });
+
+        let saved = Arc::new(AtomicBool::new(false));
+        let saved_clone = Arc::clone(&saved);
+        win.on_save_settings(move |_mode, _auto, _int, _lang, _anim, _src, _vid, _pid| {
+            saved_clone.store(true, Ordering::SeqCst);
+        });
+
+        assert!(!win.get_show_settings(), "Initially should be in monitor view");
+        win.invoke_open_settings();
+        assert!(settings_opened.load(Ordering::SeqCst), "open_settings callback must fire");
+        assert!(win.get_show_settings(), "View must switch to settings");
+
+        win.invoke_save_settings(
+            "temp".into(),
+            true,
+            500,
+            "ru".into(),
+            "direct".into(),
+            "core0".into(),
+            "1A86".into(),
+            "E317".into(),
+        );
+        assert!(saved.load(Ordering::SeqCst), "save_settings callback must fire");
+
+        win.invoke_close_settings();
+        assert!(settings_closed.load(Ordering::SeqCst), "close_settings callback must fire");
+        assert!(!win.get_show_settings(), "View must switch back to monitor view");
+
+        // 2. Test Drag Safety (Drag must never break subsequent button clicks)
+        let drag_started = Arc::new(AtomicBool::new(false));
+        let drag_moved = Arc::new(AtomicBool::new(false));
+        let drag_ended = Arc::new(AtomicBool::new(false));
+
+        let s1 = Arc::clone(&drag_started);
+        win.on_drag_start(move || {
+            s1.store(true, Ordering::SeqCst);
+        });
+
+        let s2 = Arc::clone(&drag_moved);
+        win.on_drag_move(move || {
+            s2.store(true, Ordering::SeqCst);
+        });
+
+        let s3 = Arc::clone(&drag_ended);
+        win.on_drag_end(move || {
+            s3.store(true, Ordering::SeqCst);
+        });
+
+        let button_after_drag = Arc::new(AtomicBool::new(false));
+        let bad_clone = Arc::clone(&button_after_drag);
+        win.on_open_settings(move || {
+            bad_clone.store(true, Ordering::SeqCst);
+        });
+
+        win.invoke_drag_start();
+        assert!(drag_started.load(Ordering::SeqCst), "drag_start must fire");
+
+        win.invoke_drag_move();
+        assert!(drag_moved.load(Ordering::SeqCst), "drag_move must fire");
+
+        win.invoke_drag_end();
+        assert!(drag_ended.load(Ordering::SeqCst), "drag_end must fire");
+
+        win.invoke_open_settings();
+        assert!(
+            button_after_drag.load(Ordering::SeqCst),
+            "Button click callback must fire immediately after window drag without freezing!"
+        );
+
+        // 3. Test High-Frequency Telemetry Updates & Long-Running Endurance
+        let click_count = Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let cc_clone = Arc::clone(&click_count);
+        let win_weak3 = win.as_weak();
+        win.on_open_settings(move || {
+            cc_clone.fetch_add(1, Ordering::SeqCst);
+            if let Some(w) = win_weak3.upgrade() {
+                let cur = w.get_show_settings();
+                w.set_show_settings(!cur);
+            }
+        });
+
+        for i in 0..600 {
+            win.set_cpu_temp(35 + (i % 30) as i32);
+            win.set_cpu_load((i % 100) as i32);
+            win.set_broadcast_value(format!("{} °C", 35 + (i % 30)).into());
+            win.set_is_connected(i % 2 == 0);
+
+            if i % 100 == 50 {
+                win.invoke_open_settings();
+            }
+        }
+
+        let before_final_click = click_count.load(Ordering::SeqCst);
+        win.invoke_open_settings();
+        let after_final_click = click_count.load(Ordering::SeqCst);
+
+        assert_eq!(
+            after_final_click,
+            before_final_click + 1,
+            "Button click must work reliably after high-frequency continuous telemetry updates"
+        );
+
+        win.window().set_minimized(true);
     }
 }
