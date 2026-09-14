@@ -29,13 +29,13 @@ This project is a complete, ground-up rewrite in **100% Rust** of the author's v
 
 <div align="center">
 
-### Main Hardware Monitor (1)
-<img src="images/1.png" alt="RustCooling Main Screen" width="480"/>
+<img src="images/1.png" alt="RustCooling Main Screen" width="300"/>
 
-### Settings & Hardware Configuration (2, 3, 4)
-| Display Mode & Animation (2) | CPU Thermal Source & Language (3) | Hardware & USB VID/PID (4) |
-| :---: | :---: | :---: |
-| <img src="images/2.png" width="300"/> | <img src="images/3.png" width="300"/> | <img src="images/4.png" width="300"/> |
+<br/><br/>
+
+<img src="images/2.png" width="235"/>
+<img src="images/3.png" width="235"/>
+<img src="images/4.png" width="235"/>
 
 </div>
 
@@ -50,12 +50,12 @@ This project is a complete, ground-up rewrite in **100% Rust** of the author's v
 | **RAM (System Tray)** | ~80 – 150 MB (background bloat) | ~35 – 60 MB | **< 3 MB** (~1.1 MB in Task Manager) |
 | **RAM (Headless Daemon)** | ❌ No daemon | ⚠️ Separate process (~20 MB) | **~2 – 4 MB** (`--daemon` mode) |
 | **CPU Usage** | 2.0% – 5.0% continuous | ~1.0% | **0.0%** (Ultra-lean event-driven loop) |
-| **Linux Support** | ❌ None (Windows only) | ⚠️ Experimental / partial | ** Native (hwmon, sysfs, udev)** |
+| **Linux Support** | ❌ None (Windows only) | ⚠️ Experimental / partial | **Native (hwmon, sysfs, udev)** |
 | **Startup Time** | ~3.0 – 6.0 seconds | ~1.5 – 3.0 seconds | **< 50 milliseconds** |
 | **Proprietary Bloat** | High (telemetry, auto-updaters) | Moderate (.NET runtime overhead) | **Zero (100% open-source & clean)** |
 | **UI Engine** | Chromium WebEngine | WebView2 / WPF | **FemtoVG (Native OpenGL)** |
-| **Localization** | English, Simplified Chinese | English, Russian | **EN, RU, ZH, DE, ES** |
-| **Headless Daemon** | ❌ No | ⚠️ Separate daemon binary | ** Built-in (`--daemon` flag)** |
+| **Localization** | EN, ZH | EN, RU, ZH | **EN, RU, ZH** |
+| **Headless Daemon** | ❌ No | ⚠️ Separate daemon binary | **Built-in (`--daemon` flag)** |
 
 ---
 
@@ -78,7 +78,7 @@ On Linux, RustCooling interacts directly with the Linux kernel without requiring
 On Windows, RustCooling provides clean, deterministic telemetry without the memory leaks that plague vendor software:
 - **Kernel Telemetry:** Combines native OS performance counters and `sysinfo` for CPU clock and utilization.
 - **Leak-Free Pipeline:** Eliminates COM / WMI initialization loops and GDI object leaks, guaranteeing completely flat memory consumption over weeks of continuous operation.
-- **System Tray Optimization:** When minimized to the notification area, the process invokes `EmptyWorkingSet`, releasing unused physical RAM pages back to the Windows memory manager (< 5 MB RAM footprint).
+- **System Tray Optimization:** When minimized to the notification area, the process invokes `EmptyWorkingSet`, releasing unused physical RAM pages back to the Windows memory manager (< 3 MB RAM footprint).
 - **Windows Autostart:** Seamless integration via `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
 
 ### 3. USB HID Protocol & Display Timing
