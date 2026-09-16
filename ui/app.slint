@@ -624,7 +624,7 @@ export component MainWindow inherits Window {
                                         }
 
                                         Text {
-                                            text: root.setting_animation_enabled ? ("\{root.setting_interval_ms} ms - " + root.tr_anim_enabled) : ("\{root.setting_interval_ms} ms");
+                                            text: root.setting_animation_enabled ? ("\{root.setting_interval_ms} ms · " + root.tr_setting_animation) : ("\{root.setting_interval_ms} ms");
                                             font-size: 9px;
                                             font-weight: 700;
                                             color: #a8c7fa;
