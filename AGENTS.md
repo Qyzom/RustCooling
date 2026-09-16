@@ -1,4 +1,4 @@
-﻿# ID-COOLING LCD Display Protocol & Architecture Memo (RustCooling)
+# ID-COOLING LCD Display Protocol & Architecture Memo (RustCooling)
 
 Technical architectural memo and guide for developing, maintaining, and extending **RustCooling** — an ultra-lightweight, zero-bloat, cross-platform LCD display controller for **ID-COOLING FX Series** liquid coolers (FX240, FX280, FX360) and compatible WCH-based AIO hardware.
 
@@ -86,7 +86,7 @@ sequenceDiagram
 
 ## 4. Telemetry Architecture
 
-### Windows (Ring 0 Kernel Driver & MSR Telemetry):
+### Windows (LibreHardwareMonitor Ring 0 Kernel Driver):
 - **Driver:** Embedded LibreHardwareMonitor kernel driver (`assets/driver/WinRing0x64.sys`).
 - **Storage:** Extracted portably directly alongside `RustCooling.exe`.
 - **Service Control Manager:** Registered as a Windows kernel driver service (`WinRing0_1_2_0`, `SERVICE_KERNEL_DRIVER`, `SERVICE_AUTO_START`).

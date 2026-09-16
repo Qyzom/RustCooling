@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 <img src="logo.png" alt="RustCooling Logo" width="100" />
 
@@ -46,10 +46,10 @@
    The original utility from the vendor is built on Electron / Node.js and eats up 200–300 MB of RAM. RustCooling is written in 100% pure native Rust with Slint UI and consumes 20–50x less memory.
 3. **True Native Linux Support:**  
    The vendor does not support Linux at all. RustCooling reads system sensors natively through the Linux kernel (`/sys/class/hwmon` and `sysfs`) without Wine, root permissions, or third-party background daemons.
-4. **Direct Physical Silicon Sensor Telemetry (LibreHardwareMonitor Ring 0 / Linux hwmon):**  
-   No synthetic guesswork or heavy third-party background software.
-   - **Windows:** Built-in proven LibreHardwareMonitor micro-driver (`WinRing0x64.sys`), reading temperatures directly from CPU silicon MSR registers (Intel DTS / AMD Tctl). On first run, the app requests Administrator rights once via UAC to register the driver service.
-   - **Linux:** Neither root rights nor drivers are needed — telemetry is read natively via the standard kernel `/sys/class/hwmon` interface.
+4. **Reliable Hardware Sensor Telemetry via LibreHardwareMonitor:**  
+   No synthetic guesswork, inaccurate estimates, or heavy third-party background software.
+   - **Windows:** Powered by the battle-tested LibreHardwareMonitor kernel driver subsystem (`WinRing0x64.sys`). Instead of raw or unverified manual polling hacks, RustCooling integrates LibreHardwareMonitor's proven hardware monitoring architecture to safely read real CPU silicon temperatures (Intel DTS / AMD Tctl). On first run, the app requests Administrator rights once via UAC to register the driver service.
+   - **Linux:** Neither root rights nor external drivers are needed — telemetry is read natively via the standard kernel `/sys/class/hwmon` interface.
 5. **Instant Cold Start (< 50 ms):**  
    No heavy runtimes or framework loading — the app launches instantaneously.
 6. **Completely Standalone, Portable & Clean:**  
@@ -84,7 +84,7 @@ Pre-built binaries are available on the [**Releases**](https://github.com/Qyzom/
 #### Windows (Portable)
 1. Download **[`RustCooling.exe`](https://github.com/Qyzom/RustCooling/releases/latest)**.
 2. Place it in any folder of your choice (e.g. `C:\Tools\RustCooling\`). Configuration (`config.json`) and the micro-driver will reside directly next to it.
-3. On first run, the activation screen will appear: click **"Grant Rights & Install"** (UAC) to register the direct MSR sensor reading micro-driver once.
+3. On first run, the activation screen will appear: click **"Grant Rights & Install"** (UAC) to register the LibreHardwareMonitor sensor driver once.
 4. Click **"Continue"** — the application is ready to use! System autostart is available in Settings.
 
 #### Linux (Debian / Ubuntu / Linux Mint)
@@ -153,4 +153,4 @@ Third-party open-source components and their respective licenses:
 - **RustCooling Core & UI:** [MIT License](LICENSE) © Qyzom & Contributors.
 - **Unbounded Font:** [SIL Open Font License 1.1](assets/fonts/OFL.txt) (Authors: Lexend & Contributors).
 - **Noto Sans SC Font:** [SIL Open Font License 1.1](https://openfontlicense.org/) (Authors: Google LLC, Adobe Systems Inc.). Provides native Chinese character rendering.
-- **LibreHardwareMonitor / WinRing0 Driver:** [Modified BSD License](http://openlibsys.org/) (Author: Noriyuki Miyazaki / OpenLibSys). Provides safe direct CPU silicon MSR sensor access on Windows.
+- **LibreHardwareMonitor Driver:** [Modified BSD License](http://openlibsys.org/) (Author: Noriyuki Miyazaki / OpenLibSys / LibreHardwareMonitor). Provides safe physical hardware sensor access on Windows.
