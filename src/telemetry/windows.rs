@@ -1,9 +1,11 @@
+use super::driver::{read_physical_temperatures, DriverHandle};
 use super::{CpuMetrics, TelemetryProvider};
 use sysinfo::{Components, CpuRefreshKind, RefreshKind, System};
 
 pub struct WindowsTelemetry {
     system: System,
     components: Components,
+    driver_handle: Option<DriverHandle>,
     metrics: CpuMetrics,
     temp_source: String,
 }
@@ -15,11 +17,13 @@ impl WindowsTelemetry {
                 .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
         );
         sys.refresh_cpu_usage();
-        let comps = Components::new_with_refreshed_list();
+        let comps = Components::new();
+        let drv = DriverHandle::open();
 
         Self {
             system: sys,
             components: comps,
+            driver_handle: drv,
             metrics: CpuMetrics::default(),
             temp_source: "package".to_string(),
         }
@@ -38,19 +42,22 @@ impl TelemetryProvider for WindowsTelemetry {
     }
 
     fn update(&mut self) {
+        // 1. Refresh OS CPU usage (works without admin rights via sysinfo)
         self.system
             .refresh_cpu_specifics(CpuRefreshKind::nothing().with_cpu_usage());
-        if self.components.is_empty() {
-            self.components.refresh(true);
-        } else {
-            self.components.refresh(false);
-        }
-
-        // 1. Refresh OS CPU usage (works without admin rights via sysinfo)
         let load = self.system.global_cpu_usage().clamp(0.0, 100.0);
+        self.metrics.load_percent = Some(load);
 
         // 2. Read physical hardware digital thermal sensors via Ring 0 driver (LibreHardwareMonitor)
-        let phys_temps = super::driver::read_physical_temperatures();
+        if self.driver_handle.is_none() {
+            self.driver_handle = DriverHandle::open();
+        }
+
+        let phys_temps = self
+            .driver_handle
+            .as_ref()
+            .and_then(read_physical_temperatures);
+
         let mut package_temp: Option<f32> = None;
         let mut core0_temp: Option<f32> = None;
         let mut core_temps: Vec<f32> = Vec::new();
@@ -61,6 +68,13 @@ impl TelemetryProvider for WindowsTelemetry {
             core_temps = p.core_temps;
         } else {
             // Fallback to sysinfo components if exposed by ACPI (e.g. laptops, AMD systems)
+            // Polled lazily ONLY when physical hardware telemetry is unavailable
+            if self.components.is_empty() {
+                self.components.refresh(true);
+            } else {
+                self.components.refresh(false);
+            }
+
             for component in self.components.iter() {
                 let label = component.label().to_lowercase();
                 if let Some(temp) = component.temperature() {

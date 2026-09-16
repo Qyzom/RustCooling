@@ -43,8 +43,8 @@ pub fn get_driver_path() -> PathBuf {
 pub fn ensure_driver_extracted() -> Result<PathBuf, String> {
     let dest = get_driver_path();
     if dest.exists() {
-        if let Ok(meta) = std::fs::metadata(&dest) {
-            if meta.len() == DRIVER_BYTES.len() as u64 {
+        if let Ok(existing) = std::fs::read(&dest) {
+            if existing == DRIVER_BYTES {
                 return Ok(dest);
             }
         }
@@ -268,6 +268,35 @@ pub struct DriverHandle {
     handle: HANDLE,
 }
 
+unsafe impl Send for DriverHandle {}
+unsafe impl Sync for DriverHandle {}
+
+/// RAII guard that restores the thread's original affinity mask on drop.
+struct AffinityGuard {
+    prev_mask: usize,
+}
+
+impl AffinityGuard {
+    fn set(mask: usize) -> Option<Self> {
+        let prev = unsafe { SetThreadAffinityMask(GetCurrentThread(), mask) };
+        if prev != 0 {
+            Some(Self { prev_mask: prev })
+        } else {
+            None
+        }
+    }
+}
+
+impl Drop for AffinityGuard {
+    fn drop(&mut self) {
+        if self.prev_mask != 0 {
+            unsafe {
+                SetThreadAffinityMask(GetCurrentThread(), self.prev_mask);
+            }
+        }
+    }
+}
+
 impl DriverHandle {
     pub fn open() -> Option<Self> {
         let wide_device: Vec<u16> = DEVICE_NAME.encode_utf16().chain(Some(0)).collect();
@@ -485,9 +514,8 @@ fn read_intel_temperatures(drv: &DriverHandle) -> Option<PhysicalCpuTemps> {
             continue;
         }
 
-        // Pin current thread to this logical/physical core to query its MSR
-        let prev_mask = unsafe { SetThreadAffinityMask(GetCurrentThread(), mask) };
-        if prev_mask != 0 {
+        // Pin current thread to this logical/physical core to query its MSR via RAII guard
+        if let Some(_guard) = AffinityGuard::set(mask) {
             // Read IA32_THERM_STATUS (0x19C)
             if let Some(status_msr) = drv.read_msr(0x19C) {
                 let valid = (status_msr >> 31) & 1;
@@ -497,8 +525,6 @@ fn read_intel_temperatures(drv: &DriverHandle) -> Option<PhysicalCpuTemps> {
                     core_temps.push(temp);
                 }
             }
-            // Restore thread affinity mask
-            unsafe { SetThreadAffinityMask(GetCurrentThread(), prev_mask) };
         }
     }
 
@@ -591,13 +617,11 @@ fn read_amd_temperatures(drv: &DriverHandle) -> Option<PhysicalCpuTemps> {
 /// - Intel CPUs: DTS per-core & CPU Package via IA32 MSRs (0x19C, 0x1B1)
 /// - AMD Ryzen CPUs (Zen 1/2/3/4/5): Tctl & CCD temperatures via SMN PCI mailbox (0:0.0)
 /// - Zero WMI, 0.0% CPU overhead.
-pub fn read_physical_temperatures() -> Option<PhysicalCpuTemps> {
-    let drv = DriverHandle::open()?;
-
+pub fn read_physical_temperatures(drv: &DriverHandle) -> Option<PhysicalCpuTemps> {
     if is_intel_cpu() {
-        read_intel_temperatures(&drv)
+        read_intel_temperatures(drv)
     } else if is_amd_cpu() {
-        read_amd_temperatures(&drv)
+        read_amd_temperatures(drv)
     } else {
         debug!(
             "CPU vendor '{}' not recognized for physical hardware telemetry.",
