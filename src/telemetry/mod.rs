@@ -9,7 +9,6 @@ pub mod driver;
 pub struct CpuMetrics {
     pub temperature: Option<f32>,
     pub load_percent: Option<f32>,
-    pub frequency_mhz: Option<f32>,
 }
 
 pub trait TelemetryProvider: Send + Sync {

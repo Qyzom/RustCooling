@@ -12,7 +12,7 @@ impl WindowsTelemetry {
     pub fn new() -> Self {
         let mut sys = System::new_with_specifics(
             RefreshKind::nothing()
-                .with_cpu(CpuRefreshKind::nothing().with_cpu_usage().with_frequency()),
+                .with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
         );
         sys.refresh_cpu_usage();
         let comps = Components::new_with_refreshed_list();
@@ -39,24 +39,15 @@ impl TelemetryProvider for WindowsTelemetry {
 
     fn update(&mut self) {
         self.system
-            .refresh_cpu_specifics(CpuRefreshKind::nothing().with_cpu_usage().with_frequency());
+            .refresh_cpu_specifics(CpuRefreshKind::nothing().with_cpu_usage());
         if self.components.is_empty() {
             self.components.refresh(true);
         } else {
             self.components.refresh(false);
         }
 
-        // 1. Refresh OS CPU usage & frequency
+        // 1. Refresh OS CPU usage (works without admin rights via sysinfo)
         let load = self.system.global_cpu_usage().clamp(0.0, 100.0);
-        let effective_freq = {
-            let cpus = self.system.cpus();
-            if !cpus.is_empty() {
-                let sum: u64 = cpus.iter().map(|c| c.frequency()).sum();
-                (sum as f32 / cpus.len() as f32).round()
-            } else {
-                3900.0
-            }
-        };
 
         // 2. Read physical hardware digital thermal sensors via Ring 0 driver (LibreHardwareMonitor)
         let phys_temps = super::driver::read_physical_temperatures();
@@ -69,7 +60,7 @@ impl TelemetryProvider for WindowsTelemetry {
             core0_temp = p.core0;
             core_temps = p.core_temps;
         } else {
-            // Fallback to sysinfo components if exposed by ACPI (e.g. laptops)
+            // Fallback to sysinfo components if exposed by ACPI (e.g. laptops, AMD systems)
             for component in self.components.iter() {
                 let label = component.label().to_lowercase();
                 if let Some(temp) = component.temperature() {
@@ -94,7 +85,6 @@ impl TelemetryProvider for WindowsTelemetry {
         }
 
         self.metrics.load_percent = Some(load);
-        self.metrics.frequency_mhz = Some(effective_freq);
 
         let chosen_temp: Option<f32> = match self.temp_source.as_str() {
             "core0" => core0_temp
@@ -117,11 +107,11 @@ impl TelemetryProvider for WindowsTelemetry {
                 }
             }
             _ => {
-                // "package" or default
+                // "package" or default: package sensor or highest core without fake heuristics
                 package_temp.or_else(|| {
                     if !core_temps.is_empty() {
                         let m = core_temps.iter().cloned().fold(f32::MIN, f32::max);
-                        Some((m + 2.0).round())
+                        Some(m.round())
                     } else {
                         None
                     }
@@ -146,20 +136,15 @@ mod tests {
         let mut t = WindowsTelemetry::new();
         println!("CPUs count: {}", t.system.cpus().len());
         for (i, cpu) in t.system.cpus().iter().enumerate() {
-            println!(
-                "CPU {}: usage={:.1}%, freq={}MHz",
-                i,
-                cpu.cpu_usage(),
-                cpu.frequency()
-            );
+            println!("CPU {}: usage={:.1}%", i, cpu.cpu_usage());
         }
         for src in &["package", "core0", "avg", "max"] {
             t.set_temp_source(src);
             t.update();
             let m = t.get_metrics();
             println!(
-                "Source {}: Temp={:?}°C, Load={:?}%, Freq={:?}MHz",
-                src, m.temperature, m.load_percent, m.frequency_mhz
+                "Source {}: Temp={:?}°C, Load={:?}%",
+                src, m.temperature, m.load_percent
             );
         }
     }

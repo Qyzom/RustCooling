@@ -4,10 +4,6 @@ pub const REPORT_LENGTH: usize = 64;
 #[repr(u8)]
 pub enum Command {
     Temperature = 0x01,
-    #[allow(dead_code)]
-    Frequency = 0x02,
-    #[allow(dead_code)]
-    Usage = 0x03,
     Show = 0x04,
 }
 
@@ -57,13 +53,6 @@ pub fn build_hid_report(command: Command, value: u16) -> [u8; REPORT_LENGTH + 1]
     report
 }
 
-/// Backwards-compatible alias for `build_hid_report`.
-#[allow(dead_code)]
-#[inline]
-pub fn build_windows_report(command: Command, value: u16) -> [u8; REPORT_LENGTH + 1] {
-    build_hid_report(command, value)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,15 +74,6 @@ mod tests {
     }
 
     #[test]
-    fn test_frequency_frame() {
-        // Frequency = 4200 MHz (0x1068)
-        let frame = build_frame(Command::Frequency, 4200);
-        assert_eq!(frame[3], 0x02);
-        assert_eq!(frame[4], 0x10);
-        assert_eq!(frame[5], 0x68);
-    }
-
-    #[test]
     fn test_show_frames() {
         let frame_on = build_frame(Command::Show, 1);
         assert_eq!(frame_on[3], 0x04);
@@ -107,21 +87,12 @@ mod tests {
     }
 
     #[test]
-    fn test_windows_report_prepended_id() {
-        let report = build_windows_report(Command::Temperature, 50);
-        assert_eq!(report.len(), 65);
-        assert_eq!(report[0], 0x00);
-        assert_eq!(report[1], 0x55);
-        assert_eq!(report[2], 0xBB);
-    }
-
-    #[test]
     fn test_build_hid_report() {
-        let report = build_hid_report(Command::Frequency, 3600);
+        let report = build_hid_report(Command::Temperature, 50);
         assert_eq!(report.len(), 65);
         assert_eq!(report[0], 0x00);
         assert_eq!(report[1], 0x55);
         assert_eq!(report[2], 0xBB);
-        assert_eq!(report[4], 0x02);
+        assert_eq!(report[4], 0x01);
     }
 }

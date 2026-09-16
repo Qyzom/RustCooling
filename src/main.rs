@@ -49,85 +49,15 @@ struct CliArgs {
     install_driver: bool,
 }
 
-pub fn trim_memory() {
-    #[cfg(windows)]
-    unsafe {
-        use windows_sys::Win32::System::ProcessStatus::EmptyWorkingSet;
-        let proc = windows_sys::Win32::System::Threading::GetCurrentProcess();
-        EmptyWorkingSet(proc);
-    }
-}
-
-#[cfg(windows)]
-pub fn get_main_window_hwnd() -> windows_sys::Win32::Foundation::HWND {
-    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
-    use windows_sys::Win32::System::Threading::GetCurrentProcessId;
-    use windows_sys::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetWindowLongW, GetWindowTextW, GetWindowThreadProcessId, GWL_STYLE, WS_CHILD,
-    };
-
-    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
-        let mut pid = 0;
-        GetWindowThreadProcessId(hwnd, &mut pid);
-        if pid == GetCurrentProcessId() {
-            let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
-            if (style & WS_CHILD) == 0 {
-                let mut buf = [0u16; 64];
-                let len = GetWindowTextW(hwnd, buf.as_mut_ptr(), 64);
-                let title = String::from_utf16_lossy(&buf[..len as usize]);
-                if title.contains("RustCooling") {
-                    let out = lparam as *mut HWND;
-                    *out = hwnd;
-                    return 0;
-                }
-            }
-        }
-        1
-    }
-
-    let mut result: HWND = std::ptr::null_mut();
-    unsafe {
-        EnumWindows(Some(enum_proc), &mut result as *mut _ as LPARAM);
-    }
-    result
-}
-
 pub fn show_and_focus_window(w: &MainWindow) {
     w.window().set_minimized(false);
     let _ = w.show();
     w.window().request_redraw();
-    #[cfg(windows)]
-    {
-        let hwnd = get_main_window_hwnd();
-        if !hwnd.is_null() {
-            unsafe {
-                use windows_sys::Win32::UI::WindowsAndMessaging::{
-                    BringWindowToTop, SetForegroundWindow, ShowWindow, SW_RESTORE,
-                };
-                ShowWindow(hwnd, SW_RESTORE);
-                SetForegroundWindow(hwnd);
-                BringWindowToTop(hwnd);
-            }
-        }
-    }
 }
 
 pub fn hide_window_to_tray(w: &MainWindow) {
     w.window().dispatch_event(slint::platform::WindowEvent::PointerExited);
     let _ = w.hide();
-    #[cfg(windows)]
-    {
-        let hwnd = get_main_window_hwnd();
-        if !hwnd.is_null() {
-            unsafe {
-                windows_sys::Win32::UI::WindowsAndMessaging::ShowWindow(
-                    hwnd,
-                    windows_sys::Win32::UI::WindowsAndMessaging::SW_HIDE,
-                );
-            }
-        }
-    }
-    trim_memory();
 }
 
 fn set_autostart(enable: bool) {
@@ -263,7 +193,6 @@ fn apply_translations(w: &MainWindow) {
     w.set_tr_btn_back(t.btn_back.as_str().into());
     w.set_tr_setting_display_mode(t.setting_display_mode.as_str().into());
     w.set_tr_mode_temp(t.mode_temp.as_str().into());
-    w.set_tr_mode_freq(t.mode_freq.as_str().into());
     w.set_tr_mode_load(t.mode_load.as_str().into());
     w.set_tr_setting_interval(t.setting_interval.as_str().into());
     w.set_tr_setting_temp_source(t.setting_temp_source.as_str().into());
@@ -296,6 +225,26 @@ fn apply_translations(w: &MainWindow) {
     w.set_tr_driver_status_active(t.driver_status_active.as_str().into());
     w.set_tr_driver_status_missing(t.driver_status_missing.as_str().into());
     w.set_tr_driver_btn_install(t.driver_btn_install.as_str().into());
+}
+
+fn sync_ui_from_config(w: &MainWindow, cfg: &AppConfig, autostart: bool, driver_installed: bool) {
+    w.set_setting_display_mode(cfg.display_mode.as_str().into());
+    w.set_setting_autostart(autostart);
+    w.set_setting_interval_ms(cfg.update_interval_ms as i32);
+    w.set_setting_animation_enabled(cfg.animation_enabled);
+    w.set_setting_language(cfg.language.as_str().into());
+    w.set_setting_temp_source(cfg.temp_source.as_str().into());
+    w.set_setting_temp_smoothing(cfg.temp_smoothing as i32);
+    w.set_setting_vid_hex(format!("{:04X}", cfg.custom_vid).into());
+    w.set_setting_pid_hex(format!("{:04X}", cfg.custom_pid).into());
+    w.set_device_vid_pid_text(
+        format!(
+            "USB HID (VID {:04X}, PID {:04X})",
+            cfg.custom_vid, cfg.custom_pid
+        )
+        .into(),
+    );
+    w.set_is_driver_installed(driver_installed);
 }
 
 fn parse_hex_u16(s: &str) -> Option<u16> {
@@ -361,11 +310,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if args.daemon {
         info!("Running in headless daemon mode. Press Enter to exit.");
-        trim_memory();
         let mut input = String::new();
         let _ = std::io::stdin().read_line(&mut input);
         info!("Shutting down daemon...");
         monitor.stop();
+        #[cfg(windows)]
+        {
+            let _ = crate::telemetry::driver::stop_service();
+        }
         return Ok(());
     }
 
@@ -405,27 +357,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tray::TrayAction::Toggle => {
                     info!("Tray event: Toggle requested");
                     if let Some(w) = win_weak.upgrade() {
-                        let is_showing = {
-                            #[cfg(windows)]
-                            {
-                                let hwnd = get_main_window_hwnd();
-                                if !hwnd.is_null() {
-                                    unsafe {
-                                        use windows_sys::Win32::UI::WindowsAndMessaging::{
-                                            IsIconic, IsWindowVisible,
-                                        };
-                                        IsWindowVisible(hwnd) != 0 && IsIconic(hwnd) == 0
-                                    }
-                                } else {
-                                    vis.load(Ordering::SeqCst)
-                                }
-                            }
-                            #[cfg(not(windows))]
-                            {
-                                vis.load(Ordering::SeqCst)
-                            }
-                        };
-
+                        let is_showing = vis.load(Ordering::SeqCst);
                         if is_showing {
                             hide_window_to_tray(&w);
                             vis.store(false, Ordering::SeqCst);
@@ -462,27 +394,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let cfg = config_ref.lock().unwrap();
         let actual_autostart = is_autostart_registered();
-        main_window.set_setting_display_mode(cfg.display_mode.as_str().into());
-        main_window.set_setting_autostart(actual_autostart);
-        main_window.set_setting_interval_ms(cfg.update_interval_ms as i32);
-        main_window.set_setting_animation_enabled(cfg.animation_enabled);
-        main_window.set_setting_language(cfg.language.as_str().into());
-        main_window.set_setting_temp_source(cfg.temp_source.as_str().into());
-        main_window.set_setting_temp_smoothing(cfg.temp_smoothing as i32);
-        main_window.set_setting_vid_hex(format!("{:04X}", cfg.custom_vid).into());
-        main_window.set_setting_pid_hex(format!("{:04X}", cfg.custom_pid).into());
-        main_window.set_device_vid_pid_text(
-            format!(
-                "USB HID (VID {:04X}, PID {:04X})",
-                cfg.custom_vid, cfg.custom_pid
-            )
-            .into(),
-        );
-
         #[cfg(windows)]
         let driver_installed = telemetry::driver::is_driver_accessible();
         #[cfg(not(windows))]
         let driver_installed = true;
+
+        sync_ui_from_config(&main_window, &cfg, actual_autostart, driver_installed);
 
         #[cfg(windows)]
         let is_activation = !cfg.first_run_completed && !driver_installed;
@@ -490,7 +407,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let is_activation = false;
 
         main_window.set_is_activation_mode(is_activation);
-        main_window.set_is_driver_installed(driver_installed);
     }
     apply_translations(&main_window);
 
@@ -582,25 +498,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             info!("Re-installing WinRing0 driver on reset...");
             let _ = telemetry::driver::install_service();
         }
+        #[cfg(windows)]
+        let driver_installed = telemetry::driver::is_driver_accessible();
+        #[cfg(not(windows))]
+        let driver_installed = true;
+
         if let Some(w) = win_for_reset.upgrade() {
-            w.set_setting_display_mode(default_cfg.display_mode.as_str().into());
-            w.set_setting_autostart(default_cfg.auto_start);
-            w.set_setting_interval_ms(default_cfg.update_interval_ms as i32);
-            w.set_setting_animation_enabled(default_cfg.animation_enabled);
-            w.set_setting_language(default_cfg.language.as_str().into());
-            w.set_setting_temp_source(default_cfg.temp_source.as_str().into());
-            w.set_setting_temp_smoothing(default_cfg.temp_smoothing as i32);
-            w.set_setting_vid_hex(format!("{:04X}", default_cfg.custom_vid).into());
-            w.set_setting_pid_hex(format!("{:04X}", default_cfg.custom_pid).into());
-            w.set_device_vid_pid_text(
-                format!(
-                    "USB HID (VID {:04X}, PID {:04X})",
-                    default_cfg.custom_vid, default_cfg.custom_pid
-                )
-                .into(),
-            );
-            #[cfg(windows)]
-            w.set_is_driver_installed(telemetry::driver::is_driver_accessible());
+            sync_ui_from_config(&w, &default_cfg, false, driver_installed);
             apply_translations(&w);
         }
         if let Some(ref t) = *tray_for_reset.borrow() {
@@ -840,21 +744,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         main_window.window().request_redraw();
         info!("Step 6: main_window.show() returned Ok.");
-
-        // Automatically trim startup working set after the window is shown and rendered
-        slint::Timer::single_shot(Duration::from_millis(500), || {
-            trim_memory();
-            info!("Post-startup working set trimmed successfully.");
-        });
     } else {
         info!("Step 5: Starting minimized to system tray.");
-        trim_memory();
     }
 
     info!("Step 9: Calling slint::run_event_loop_until_quit()...");
     let run_res = slint::run_event_loop_until_quit();
     info!("Step 10: Event loop exited with result: {:?}", run_res);
     monitor.stop();
+
+    #[cfg(windows)]
+    {
+        let _ = crate::telemetry::driver::stop_service();
+    }
 
     Ok(())
 }
@@ -1034,8 +936,8 @@ mod window_tests {
         });
 
         for i in 0..600 {
-            win.set_cpu_temp(35 + (i % 30) as i32);
-            win.set_cpu_load((i % 100) as i32);
+            win.set_cpu_temp(35 + (i % 30));
+            win.set_cpu_load(i % 100);
             win.set_broadcast_value(format!("{} °C", 35 + (i % 30)).into());
             win.set_is_connected(i % 2 == 0);
 

@@ -11,7 +11,7 @@ pub struct AppConfig {
     /// Refresh interval for screen updates in milliseconds (100–3000 ms).
     #[serde(default = "default_interval")]
     pub update_interval_ms: u64,
-    /// Active telemetry metric shown on pump screen: "temp", "freq", "load", "carousel".
+    /// Active telemetry metric shown on pump screen: "temp", "load".
     #[serde(default = "default_display_mode")]
     pub display_mode: String,
     /// CPU temperature source sensor: "package", "core0", "avg", "max".
@@ -123,11 +123,8 @@ impl AppConfig {
             if let Ok(data) = fs::read_to_string(&path) {
                 if let Ok(val) = serde_json::from_str::<serde_json::Value>(&data) {
                     if let Ok(mut cfg) = serde_json::from_value::<AppConfig>(val.clone()) {
-                        // Migrate legacy animation_type string if animation_enabled was not in JSON
-                        if val.get("animation_enabled").is_none() {
-                            if let Some(anim_type) = val.get("animation_type").and_then(|v| v.as_str()) {
-                                cfg.animation_enabled = anim_type == "roller" || anim_type == "smooth";
-                            }
+                        if cfg.display_mode != "temp" && cfg.display_mode != "load" {
+                            cfg.display_mode = "temp".to_string();
                         }
                         if cfg.update_interval_ms > 3000 || cfg.update_interval_ms < 100 {
                             cfg.update_interval_ms = cfg.update_interval_ms.clamp(100, 3000);
