@@ -1,7 +1,7 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 set -e
 
-if [ "\" -ne 0 ]; then
+if [ "$(id -u)" -ne 0 ]; then
   echo "[!] Please run as root (sudo ./install.sh)"
   exit 1
 fi

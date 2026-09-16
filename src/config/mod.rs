@@ -88,15 +88,26 @@ impl Default for AppConfig {
 
 impl AppConfig {
     pub fn config_dir() -> PathBuf {
-        if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(parent) = exe_path.parent() {
-                return parent.to_path_buf();
+        #[cfg(windows)]
+        {
+            if let Ok(exe_path) = std::env::current_exe() {
+                if let Some(parent) = exe_path.parent() {
+                    return parent.to_path_buf();
+                }
             }
+            let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+            path.push("RustCooling");
+            let _ = fs::create_dir_all(&path);
+            path
         }
-        let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-        path.push("RustCooling");
-        let _ = fs::create_dir_all(&path);
-        path
+
+        #[cfg(not(windows))]
+        {
+            let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+            path.push("RustCooling");
+            let _ = fs::create_dir_all(&path);
+            path
+        }
     }
 
     fn config_path() -> PathBuf {
@@ -142,8 +153,32 @@ impl AppConfig {
 
     pub fn save(&self) -> Result<(), String> {
         let path = Self::config_path();
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
         let data = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
         fs::write(path, data).map_err(|e| e.to_string())?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let cfg = AppConfig::default();
+        assert_eq!(cfg.display_mode, "temp");
+        assert_eq!(cfg.update_interval_ms, 300);
+        assert_eq!(cfg.temp_smoothing, 1);
+        assert_eq!(cfg.custom_vid, 0x1A86);
+        assert_eq!(cfg.custom_pid, 0xE317);
+    }
+
+    #[test]
+    fn test_config_dir_valid() {
+        let dir = AppConfig::config_dir();
+        assert!(!dir.as_os_str().is_empty());
     }
 }
