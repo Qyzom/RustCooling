@@ -1,10 +1,10 @@
-<div align="center">
+﻿<div align="center">
 
 <img src="logo.png" alt="RustCooling Logo" width="100" />
 
 # RustCooling
 
-**Легковесный контроллер LCD-дисплея помпы для СЖО ID-COOLING FX Series.**  
+**Ultra-lightweight pump LCD display controller for ID-COOLING FX Series liquid coolers.**  
 *100% Pure Rust • Native Linux & Windows • Zero Bloat • < 12 MB RAM*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -27,71 +27,71 @@
 
 ---
 
-### От автора
+### Author's Note
 
 > [!NOTE]
-> Я делал этот проект исключительно **для себя**, чтобы убрать с личного компьютера тяжеленный и кривой софт от вендора. Скорее всего, этот репозиторий мало кто увидит, и для меня это совершенно не важно. 
-> 
-> На самом деле протокол дисплея ID-COOLING FX **максимально примитивен**: контроллер экрана понимает по сути всего две реальные вещи — команду включения экрана (`0x04`) и отправку числа на 7-сегментный индикатор (`0x01`). Всё остальное (частота, мифические регистры) в физическом железе ничего не меняет. Всё приложение RustCooling — это просто очень лёгкая, аккуратная и удобная обёртка вокруг этого протокола.
+> I made this project solely **for myself** to purge heavy, bloated vendor software from my personal computer. Chances are few people will ever see this repository, and that's completely fine with me.
 >
-> При желании можно было бы сделать ультра-минималистичный CLI-демон с потреблением буквально 1–2 МБ (такой скрипт с DeepSeek пишется за 15 минут), но особого смысла в этом нет: в трее RustCooling и так потребляет смешные **~1–3 МБ**, при этом имея полноценный интерфейс, трей, фильтрацию и автозапуск.
+> In reality, the ID-COOLING FX display protocol is **as primitive as it gets**: the display controller fundamentally only understands two real commands — screen on/off (`0x04`) and sending a numeric value to the 7-segment display (`0x01`). Everything else (frequency, mythical registers) doesn't change anything in the physical hardware. The entire RustCooling app is simply a very lightweight, clean, and convenient wrapper around this protocol.
+>
+> If desired, one could write an ultra-minimalist CLI daemon consuming literally 1–2 MB (a script like that can be generated in 15 minutes), but there's no real need: in the system tray, RustCooling already consumes a tiny **~1–3 MB**, while offering a complete user interface, system tray, filtering, and autostart capabilities.
 
 ---
 
-### Главные фишки (которых НЕТ в официальном ID-COOLING)
+### Key Features (Missing in the Official Vendor App)
 
-1. **Сглаживание температур и фильтрация дребезга:**
-   В официальном софте вендора цифры на помпе непрерывно скачут туда-сюда при каждом колебании в 1 градус. В RustCooling встроен настраиваемый фильтр гистерезиса (ползунок сглаживания 0–100%): мелкие флуктуации отсекаются, а дисплей показывает стабильное значение без раздражающего мельтешения.
-2. **Потребление памяти ~12–14 МБ (в трее ~1–3 МБ):**
-   Оригинальная утилита от вендора построена на Electron / Node.js и отъедает 200–300 МБ оперативной памяти. RustCooling написан на чистом нативном Rust со Slint UI и потребляет в 20–50 раз меньше.
-3. **Честная нативная поддержка Linux:**
-   Вендор вообще не поддерживает Linux. RustCooling читает системные сенсоры напрямую через ядро (`/sys/class/hwmon` и `sysfs`) без Wine, рута и сторонних демонов.
-4. **Честное прямое чтение с физических термодатчиков (LibreHardwareMonitor Ring 0 / Linux hwmon):**
-   Никаких синтетических «угадываний» и сторонних фоновых программ.
-   - **Windows:** В программу встроен проверенный микро-драйвер LibreHardwareMonitor (`WinRing0x64.sys`), считывающий температуру напрямую из MSR-регистров кремния процессора (Intel DTS / AMD Tctl). При первом запуске приложение однократно запрашивает права Администратора для регистрации службы драйвера.
-   - **Linux:** Права root и драйверы не требуются вовсе — телеметрия считывается нативно через стандартный интерфейс ядра `/sys/class/hwmon`.
-5. **Мгновенный холодный старт (< 50 мс):**
-   Никаких долгих загрузок рантаймов — приложение открывается мгновенно.
-6. **Полная автономность, портативность и чистота системы:**
-   Единый бинарный файл без внешних зависимостей (.NET / Node.js не требуются). Файл конфигурации `config.json` и файл драйвера хранятся строго рядом с `RustCooling.exe` — приложение не захламляет систему, папку `%APPDATA%` и реестр.
+1. **Temperature Smoothing & Jitter Filtering:**  
+   In the official vendor software, pump numbers jump wildly back and forth with every 1-degree fluctuation. RustCooling features a configurable hysteresis filter (0–100% smoothing slider): minor fluctuations are filtered out, leaving a stable, non-distracting reading on your pump.
+2. **Memory Footprint ~12–14 MB (In Tray < 3 MB):**  
+   The original utility from the vendor is built on Electron / Node.js and eats up 200–300 MB of RAM. RustCooling is written in 100% pure native Rust with Slint UI and consumes 20–50x less memory.
+3. **True Native Linux Support:**  
+   The vendor does not support Linux at all. RustCooling reads system sensors natively through the Linux kernel (`/sys/class/hwmon` and `sysfs`) without Wine, root permissions, or third-party background daemons.
+4. **Direct Physical Silicon Sensor Telemetry (LibreHardwareMonitor Ring 0 / Linux hwmon):**  
+   No synthetic guesswork or heavy third-party background software.
+   - **Windows:** Built-in proven LibreHardwareMonitor micro-driver (`WinRing0x64.sys`), reading temperatures directly from CPU silicon MSR registers (Intel DTS / AMD Tctl). On first run, the app requests Administrator rights once via UAC to register the driver service.
+   - **Linux:** Neither root rights nor drivers are needed — telemetry is read natively via the standard kernel `/sys/class/hwmon` interface.
+5. **Instant Cold Start (< 50 ms):**  
+   No heavy runtimes or framework loading — the app launches instantaneously.
+6. **Completely Standalone, Portable & Clean:**  
+   Single self-contained binary with zero external dependencies (no .NET or Node.js required). Configuration (`config.json`) and the driver file are kept strictly in the same directory alongside `RustCooling.exe` — leaving `%APPDATA%`, registry, and system folders completely clean.
 
 > [!NOTE]
-> **О поддержке архитектуры ARM:**  
-> Системы жидкостного охлаждения ID-COOLING FX240/280/360 разработаны исключительно под стандартные сокеты десктопных материнских плат: Intel (LGA1700/1851/1200) и AMD (AM4/AM5) с подключением к внутреннему 9-pin USB разъёму. Настольных материнских плат на ARM с креплением под водянки на рынке не существует (чипы Snapdragon распаяны в ноутбуках), поэтому поддержка Windows on ARM намеренно не завозилась ради сохранения лёгкости и отсутствия мертвого кода в кодовой базе.
+> **Regarding ARM Architecture Support:**  
+> ID-COOLING FX240/280/360 liquid coolers are designed exclusively for standard desktop motherboard sockets: Intel (LGA1700/1851/1200) and AMD (AM4/AM5) connecting via an internal 9-pin USB header. Desktop motherboards on ARM featuring AIO liquid cooling mounts do not exist on the market (Snapdragon chips are soldered onto laptops), which is why Windows on ARM support was intentionally omitted to prevent dead code and preserve codebase efficiency.
 
 ---
 
-### Сравнение с альтернативами
+### Comparison with Alternatives
 
-| Параметр | Официальный софт вендора | idc-lite (мой прошлый C# проект) | **RustCooling (Rust)** |
+| Feature | Official Vendor Software | idc-lite (My Previous C# App) | **RustCooling (Rust)** |
 | :--- | :---: | :---: | :---: |
-| **Стек** | Electron / Node.js + C++ | C# / .NET 8 (WPF) | **100% Pure Rust + Slint** |
-| **ОЗУ (окно)** | ~200 – 300 МБ | ~60 – 120 МБ | **~12 – 14 МБ** |
-| **ОЗУ (в трее)** | ~80 – 150 МБ | ~35 – 60 МБ | **< 3 МБ** (~1.1 – 2.5 МБ) |
-| **Фоновая нагрузка CPU** | 2.0% – 5.0% | ~1.0% | **0.0%** (Event-driven) |
-| **Сглаживание скачков temp** | ❌ Нет (скачет каждую секунду) | ❌ Нет | **✔ Есть (настраиваемый фильтр 0–100%)** |
-| **Поддержка Linux** | ❌ Отсутствует | ⚠️ Экспериментальная | **✔ Нативная (hwmon, sysfs, udev)** |
-| **Драйвер датчиков** | Закрытый Ring0 драйвер | WinRing0.sys (внешний) | **✔ Вшитый LibreHardwareMonitor (Win) / Без драйверов (Linux)** |
-| **Время запуска** | 3.0 – 6.0 сек | 1.5 – 3.0 сек | **< 50 мс** |
-| **Языки интерфейса** | EN, ZH | EN, RU, ZH | **EN, RU, ZH, DE, FR** |
+| **Tech Stack** | Electron / Node.js + C++ | C# / .NET 8 (WPF) | **100% Pure Rust + Slint** |
+| **RAM (Active Window)** | ~200 – 300 MB | ~60 – 120 MB | **~12 – 14 MB** |
+| **RAM (System Tray)** | ~80 – 150 MB | ~35 – 60 MB | **< 3 MB** (~1.1 – 2.5 MB) |
+| **Background CPU Load** | 2.0% – 5.0% | ~1.0% | **0.0%** (Event-driven) |
+| **Temp Jitter Smoothing** | ❌ None (jitters constantly) | ❌ None | **✔ Yes (configurable 0–100% filter)** |
+| **Linux Support** | ❌ None | ⚠️ Experimental | **✔ Native (hwmon, sysfs, udev)** |
+| **Sensor Driver** | Proprietary closed Ring 0 | WinRing0.sys (external) | **✔ Embedded LibreHardwareMonitor (Win) / Driverless (Linux)** |
+| **Startup Time** | 3.0 – 6.0 sec | 1.5 – 3.0 sec | **< 50 ms** |
+| **UI Languages** | EN, ZH | EN, RU, ZH | **EN, RU, ZH, DE, FR** |
 
 ---
 
-### Быстрый старт
+### Quick Start
 
-Скачать готовые сборки можно на странице [**Releases**](https://github.com/Qyzom/RustCooling/releases/latest).
+Pre-built binaries are available on the [**Releases**](https://github.com/Qyzom/RustCooling/releases/latest) page.
 
 #### Windows (Portable)
-1. Скачайте **[`RustCooling.exe`](https://github.com/Qyzom/RustCooling/releases/latest)**.
-2. Поместите файл в удобную папку (например, `C:\Tools\RustCooling\`). Настройки (`config.json`) и микро-драйвер будут храниться прямо рядом с ним.
-3. При первом запуске откроется экран активации: нажмите **«Предоставить права и установить»** (UAC), чтобы один раз зарегистрировать микро-драйвер прямого чтения MSR-сенсоров.
-4. Нажмите **«Продолжить работу»** — приложение готово к работе! В настройках доступен автозапуск с системой.
+1. Download **[`RustCooling.exe`](https://github.com/Qyzom/RustCooling/releases/latest)**.
+2. Place it in any folder of your choice (e.g. `C:\Tools\RustCooling\`). Configuration (`config.json`) and the micro-driver will reside directly next to it.
+3. On first run, the activation screen will appear: click **"Grant Rights & Install"** (UAC) to register the direct MSR sensor reading micro-driver once.
+4. Click **"Continue"** — the application is ready to use! System autostart is available in Settings.
 
 #### Linux (Debian / Ubuntu / Linux Mint)
 ```bash
 sudo dpkg -i RustCooling-0.1.3.deb
 ```
-*(Ярлык приложения и правила udev для доступа к USB помпе без root настроятся автоматически).*
+*(Desktop shortcut and udev rules for non-root USB pump access will be configured automatically).*
 
 #### Linux (Arch / Fedora / Generic Tarball)
 ```bash
@@ -100,40 +100,40 @@ cd RustCooling-0.1.3
 sudo ./install.sh
 ```
 
-#### Фоновый режим демона (CLI / systemd)
-Для пользователей тайловых WM (Hyprland, Sway, i3) или серверов:
+#### Headless CLI Daemon Mode (systemd / tiling WMs)
+For users of tiling window managers (Hyprland, Sway, i3) or headless home servers:
 ```bash
 RustCooling --daemon
 ```
 
 ---
 
-### Спецификация протокола (USB HID)
+### Hardware Protocol Specification (USB HID)
 
 - **Vendor ID (VID):** `0x1A86` (QinHeng Electronics / WCH)
 - **Product ID (PID):** `0xE317`
-- **Длина отчета:** 64 байта (на Windows добавляется Report ID `0x00` -> 65 байт).
+- **Report Length:** 64 bytes (on Windows, Report ID `0x00` is prepended -> 65 bytes).
 
-#### Структура кадра (64 байта)
+#### Frame Structure (64 bytes)
 ```
 [0x55, 0xBB, 0x02, CMD, VAL_HI, VAL_LO, CKSUM, 0x00 x 57]
 ```
-- `0x55, 0xBB`: сигнатура (magic bytes).
-- `0x02`: длина данных значения (2 байта).
-- `CMD`: код команды.
-- `VAL_HI, VAL_LO`: значение (Big-Endian `u16`).
-- `CKSUM`: контрольная сумма первых 6 байт `(sum(0..5)) & 0xFF`.
-- Остальные 57 байт: нули (`0x00`).
+- `0x55, 0xBB`: Magic bytes signature.
+- `0x02`: Value payload length (2 bytes).
+- `CMD`: Command opcode.
+- `VAL_HI, VAL_LO`: Big-Endian `u16` numeric value.
+- `CKSUM`: Checksum of the first 6 bytes `(sum(0..5)) & 0xFF`.
+- Remaining 57 bytes: Zero padding (`0x00`).
 
-#### Команды
-| Команда | Hex | Описание |
+#### Command Table
+| Command | Hex | Description |
 | :--- | :---: | :--- |
-| `CMD_TEMPERATURE` | `0x01` | Число на 7-сегментном дисплее помпы (температура или загрузка) |
-| `CMD_SHOW` | `0x04` | Включение (`0x0001`) или выключение (`0x0000`) дисплея |
+| `CMD_TEMPERATURE` | `0x01` | Number on the 7-segment pump display (temperature or CPU load) |
+| `CMD_SHOW` | `0x04` | Turn display on (`0x0001`) or off (`0x0000`) |
 
 ---
 
-### Сборка из исходников
+### Building from Source
 
 ```bash
 git clone https://github.com/Qyzom/RustCooling.git
@@ -141,17 +141,16 @@ cd RustCooling
 cargo test
 cargo build --release
 ```
-Готовый бинарник появится в `target/release/RustCooling.exe` (или `target/release/RustCooling` на Linux).
+The compiled binary will be located in `target/release/RustCooling.exe` (or `target/release/RustCooling` on Linux).
 
 ---
 
-### Лицензия и сторонние компоненты
+### License & Third-Party Components
 
-Проект распространяется под свободной и открытой лицензией **[MIT License](LICENSE)**.
+This project is licensed under the open-source **[MIT License](LICENSE)**.
 
-Используемые открытые компоненты и их лицензии:
+Third-party open-source components and their respective licenses:
 - **RustCooling Core & UI:** [MIT License](LICENSE) © Qyzom & Contributors.
-- **Шрифт Unbounded:** [SIL Open Font License 1.1](assets/fonts/OFL.txt) (авторы: Lexend & Contributors).
-- **Шрифт Noto Sans SC:** [SIL Open Font License 1.1](https://openfontlicense.org/) (авторы: Google LLC, Adobe Systems Inc.). Обеспечивает безупречное отображение китайских иероглифов.
-- **Драйвер LibreHardwareMonitor / WinRing0:** [Modified BSD License](http://openlibsys.org/) (автор: Noriyuki Miyazaki / OpenLibSys). Обеспечивает безопасное чтение физических MSR-сенсоров процессора на Windows.
-
+- **Unbounded Font:** [SIL Open Font License 1.1](assets/fonts/OFL.txt) (Authors: Lexend & Contributors).
+- **Noto Sans SC Font:** [SIL Open Font License 1.1](https://openfontlicense.org/) (Authors: Google LLC, Adobe Systems Inc.). Provides native Chinese character rendering.
+- **LibreHardwareMonitor / WinRing0 Driver:** [Modified BSD License](http://openlibsys.org/) (Author: Noriyuki Miyazaki / OpenLibSys). Provides safe direct CPU silicon MSR sensor access on Windows.
