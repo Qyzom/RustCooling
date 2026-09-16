@@ -185,3 +185,51 @@ RustCooling/
 ├── AGENTS.md                        # Architecture memo and developer documentation
 └── README.md                        # Project documentation and guide
 ```
+
+---
+
+## 11. GitHub Release Formatting Standard
+
+All GitHub releases across the repository **must strictly adhere to the following unified English format**. Never include filler phrases, extraneous prose, or unlinked changelogs.
+
+### Release Body Template
+
+```markdown
+### What's New
+- Concise bulleted summary of new features, optimizations, and hardware behavior fixes.
+- Second key change.
+- Third key change.
+
+[Full Changelog](https://github.com/Qyzom/RustCooling/commits/main)
+
+### Release Assets
+- **`RustCooling.exe`** — Portable standalone executable for Windows 10/11 x64 (no installation required, ready to run).
+- **`RustCooling-X.X.X.exe`** — Versioned standalone executable for Windows 10/11 x64.
+- **`RustCooling-X.X.X.deb`** — Debian, Ubuntu, and Linux Mint package with automatic udev rules configuration.
+- **`RustCooling-X.X.X.tar.gz`** — Universal archive for Arch Linux, Fedora, and other distributions with `install.sh` script.
+```
+
+### Release Rules & Workflow:
+1. **Language:** Always 100% in **English**.
+2. **"What's New" Section:** Keep it concise and bulleted (3–7 bullets maximum). Focus on tangible user-facing value and low-level improvements.
+3. **Changelog Link:** The link between the sections must strictly be `[Full Changelog](https://github.com/Qyzom/RustCooling/commits/main)`. Do not add trailing or leading filler sentences.
+4. **Asset Descriptions:** Every non-source-code binary asset attached to the release must be explicitly described with its target OS, architecture, and deployment method. Do not describe automatic GitHub source code archives (`.zip` / `.tar.gz`).
+5. **Asset Naming Convention:**
+   - Windows default binary: `RustCooling.exe`
+   - Windows versioned binary: `RustCooling-X.X.X.exe`
+   - Debian/Ubuntu installer: `RustCooling-X.X.X.deb` (generated automatically by GitHub Actions CI)
+   - Generic Linux archive: `RustCooling-X.X.X.tar.gz` (generated automatically by GitHub Actions CI)
+6. **Publishing Process:**
+   - Bump version in `Cargo.toml` and verify `cargo test` + `cargo clippy`.
+   - Build Windows release binary via `cargo build --release`.
+   - Create Git tag: `git tag -a vX.X.X -m "RustCooling X.X.X"` and push: `git push origin main --tags`.
+   - Create GitHub release:
+     ```bash
+     gh release create vX.X.X \
+       RustCooling.exe \
+       RustCooling-X.X.X.exe \
+       --title "RustCooling X.X.X" \
+       --notes-file release_notes.md
+     ```
+   - GitHub Actions (`.github/workflows/release.yml`) triggers on the pushed tag, compiles Linux `.deb` and `.tar.gz`, and automatically attaches them to the release via `gh release upload ... --clobber`.
+
