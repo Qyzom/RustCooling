@@ -37,6 +37,8 @@ pub struct Translation {
     pub anim_enabled: String,
     pub setting_language: String,
     pub setting_temp_source: String,
+    pub setting_temp_smoothing: String,
+    pub smoothing_off: String,
     pub temp_src_package: String,
     pub temp_src_core0: String,
     pub temp_src_avg: String,
@@ -53,6 +55,17 @@ pub struct Translation {
     pub tray_show: String,
     pub tray_hide: String,
     pub tray_exit: String,
+    pub activation_title: String,
+    pub activation_subtitle: String,
+    pub activation_driver_title: String,
+    pub activation_driver_desc: String,
+    pub activation_driver_btn: String,
+    pub activation_driver_installed: String,
+    pub activation_continue_btn: String,
+    pub setting_driver_title: String,
+    pub driver_status_active: String,
+    pub driver_status_missing: String,
+    pub driver_btn_install: String,
 }
 
 static CURRENT_TRANSLATION: RwLock<Option<Translation>> = RwLock::new(None);
@@ -112,7 +125,7 @@ mod tests {
             assert!(!t.app_title.is_empty(), "app_title empty for {}", lang);
             assert!(!t.device_name.is_empty(), "device_name empty for {}", lang);
             assert!(!t.about_title.is_empty(), "about_title empty for {}", lang);
-            assert_eq!(t.about_title, "RustCooling v0.1.2", "about_title mismatch for {}", lang);
+            assert_eq!(t.about_title, format!("RustCooling v{}", env!("CARGO_PKG_VERSION")), "about_title mismatch for {}", lang);
             assert!(!t.setting_language.is_empty(), "setting_language empty for {}", lang);
             assert!(!t.status_connected.is_empty(), "status_connected empty for {}", lang);
         }

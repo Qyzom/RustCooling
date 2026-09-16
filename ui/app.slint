@@ -1,4 +1,5 @@
 import "../assets/fonts/Unbounded.ttf";
+import "../assets/fonts/NotoSansSC-Bold.ttf";
 
 component AppButton inherits Rectangle {
     in property <string> text;
@@ -6,12 +7,13 @@ component AppButton inherits Rectangle {
     in property <color> hover_bg: #2e3346;
     in property <color> text_color: #e2e4ed;
     in property <length> font_size: 11px;
+    in property <bool> enabled: true;
     callback clicked;
 
     border-radius: 12px;
     border-width: 1px;
-    border-color: #2e3346;
-    background: touch.pressed ? root.bg : (touch.has-hover ? root.hover_bg : root.bg);
+    border-color: root.enabled ? #2e3346 : #1f222e;
+    background: !root.enabled ? root.bg : (touch.pressed ? root.bg : (touch.has-hover ? root.hover_bg : root.bg));
     animate background { duration: 100ms; }
 
     Text {
@@ -26,9 +28,12 @@ component AppButton inherits Rectangle {
     }
 
     touch := TouchArea {
-        mouse-cursor: pointer;
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
         clicked => {
-            root.clicked();
+            if root.enabled {
+                root.clicked();
+            }
         }
     }
 }
@@ -169,9 +174,9 @@ export component MainWindow inherits Window {
     icon: @image-url("../assets/icons/logo.png");
     no-frame: true;
     width: 360px;
-    height: 352px;
+    height: 360px;
     background: transparent;
-    default-font-family: "Unbounded";
+    default-font-family: root.setting_language == "zh" ? "Noto Sans SC" : "Unbounded";
 
     // Properties bound to Rust telemetry
     in property <int> cpu_temp: 0;
@@ -209,11 +214,28 @@ export component MainWindow inherits Window {
     in property <string> tr_anim_disabled: "Disabled";
     in property <string> tr_anim_enabled: "Enabled";
     in property <string> tr_setting_language: "Language";
+    in property <string> tr_setting_temp_smoothing: "Temperature Smoothing";
+    in property <string> tr_smoothing_off: "Off (Raw)";
     in property <string> tr_setting_debug: "Hardware & USB VID / PID";
     in property <string> tr_setting_reset_defaults: "Reset to Defaults";
-    in property <string> tr_open_config_folder: "Open Settings Folder";
-    in property <string> tr_about_title: "RustCooling v0.1.2";
+    in property <string> tr_open_config_folder: "Program Files";
+    in property <string> tr_about_title: "RustCooling v0.1.3";
     in property <string> tr_about_desc: "GitHub: Qyzom/RustCooling";
+
+    // Activation View State & Strings
+    in-out property <bool> is_activation_mode: false;
+    in-out property <bool> is_driver_installed: false;
+    in property <string> tr_activation_title: "RustCooling - Активация";
+    in property <string> tr_activation_subtitle: "Быстрая настройка перед началом работы";
+    in property <string> tr_activation_driver_title: "Драйвер датчиков процессора";
+    in property <string> tr_activation_driver_desc: "Необходимо один раз предоставить права Администратора для установки микро-драйвера (LibreHardwareMonitor). Он считывает точную температуру прямо с кристалла процессора без сторонних программ и хранится рядом с файлами приложения.";
+    in property <string> tr_activation_driver_btn: "Предоставить права и установить";
+    in property <string> tr_activation_driver_installed: "✓ Драйвер установлен и активен (Ring 0)";
+    in property <string> tr_activation_continue_btn: "Продолжить работу";
+    in property <string> tr_setting_driver_title: "Драйвер датчиков (Ring 0)";
+    in property <string> tr_driver_status_active: "Активен (WinRing0x64)";
+    in property <string> tr_driver_status_missing: "Не активен / Требуются права";
+    in property <string> tr_driver_btn_install: "Установить / Обновить (UAC)";
 
     // Settings View State
     in-out property <bool> show_settings: false;
@@ -223,11 +245,12 @@ export component MainWindow inherits Window {
     in-out property <bool> setting_animation_enabled: false;
     in-out property <string> setting_language: "en";
     in-out property <string> setting_temp_source: "package";
+    in-out property <int> setting_temp_smoothing: 1;
     in-out property <string> setting_vid_hex: "1A86";
     in-out property <string> setting_pid_hex: "E317";
 
     // Callbacks to Rust
-    callback save_settings(string, bool, int, string, bool, string, string, string);
+    callback save_settings(string, bool, int, string, bool, string, string, string, int);
     callback reset_to_defaults();
     callback open_config_folder();
     callback close_window();
@@ -237,6 +260,9 @@ export component MainWindow inherits Window {
     callback open_settings();
     callback close_settings();
     callback open_url(string);
+    callback request_install_driver();
+    callback finish_activation();
+    callback change_language(string);
 
     pure function temp_accent(temp: int) -> color {
         if temp < 50 {
@@ -293,7 +319,7 @@ export component MainWindow inherits Window {
                         Text {
                             width: 100%;
                             height: 100%;
-                            text: root.show_settings ? (root.tr_app_title + " - " + root.tr_settings_title) : root.tr_app_title;
+                            text: root.is_activation_mode ? root.tr_activation_title : (root.show_settings ? (root.tr_app_title + " - " + root.tr_settings_title) : root.tr_app_title);
                             font-size: 13px;
                             font-weight: 800;
                             color: #e2e4ed;
@@ -341,19 +367,184 @@ export component MainWindow inherits Window {
             content_container := Rectangle {
                 clip: true;
 
-                // ==================== 1. MONITOR VIEW ====================
-                if !root.show_settings : VerticalLayout {
+                // ==================== 0. ACTIVATION VIEW ====================
+                if root.is_activation_mode : VerticalLayout {
                     width: 100%;
                     height: 100%;
                     padding-left: 14px;
                     padding-right: 14px;
-                    padding-top: 12px;
-                    padding-bottom: 14px;
-                    spacing: 10px;
+                    padding-top: 6px;
+                    padding-bottom: 12px;
+                    spacing: 8px;
+
+                    // Scrollable Cards Area
+                    Flickable {
+                        vertical-stretch: 1;
+                        viewport-height: act_layout.preferred-height;
+
+                        act_layout := VerticalLayout {
+                            spacing: 8px;
+                            padding-top: 2px;
+                            padding-bottom: 4px;
+
+                            // Subtitle
+                            Text {
+                                text: root.tr_activation_subtitle;
+                                font-size: 10px;
+                                font-weight: 600;
+                                color: #8c90a2;
+                                horizontal-alignment: center;
+                            }
+
+                            // Card 1: Language Selection
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+                                height: 60px;
+
+                                VerticalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    padding-top: 8px;
+                                    padding-bottom: 8px;
+                                    spacing: 6px;
+
+                                    Text {
+                                        text: root.tr_setting_language;
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        color: #8c90a2;
+                                    }
+
+                                    HorizontalLayout {
+                                        spacing: 4px;
+                                        height: 26px;
+
+                                        SelectPill {
+                                            text: "RU";
+                                            is_selected: root.setting_language == "ru";
+                                            clicked => { root.change_language("ru"); }
+                                        }
+                                        SelectPill {
+                                            text: "EN";
+                                            is_selected: root.setting_language == "en";
+                                            clicked => { root.change_language("en"); }
+                                        }
+                                        SelectPill {
+                                            text: "DE";
+                                            is_selected: root.setting_language == "de";
+                                            clicked => { root.change_language("de"); }
+                                        }
+                                        SelectPill {
+                                            text: "FR";
+                                            is_selected: root.setting_language == "fr";
+                                            clicked => { root.change_language("fr"); }
+                                        }
+                                        SelectPill {
+                                            text: "ZH";
+                                            is_selected: root.setting_language == "zh";
+                                            clicked => { root.change_language("zh"); }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Card 2: Driver & Rights
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+
+                                VerticalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    padding-top: 10px;
+                                    padding-bottom: 10px;
+                                    spacing: 8px;
+
+                                    Text {
+                                        text: root.tr_activation_driver_title;
+                                        font-size: 11px;
+                                        font-weight: 700;
+                                        color: #e2e4ed;
+                                    }
+
+                                    Text {
+                                        text: root.tr_activation_driver_desc;
+                                        font-size: 10px;
+                                        font-weight: 500;
+                                        color: #8c90a2;
+                                        wrap: word-wrap;
+                                    }
+
+                                    if !root.is_driver_installed : AppButton {
+                                        height: 32px;
+                                        text: root.tr_activation_driver_btn;
+                                        font_size: 10px;
+                                        bg: #1e3a34;
+                                        hover_bg: #284f47;
+                                        text_color: #7bd0c1;
+                                        clicked => {
+                                            root.request_install_driver();
+                                        }
+                                    }
+
+                                    if root.is_driver_installed : Rectangle {
+                                        height: 32px;
+                                        background: #162c26;
+                                        border-radius: 8px;
+                                        border-width: 1px;
+                                        border-color: #235548;
+
+                                        Text {
+                                            width: 100%;
+                                            height: 100%;
+                                            text: root.tr_activation_driver_installed;
+                                            font-size: 10px;
+                                            font-weight: 700;
+                                            color: #7bd0c1;
+                                            horizontal-alignment: center;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Bottom Continue Button (disabled until driver is installed)
+                    AppButton {
+                        height: 36px;
+                        text: root.tr_activation_continue_btn;
+                        enabled: root.is_driver_installed;
+                        bg: root.is_driver_installed ? #7bd0c1 : #181a24;
+                        hover_bg: root.is_driver_installed ? #90dcd0 : #181a24;
+                        text_color: root.is_driver_installed ? #101218 : #505468;
+                        font_size: 11px;
+                        clicked => {
+                            if root.is_driver_installed {
+                                root.finish_activation();
+                            }
+                        }
+                    }
+                }
+
+                // ==================== 1. MONITOR VIEW ====================
+                if !root.is_activation_mode && !root.show_settings : VerticalLayout {
+                    width: 100%;
+                    height: 100%;
+                    padding-left: 14px;
+                    padding-right: 14px;
+                    padding-top: 10px;
+                    padding-bottom: 12px;
+                    spacing: 8px;
 
                     // Device Hardware Status Bar (Unified)
                     Rectangle {
-                        height: 44px;
+                        height: 40px;
                         background: #171924;
                         border-radius: 12px;
                         border-width: 1px;
@@ -394,9 +585,9 @@ export component MainWindow inherits Window {
                         VerticalLayout {
                             padding-left: 14px;
                             padding-right: 14px;
-                            padding-top: 12px;
-                            padding-bottom: 12px;
-                            spacing: 8px;
+                            padding-top: 10px;
+                            padding-bottom: 10px;
+                            spacing: 6px;
 
                             // Card Header Row: Title on left, Refresh Rate in ms & Animation on right
                             HorizontalLayout {
@@ -436,7 +627,7 @@ export component MainWindow inherits Window {
                                         }
 
                                         Text {
-                                            text: "\{root.setting_interval_ms} ms - " + (root.setting_animation_enabled ? root.tr_anim_enabled : root.tr_anim_disabled);
+                                            text: root.setting_animation_enabled ? ("\{root.setting_interval_ms} ms - " + root.tr_anim_enabled) : ("\{root.setting_interval_ms} ms");
                                             font-size: 9px;
                                             font-weight: 700;
                                             color: #a8c7fa;
@@ -453,7 +644,7 @@ export component MainWindow inherits Window {
 
                                 Text {
                                     text: root.broadcast_value;
-                                    font-size: 44px;
+                                    font-size: 42px;
                                     font-weight: 800;
                                     color: root.temp_accent(root.cpu_temp);
                                     horizontal-alignment: center;
@@ -471,7 +662,7 @@ export component MainWindow inherits Window {
                             // Metrics Summary Columns: Temperature & Load
                             HorizontalLayout {
                                 spacing: 8px;
-                                height: 46px;
+                                height: 44px;
 
                                 // 1. Temperature Box (Left)
                                 Rectangle {
@@ -534,9 +725,9 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    // Bottom Row: [ Settings ] with symmetric 14px bottom padding
+                    // Bottom Row: [ Settings ] with symmetric bottom padding
                     AppButton {
-                        height: 40px;
+                        height: 38px;
                         text: root.tr_btn_settings;
                         clicked => {
                             root.open_settings();
@@ -545,7 +736,7 @@ export component MainWindow inherits Window {
                 }
 
                 // ==================== 2. SETTINGS VIEW (SCROLLABLE) ====================
-                if root.show_settings : VerticalLayout {
+                if !root.is_activation_mode && root.show_settings : VerticalLayout {
                     width: 100%;
                     height: 100%;
                     padding-left: 0px;
@@ -607,7 +798,8 @@ export component MainWindow inherits Window {
                                                     root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -626,7 +818,8 @@ export component MainWindow inherits Window {
                                                     root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -684,7 +877,66 @@ export component MainWindow inherits Window {
                                                 root.setting_animation_enabled,
                                                 root.setting_temp_source,
                                                 root.setting_vid_hex,
-                                                root.setting_pid_hex
+                                                root.setting_pid_hex,
+                                                root.setting_temp_smoothing
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Card: Temperature Smoothing & Deadband Filter (0 to 5 °C)
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+                                height: 60px;
+
+                                VerticalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    padding-top: 8px;
+                                    padding-bottom: 8px;
+                                    spacing: 6px;
+
+                                    HorizontalLayout {
+                                        alignment: space-between;
+
+                                        Text {
+                                            text: root.tr_setting_temp_smoothing;
+                                            font-size: 10px;
+                                            font-weight: 700;
+                                            color: #d4d6e2;
+                                            vertical-alignment: center;
+                                        }
+
+                                        Text {
+                                            text: root.setting_temp_smoothing == 0 ? root.tr_smoothing_off : ((root.setting_temp_smoothing * 20) + " %");
+                                            font-size: 11px;
+                                            font-weight: 800;
+                                            color: #7bd0c1;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+
+                                    SettingSlider {
+                                        min_val: 0;
+                                        max_val: 5;
+                                        step: 1;
+                                        value <=> root.setting_temp_smoothing;
+                                        changed(val) => {
+                                            root.setting_temp_smoothing = val;
+                                            root.save_settings(
+                                                root.setting_display_mode,
+                                                root.setting_autostart,
+                                                root.setting_interval_ms,
+                                                root.setting_language,
+                                                root.setting_animation_enabled,
+                                                root.setting_temp_source,
+                                                root.setting_vid_hex,
+                                                root.setting_pid_hex,
+                                                val
                                             );
                                         }
                                     }
@@ -732,7 +984,8 @@ export component MainWindow inherits Window {
                                                     root.setting_animation_enabled,
                                                     "package",
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -751,7 +1004,8 @@ export component MainWindow inherits Window {
                                                     root.setting_animation_enabled,
                                                     "core0",
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -776,7 +1030,8 @@ export component MainWindow inherits Window {
                                                     root.setting_animation_enabled,
                                                     "avg",
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -795,7 +1050,8 @@ export component MainWindow inherits Window {
                                                     root.setting_animation_enabled,
                                                     "max",
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -844,7 +1100,8 @@ export component MainWindow inherits Window {
                                                     false,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -863,7 +1120,8 @@ export component MainWindow inherits Window {
                                                     true,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -912,7 +1170,8 @@ export component MainWindow inherits Window {
                                                     root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -931,7 +1190,8 @@ export component MainWindow inherits Window {
                                                     root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -950,7 +1210,8 @@ export component MainWindow inherits Window {
                                                     root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -975,7 +1236,8 @@ export component MainWindow inherits Window {
                                                     root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -994,7 +1256,8 @@ export component MainWindow inherits Window {
                                                     root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -1043,7 +1306,8 @@ export component MainWindow inherits Window {
                                                     root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -1062,7 +1326,8 @@ export component MainWindow inherits Window {
                                                     root.setting_animation_enabled,
                                                     root.setting_temp_source,
                                                     root.setting_vid_hex,
-                                                    root.setting_pid_hex
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
                                                 );
                                             }
                                         }
@@ -1100,6 +1365,17 @@ export component MainWindow inherits Window {
                                             value <=> root.setting_vid_hex;
                                             changed(val) => {
                                                 root.setting_vid_hex = val;
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    root.setting_animation_enabled,
+                                                    root.setting_temp_source,
+                                                    val,
+                                                    root.setting_pid_hex,
+                                                    root.setting_temp_smoothing
+                                                );
                                             }
                                         }
 
@@ -1108,6 +1384,80 @@ export component MainWindow inherits Window {
                                             value <=> root.setting_pid_hex;
                                             changed(val) => {
                                                 root.setting_pid_hex = val;
+                                                root.save_settings(
+                                                    root.setting_display_mode,
+                                                    root.setting_autostart,
+                                                    root.setting_interval_ms,
+                                                    root.setting_language,
+                                                    root.setting_animation_enabled,
+                                                    root.setting_temp_source,
+                                                    root.setting_vid_hex,
+                                                    val,
+                                                    root.setting_temp_smoothing
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Card: Sensor Driver (Ring 0)
+                            Rectangle {
+                                background: #171924;
+                                border-radius: 12px;
+                                border-width: 1px;
+                                border-color: #272a38;
+                                height: 60px;
+
+                                VerticalLayout {
+                                    padding-left: 12px;
+                                    padding-right: 12px;
+                                    padding-top: 8px;
+                                    padding-bottom: 8px;
+                                    spacing: 6px;
+
+                                    Text {
+                                        text: root.tr_setting_driver_title;
+                                        font-size: 10px;
+                                        font-weight: 700;
+                                        color: #d4d6e2;
+                                    }
+
+                                    HorizontalLayout {
+                                        alignment: space-between;
+                                        height: 26px;
+
+                                        HorizontalLayout {
+                                            spacing: 6px;
+                                            alignment: start;
+
+                                            Rectangle {
+                                                width: 6px;
+                                                height: 6px;
+                                                y: (parent.height - self.height) / 2;
+                                                border-radius: 3px;
+                                                background: root.is_driver_installed ? #7bd0c1 : #ffb4ab;
+                                            }
+
+                                            Text {
+                                                text: root.is_driver_installed ? root.tr_driver_status_active : root.tr_driver_status_missing;
+                                                font-size: 9px;
+                                                font-weight: 700;
+                                                color: root.is_driver_installed ? #7bd0c1 : #ffb4ab;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+
+                                        AppButton {
+                                            width: 90px;
+                                            height: 26px;
+                                            text: root.tr_driver_btn_install;
+                                            font_size: 10px;
+                                            bg: #1e3a34;
+                                            hover_bg: #284f47;
+                                            text_color: #7bd0c1;
+                                            clicked => {
+                                                root.request_install_driver();
                                             }
                                         }
                                     }
@@ -1143,7 +1493,7 @@ export component MainWindow inherits Window {
                                         }
 
                                         Text {
-                                            text: "→";
+                                            text: "↗";
                                             font-size: 13px;
                                             font-weight: 800;
                                             color: touch_reset.has-hover ? #ffb4ab : #8c90a2;
@@ -1265,7 +1615,8 @@ export component MainWindow inherits Window {
                                     root.setting_animation_enabled,
                                     root.setting_temp_source,
                                     root.setting_vid_hex,
-                                    root.setting_pid_hex
+                                    root.setting_pid_hex,
+                                    root.setting_temp_smoothing
                                 );
                                 root.close_settings();
                             }

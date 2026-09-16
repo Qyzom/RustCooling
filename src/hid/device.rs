@@ -121,10 +121,12 @@ impl DeviceManager {
         self.send_command(Command::Temperature, temp_c)
     }
 
+    #[allow(dead_code)]
     pub fn send_frequency(&self, freq_mhz: u16) -> bool {
         self.send_command(Command::Frequency, freq_mhz)
     }
 
+    #[allow(dead_code)]
     pub fn send_usage(&self, percent: u16) -> bool {
         self.send_command(Command::Usage, percent)
     }

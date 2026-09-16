@@ -60,13 +60,21 @@ impl MonitorService {
         let device = Arc::clone(&self.device);
 
         let handle = thread::spawn(move || {
-            info!("Monitor background service started.");
+            #[cfg(windows)]
+            unsafe {
+                use windows_sys::Win32::System::Threading::{
+                    GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_HIGHEST,
+                };
+                SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+            }
+            info!("Monitor background service started with high priority.");
             let mut telemetry = create_telemetry_provider();
             let mut was_connected = false;
             let mut active_vid = 0u16;
             let mut active_pid = 0u16;
             let mut last_displayed_val: Option<u16> = None;
             let mut last_display_mode = String::new();
+            let mut smoothed_temp: Option<f32> = None;
 
             while running.load(Ordering::Relaxed) {
                 // Read current display configuration
@@ -75,6 +83,7 @@ impl MonitorService {
                     interval_ms,
                     temp_source,
                     animation_enabled,
+                    temp_smoothing,
                     custom_vid,
                     custom_pid,
                 ) = {
@@ -84,14 +93,16 @@ impl MonitorService {
                         cfg.update_interval_ms.clamp(100, 3000),
                         cfg.temp_source.clone(),
                         cfg.animation_enabled,
+                        cfg.temp_smoothing.min(5),
                         cfg.custom_vid,
                         cfg.custom_pid,
                     )
                 };
 
-                // Reset animation state if mode changed
+                // Reset animation and smoothing state if mode changed
                 if display_mode != last_display_mode {
                     last_displayed_val = None;
+                    smoothed_temp = None;
                     last_display_mode = display_mode.clone();
                 }
 
@@ -103,6 +114,7 @@ impl MonitorService {
                     );
                     device.close_device();
                     state.is_connected.store(false, Ordering::SeqCst);
+                    smoothed_temp = None;
                 }
                 active_vid = custom_vid;
                 active_pid = custom_pid;
@@ -141,7 +153,7 @@ impl MonitorService {
                     "freq" => {
                         if let Some(freq_f) = metrics.frequency_mhz {
                             let send_val = ((freq_f / 100.0).round() as u16).min(99);
-                            if !device.send_frequency(send_val) {
+                            if !device.send_temperature(send_val) {
                                 state.is_connected.store(false, Ordering::SeqCst);
                             }
                             if let Ok(mut lbl) = state.broadcast_label.lock() {
@@ -162,8 +174,7 @@ impl MonitorService {
                             match last_displayed_val {
                                 None => {
                                     let ok_t = device.send_temperature(target_val);
-                                    let ok_u = device.send_usage(target_val);
-                                    if !ok_t || !ok_u {
+                                    if !ok_t {
                                         state.is_connected.store(false, Ordering::SeqCst);
                                     }
                                     if let Ok(mut val) = state.broadcast_value.lock() {
@@ -175,8 +186,7 @@ impl MonitorService {
                                 Some(prev_val) => {
                                     if prev_val == target_val || !animation_enabled {
                                         let ok_t = device.send_temperature(target_val);
-                                        let ok_u = device.send_usage(target_val);
-                                        if !ok_t || !ok_u {
+                                        if !ok_t {
                                             state.is_connected.store(false, Ordering::SeqCst);
                                         }
                                         if let Ok(mut val) = state.broadcast_value.lock() {
@@ -202,8 +212,7 @@ impl MonitorService {
                                             curr += step_dir;
                                             let curr_u16 = curr.clamp(0, 100) as u16;
                                             let ok_t = device.send_temperature(curr_u16);
-                                            let ok_u = device.send_usage(curr_u16);
-                                            if !ok_t || !ok_u {
+                                            if !ok_t {
                                                 state.is_connected.store(false, Ordering::SeqCst);
                                                 break;
                                             }
@@ -228,7 +237,6 @@ impl MonitorService {
                         }
                     }
                     "carousel" => {
-                        // Staggered sending of all 3 frames
                         if let Some(temp_f) = metrics.temperature {
                             let temp_val = temp_f.round() as u16;
                             let _ = device.send_temperature(temp_val);
@@ -239,20 +247,7 @@ impl MonitorService {
                                 *val = format!("{} °C", temp_val);
                             }
                         }
-                        thread::sleep(Duration::from_millis(100));
-
-                        if let Some(freq_f) = metrics.frequency_mhz {
-                            let send_val = ((freq_f / 100.0).round() as u16).min(99);
-                            let _ = device.send_frequency(send_val);
-                        }
-                        thread::sleep(Duration::from_millis(100));
-
-                        if let Some(usage_f) = metrics.load_percent {
-                            let usage_val = usage_f.round() as u16;
-                            let _ = device.send_usage(usage_val);
-                        }
-                        let remaining_ms = interval_ms.saturating_sub(200);
-                        thread::sleep(Duration::from_millis(remaining_ms));
+                        thread::sleep(Duration::from_millis(interval_ms));
                     }
                     _ => {
                         // Default: "temp"
@@ -260,7 +255,28 @@ impl MonitorService {
                             *lbl = crate::i18n::I18n::get().metric_temperature;
                         }
                         if let Some(temp_f) = metrics.temperature {
-                            let target_val = temp_f.round().clamp(0.0, 199.0) as u16;
+                            let target_val = if temp_smoothing == 0 {
+                                smoothed_temp = Some(temp_f);
+                                temp_f.round().clamp(0.0, 199.0) as u16
+                            } else {
+                                let alpha = 1.0 / (1.0 + temp_smoothing as f32 * 0.4);
+                                let new_smoothed = match smoothed_temp {
+                                    Some(prev) => prev * (1.0 - alpha) + temp_f * alpha,
+                                    None => temp_f,
+                                };
+                                smoothed_temp = Some(new_smoothed);
+                                let rounded = new_smoothed.round().clamp(0.0, 199.0) as u16;
+
+                                if let Some(prev) = last_displayed_val {
+                                    if (rounded as i32 - prev as i32).abs() < temp_smoothing as i32 {
+                                        prev
+                                    } else {
+                                        rounded
+                                    }
+                                } else {
+                                    rounded
+                                }
+                            };
                             match last_displayed_val {
                                 None => {
                                     if !device.send_temperature(target_val) {

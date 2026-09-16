@@ -46,11 +46,8 @@ impl TelemetryProvider for WindowsTelemetry {
             self.components.refresh(false);
         }
 
-        // 1. CPU Load
+        // 1. Refresh OS CPU usage & frequency
         let load = self.system.global_cpu_usage().clamp(0.0, 100.0);
-        self.metrics.load_percent = Some(load);
-
-        // 2. CPU Frequency from native OS counters (0 COM, 0 allocations)
         let effective_freq = {
             let cpus = self.system.cpus();
             if !cpus.is_empty() {
@@ -60,86 +57,44 @@ impl TelemetryProvider for WindowsTelemetry {
                 3900.0
             }
         };
-        self.metrics.frequency_mhz = Some(effective_freq);
 
-        // 3. CPU Temperature based on selected source (Package, Core 0, Average, Max)
+        // 2. Read physical hardware digital thermal sensors via Ring 0 driver (LibreHardwareMonitor)
+        let phys_temps = super::driver::read_physical_temperatures();
         let mut package_temp: Option<f32> = None;
         let mut core0_temp: Option<f32> = None;
         let mut core_temps: Vec<f32> = Vec::new();
 
-        for component in self.components.iter() {
-            let label = component.label().to_lowercase();
-            if let Some(temp) = component.temperature() {
-                if (25.0..=115.0).contains(&temp) {
-                    if label.contains("package") || label.contains("tctl") || label.contains("tdie")
-                    {
-                        if package_temp.is_none() || temp > package_temp.unwrap() {
-                            package_temp = Some(temp);
+        if let Some(p) = phys_temps {
+            package_temp = p.package;
+            core0_temp = p.core0;
+            core_temps = p.core_temps;
+        } else {
+            // Fallback to sysinfo components if exposed by ACPI (e.g. laptops)
+            for component in self.components.iter() {
+                let label = component.label().to_lowercase();
+                if let Some(temp) = component.temperature() {
+                    if (25.0..=115.0).contains(&temp) {
+                        if label.contains("package") || label.contains("tctl") || label.contains("tdie")
+                        {
+                            if package_temp.is_none() || temp > package_temp.unwrap() {
+                                package_temp = Some(temp);
+                            }
+                        } else if label.contains("core 0")
+                            || label.contains("core #0")
+                            || label.contains("cpu core #0")
+                        {
+                            core0_temp = Some(temp);
+                            core_temps.push(temp);
+                        } else if label.contains("core") || label.contains("cpu") {
+                            core_temps.push(temp);
                         }
-                    } else if label.contains("core 0")
-                        || label.contains("core #0")
-                        || label.contains("cpu core #0")
-                    {
-                        core0_temp = Some(temp);
-                        core_temps.push(temp);
-                    } else if label.contains("core") || label.contains("cpu") {
-                        core_temps.push(temp);
                     }
                 }
             }
         }
 
-        // If physical sensors were not found in Components (standard Windows),
-        // compute real dynamic per-core thermal telemetry from live OS CPU counters
-        if core_temps.is_empty() && package_temp.is_none() {
-            let cpus = self.system.cpus();
-            let num_logical = cpus.len().max(1);
-            let num_physical = if num_logical > 1 && num_logical.is_multiple_of(2) {
-                num_logical / 2
-            } else {
-                num_logical
-            };
-
-            let base_idle = 35.0f32;
-            let freq_boost = ((effective_freq - 3800.0).max(0.0) / 1000.0) * 5.5;
-            let die_coupling = load * 0.08;
-
-            let mut simulated_core_temps = Vec::with_capacity(num_physical);
-            for i in 0..num_physical {
-                let core_load = if num_logical >= (i + 1) * 2 {
-                    cpus[2 * i].cpu_usage().max(cpus[2 * i + 1].cpu_usage())
-                } else if i < num_logical {
-                    cpus[i].cpu_usage()
-                } else {
-                    load
-                };
-
-                let silicon_offset = match i % 6 {
-                    0 => 0.6,
-                    1 => -0.6,
-                    2 => 1.2,
-                    3 => -0.8,
-                    4 => 0.2,
-                    _ => 0.4,
-                };
-
-                let t = (base_idle + core_load * 0.32 + freq_boost + die_coupling + silicon_offset)
-                    .clamp(32.0, 98.0);
-                simulated_core_temps.push(t);
-            }
-
-            core0_temp = simulated_core_temps.first().copied();
-            let _avg_core =
-                simulated_core_temps.iter().sum::<f32>() / simulated_core_temps.len() as f32;
-            let max_core = simulated_core_temps
-                .iter()
-                .cloned()
-                .fold(f32::MIN, f32::max);
-            let pkg = max_core + 2.0 + (load * 0.04).min(4.0);
-
-            core_temps = simulated_core_temps;
-            package_temp = Some(pkg);
-        }
+        self.metrics.load_percent = Some(load);
+        self.metrics.frequency_mhz = Some(effective_freq);
 
         let chosen_temp: Option<f32> = match self.temp_source.as_str() {
             "core0" => core0_temp

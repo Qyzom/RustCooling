@@ -2,6 +2,8 @@
 pub mod linux;
 #[cfg(windows)]
 pub mod windows;
+#[cfg(windows)]
+pub mod driver;
 
 #[derive(Debug, Clone, Default)]
 pub struct CpuMetrics {

@@ -4,7 +4,9 @@ pub const REPORT_LENGTH: usize = 64;
 #[repr(u8)]
 pub enum Command {
     Temperature = 0x01,
+    #[allow(dead_code)]
     Frequency = 0x02,
+    #[allow(dead_code)]
     Usage = 0x03,
     Show = 0x04,
 }

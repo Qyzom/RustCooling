@@ -4,7 +4,7 @@
 
 # RustCooling
 
-**High-performance, ultra-lean LCD pump display controller for ID-COOLING FX Series liquid coolers.**  
+**Легковесный контроллер LCD-дисплея помпы для СЖО ID-COOLING FX Series.**  
 *100% Pure Rust • Native Linux & Windows • Zero Bloat • < 12 MB RAM*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -27,172 +27,131 @@
 
 ---
 
-### Key Features
-
-| Extreme Efficiency | Native Linux | Total Control | Pure & Portable |
-| :--- | :--- | :--- | :--- |
-| • **< 12 MB** RAM active GUI<br/>• **< 3 MB** in system tray<br/>• **0.0%** idle CPU usage<br/>• **< 50 ms** instant startup | • Direct `/sys/class/hwmon`<br/>• AMD Tctl & Intel Package<br/>• Zero root/Wine required<br/>• Bundled udev permissions | • CPU Temp & CPU Load<br/>• 50 ms roller transition<br/>• Native dark tray menu<br/>• **5 Languages** (EN, RU, ZH, DE, FR) | • Single monolithic binary<br/>• No .NET or Electron runtime<br/>• Built-in `--daemon` mode<br/>• Zero telemetry or bloat |
-
----
-
-### Benchmark & Comparison
+### От автора
 
 > [!NOTE]
-> I created RustCooling as a complete rewrite in **100% Rust** of my previous C# / .NET project, [**idc-lite**](https://github.com/Qyzom/idc-lite). My goal was to completely eliminate runtime dependencies, slash memory usage below 12 MB, and provide first-class native Linux support.
-
-| Feature | Official Vendor App | idc-lite (My Previous C# App) | **RustCooling (Current)** |
-| :--- | :---: | :---: | :---: |
-| **Technology Stack** | Electron / Node.js + C++ | C# / .NET 8 + WPF | **100% Pure Rust + Slint UI** |
-| **RAM (Active GUI)** | ~210 – 300 MB | ~120 MB | **< 12 MB** (~10.8 MB) |
-| **RAM (System Tray)** | ~200 – 210 MB | ~120 MB | **< 3 MB** (~1.1 MB) |
-| **RAM (Headless Daemon)** | Not available | Separate process (~20 MB) | **~2 – 4 MB** (`--daemon`) |
-| **CPU Utilization** | 2.0% – 5.0% continuous | ~1.0% | **0.0%** (Event-driven) |
-| **Linux Support** | None (Windows only) | Experimental | **Native (hwmon / sysfs / udev)** |
-| **Startup Time** | 3.0 – 6.0 sec | 1.5 – 3.0 sec | **< 50 ms** |
-| **Runtime Dependencies** | Chromium WebEngine | .NET Runtime | **Zero (Native machine code)** |
-| **Interface Languages** | EN, ZH | EN, RU, ZH | **EN, RU, ZH, DE, FR** |
-| **Headless Daemon** | No | Separate binary | **Built-in (`--daemon` flag)** |
+> Я делал этот проект исключительно **для себя**, чтобы убрать с личного компьютера тяжеленный и кривой софт от вендора. Скорее всего, этот репозиторий мало кто увидит, и для меня это совершенно не важно. 
+> 
+> На самом деле протокол дисплея ID-COOLING FX **максимально примитивен**: контроллер экрана понимает по сути всего две реальные вещи — команду включения экрана (`0x04`) и отправку числа на 7-сегментный индикатор (`0x01`). Всё остальное (частота, мифические регистры) в физическом железе ничего не меняет. Всё приложение RustCooling — это просто очень лёгкая, аккуратная и удобная обёртка вокруг этого протокола.
+>
+> При желании можно было бы сделать ультра-минималистичный CLI-демон с потреблением буквально 1–2 МБ (такой скрипт с DeepSeek пишется за 15 минут), но особого смысла в этом нет: в трее RustCooling и так потребляет смешные **~1–3 МБ**, при этом имея полноценный интерфейс, трей, фильтрацию и автозапуск.
 
 ---
 
-### Downloads & Quick Start
+### Главные фишки (которых НЕТ в официальном ID-COOLING)
 
-Pre-built releases are available on the [**Releases Page**](https://github.com/Qyzom/RustCooling/releases/latest).
+1. **Сглаживание температур и фильтрация дребезга:**
+   В официальном софте вендора цифры на помпе непрерывно скачут туда-сюда при каждом колебании в 1 градус. В RustCooling встроен настраиваемый фильтр гистерезиса (ползунок сглаживания 0–100%): мелкие флуктуации отсекаются, а дисплей показывает стабильное значение без раздражающего мельтешения.
+2. **Потребление памяти ~12–14 МБ (в трее ~1–3 МБ):**
+   Оригинальная утилита от вендора построена на Electron / Node.js и отъедает 200–300 МБ оперативной памяти. RustCooling написан на чистом нативном Rust со Slint UI и потребляет в 20–50 раз меньше.
+3. **Честная нативная поддержка Linux:**
+   Вендор вообще не поддерживает Linux. RustCooling читает системные сенсоры напрямую через ядро (`/sys/class/hwmon` и `sysfs`) без Wine, рута и сторонних демонов.
+4. **Честное прямое чтение с физических термодатчиков (LibreHardwareMonitor Ring 0 / Linux hwmon):**
+   Никаких синтетических «угадываний» и сторонних фоновых программ.
+   - **Windows:** В программу встроен проверенный микро-драйвер LibreHardwareMonitor (`WinRing0x64.sys`), считывающий температуру напрямую из MSR-регистров кремния процессора (Intel DTS / AMD Tctl). При первом запуске приложение однократно запрашивает права Администратора для регистрации службы драйвера.
+   - **Linux:** Права root и драйверы не требуются вовсе — телеметрия считывается нативно через стандартный интерфейс ядра `/sys/class/hwmon`.
+5. **Мгновенный холодный старт (< 50 мс):**
+   Никаких долгих загрузок рантаймов — приложение открывается мгновенно.
+6. **Полная автономность, портативность и чистота системы:**
+   Единый бинарный файл без внешних зависимостей (.NET / Node.js не требуются). Файл конфигурации `config.json` и файл драйвера хранятся строго рядом с `RustCooling.exe` — приложение не захламляет систему, папку `%APPDATA%` и реестр.
+
+> [!NOTE]
+> **О поддержке архитектуры ARM:**  
+> Системы жидкостного охлаждения ID-COOLING FX240/280/360 разработаны исключительно под стандартные сокеты десктопных материнских плат: Intel (LGA1700/1851/1200) и AMD (AM4/AM5) с подключением к внутреннему 9-pin USB разъёму. Настольных материнских плат на ARM с креплением под водянки на рынке не существует (чипы Snapdragon распаяны в ноутбуках), поэтому поддержка Windows on ARM намеренно не завозилась ради сохранения лёгкости и отсутствия мертвого кода в кодовой базе.
+
+---
+
+### Сравнение с альтернативами
+
+| Параметр | Официальный софт вендора | idc-lite (мой прошлый C# проект) | **RustCooling (Rust)** |
+| :--- | :---: | :---: | :---: |
+| **Стек** | Electron / Node.js + C++ | C# / .NET 8 (WPF) | **100% Pure Rust + Slint** |
+| **ОЗУ (окно)** | ~200 – 300 МБ | ~60 – 120 МБ | **~12 – 14 МБ** |
+| **ОЗУ (в трее)** | ~80 – 150 МБ | ~35 – 60 МБ | **< 3 МБ** (~1.1 – 2.5 МБ) |
+| **Фоновая нагрузка CPU** | 2.0% – 5.0% | ~1.0% | **0.0%** (Event-driven) |
+| **Сглаживание скачков temp** | ❌ Нет (скачет каждую секунду) | ❌ Нет | **✔ Есть (настраиваемый фильтр 0–100%)** |
+| **Поддержка Linux** | ❌ Отсутствует | ⚠️ Экспериментальная | **✔ Нативная (hwmon, sysfs, udev)** |
+| **Драйвер датчиков** | Закрытый Ring0 драйвер | WinRing0.sys (внешний) | **✔ Вшитый LibreHardwareMonitor (Win) / Без драйверов (Linux)** |
+| **Время запуска** | 3.0 – 6.0 сек | 1.5 – 3.0 сек | **< 50 мс** |
+| **Языки интерфейса** | EN, ZH | EN, RU, ZH | **EN, RU, ZH, DE, FR** |
+
+---
+
+### Быстрый старт
+
+Скачать готовые сборки можно на странице [**Releases**](https://github.com/Qyzom/RustCooling/releases/latest).
 
 #### Windows (Portable)
-1. Download **[`RustCooling-0.1.2.exe`](https://github.com/Qyzom/RustCooling/releases/latest)**.
-2. Run the executable — completely portable, zero installer or runtime dependencies needed.
-3. *(Optional)* Toggle **"Launch at Startup"** in the Settings panel.
+1. Скачайте **[`RustCooling.exe`](https://github.com/Qyzom/RustCooling/releases/latest)**.
+2. Поместите файл в удобную папку (например, `C:\Tools\RustCooling\`). Настройки (`config.json`) и микро-драйвер будут храниться прямо рядом с ним.
+3. При первом запуске откроется экран активации: нажмите **«Предоставить права и установить»** (UAC), чтобы один раз зарегистрировать микро-драйвер прямого чтения MSR-сенсоров.
+4. Нажмите **«Продолжить работу»** — приложение готово к работе! В настройках доступен автозапуск с системой.
 
 #### Linux (Debian / Ubuntu / Linux Mint)
 ```bash
-sudo dpkg -i RustCooling-0.1.2.deb
+sudo dpkg -i RustCooling-0.1.3.deb
 ```
-*Desktop entry and udev rules (`0666` for VID `1A86`, PID `E317`) are installed automatically.*
+*(Ярлык приложения и правила udev для доступа к USB помпе без root настроятся автоматически).*
 
 #### Linux (Arch / Fedora / Generic Tarball)
 ```bash
-tar -xzf RustCooling-0.1.2.tar.gz
-cd RustCooling-0.1.2
+tar -xzf RustCooling-0.1.3.tar.gz
+cd RustCooling-0.1.3
 sudo ./install.sh
 ```
 
-#### Headless Daemon Mode (CLI / systemd)
-For minimal window managers (Hyprland, Sway, i3) or home servers:
+#### Фоновый режим демона (CLI / systemd)
+Для пользователей тайловых WM (Hyprland, Sway, i3) или серверов:
 ```bash
-# Run headless background telemetry
 RustCooling --daemon
-
-# Specify custom update interval in ms (default: 300)
-RustCooling --daemon --interval 500
 ```
-
-<details>
-<summary><b>Click to view systemd user service setup</b></summary>
-
-Create `~/.config/systemd/user/rustcooling.service`:
-```ini
-[Unit]
-Description=RustCooling LCD Daemon
-After=default.target
-
-[Service]
-ExecStart=/usr/local/bin/RustCooling --daemon
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=default.target
-```
-Enable and start the service:
-```bash
-systemctl --user daemon-reload
-systemctl --user enable --now rustcooling.service
-```
-</details>
 
 ---
 
-<details>
-<summary><b>Hardware Architecture & Protocol Specification</b></summary>
+### Спецификация протокола (USB HID)
 
-<br/>
-
-#### Hardware Identification (USB HID)
-- **Target Hardware:** ID-COOLING FX Series AIO coolers (FX240, FX280, FX360) and compatible pumps based on QinHeng Electronics (WCH) USB HID microcontrollers.
 - **Vendor ID (VID):** `0x1A86` (QinHeng Electronics / WCH)
 - **Product ID (PID):** `0xE317`
-- **Interface:** USB HID Class, Endpoint 1 (Interrupt OUT).
-- **Report Length:** 64 bytes (65 bytes with the OS Report ID `0x00` prepended by Win32 HID API / HIDAPI).
+- **Длина отчета:** 64 байта (на Windows добавляется Report ID `0x00` -> 65 байт).
 
-#### Frame Structure (64 Bytes)
-Every control and telemetry packet sent to the pump microcontroller consists of 64 bytes:
+#### Структура кадра (64 байта)
+```
+[0x55, 0xBB, 0x02, CMD, VAL_HI, VAL_LO, CKSUM, 0x00 x 57]
+```
+- `0x55, 0xBB`: сигнатура (magic bytes).
+- `0x02`: длина данных значения (2 байта).
+- `CMD`: код команды.
+- `VAL_HI, VAL_LO`: значение (Big-Endian `u16`).
+- `CKSUM`: контрольная сумма первых 6 байт `(sum(0..5)) & 0xFF`.
+- Остальные 57 байт: нули (`0x00`).
 
-| Byte Offset | Field Name | Type | Value / Description |
-| :--- | :--- | :--- | :--- |
-| `0` | Header 1 | `u8` | `0x55` (Magic byte 1) |
-| `1` | Header 2 | `u8` | `0xBB` (Magic byte 2) |
-| `2` | Data Length | `u8` | `0x02` (2 payload bytes: value high and low) |
-| `3` | Command Code (`cmd`) | `u8` | Target register / display target (see table below) |
-| `4` | Value High (`valHi`) | `u8` | `(value >> 8) & 0xFF` (MSB, Big-Endian) |
-| `5` | Value Low (`valLo`) | `u8` | `value & 0xFF` (LSB) |
-| `6` | Checksum (`cksum`) | `u8` | `(byte[0] + byte[1] + byte[2] + byte[3] + byte[4] + byte[5]) & 0xFF` |
-| `7..63` | Padding | `[u8; 57]` | 57 zero bytes (`0x00`) |
-
-#### Command Codes (`cmd`)
-| Command | Hex | Target | Value Encoding |
-| :--- | :---: | :--- | :--- |
-| `CMD_TEMPERATURE` | `0x01` | Central 7-segment digital readout | Temperature in °C (integer, e.g. `45` -> `0x002D`). Also used to display numerical CPU load. |
-| `CMD_FREQUENCY` | `0x02` | Frequency readout | Clock frequency (e.g. `46` for 4.6 GHz or raw MHz depending on firmware revision). |
-| `CMD_USAGE` | `0x03` | Outer circular LED gauge ring | Utilization percentage from `0` to `100` (e.g. `35` -> `0x0023`). |
-| `CMD_SHOW` | `0x04` | Display power / sleep mode | `0x0001` = Display ON / Active<br/>`0x0000` = Display OFF / Sleep |
-
-#### Hardware Nuances & Implementation Notes
-1. **Central Display vs. Outer Gauge Ring:**
-   - The pump hardware uses command `0x01` (`CMD_TEMPERATURE`) to render digits on the central 7-segment display and command `0x03` (`CMD_USAGE`) to fill the perimeter LED ring.
-   - When in **CPU Load** mode, RustCooling dispatches both `0x01` (to show the load percentage as a number on the central display) and `0x03` (to fill the circular ring proportionally), matching physical cooler behavior.
-2. **Packet Staggering:**
-   - The WCH microcontroller does not implement a deep packet queue. Sending multiple back-to-back HID packets without a pause can cause packet drops or MCU lockups.
-   - RustCooling staggers multi-packet dispatches with a **100 ms** delay between commands.
-3. **50 ms Roller Transition Animation:**
-   - When enabled, value changes step through intermediate numbers at a 50 ms cadence (with automatic acceleration if the step delta exceeds the update interval). Smooth interpolation modes were eliminated to avoid display lag and ensure real-time accuracy.
-4. **Graceful Shutdown:**
-   - The display retains the last sent frame indefinitely even when USB communication stops. On application shutdown, RustCooling explicitly sends `CMD_SHOW(0)` to turn off the LCD screen instead of leaving stale frozen values.
-5. **Checksum Algorithm:**
-   - Sum of the first 6 bytes modulo 256:
-     ```rust
-     fn calculate_checksum(header1: u8, header2: u8, len: u8, cmd: u8, val_hi: u8, val_lo: u8) -> u8 {
-         (header1 as u16 + header2 as u16 + len as u16 + cmd as u16 + val_hi as u16 + val_lo as u16) as u8
-     }
-     ```
-</details>
+#### Команды
+| Команда | Hex | Описание |
+| :--- | :---: | :--- |
+| `CMD_TEMPERATURE` | `0x01` | Число на 7-сегментном дисплее помпы (температура или загрузка) |
+| `CMD_SHOW` | `0x04` | Включение (`0x0001`) или выключение (`0x0000`) дисплея |
 
 ---
 
-### Building from Source
+### Сборка из исходников
 
 ```bash
-# Prerequisites: Rust 1.80+ (on Linux: libudev-dev, libfontconfig1-dev, libgl1-mesa-dev, libayatana-appindicator3-dev)
 git clone https://github.com/Qyzom/RustCooling.git
 cd RustCooling
 cargo test
 cargo build --release
 ```
-The compiled binary will be located in `target/release/RustCooling` (`.exe` on Windows).
+Готовый бинарник появится в `target/release/RustCooling.exe` (или `target/release/RustCooling` на Linux).
 
 ---
 
-### Maintenance & Personal Guarantee
+### Лицензия и сторонние компоненты
 
-> [!IMPORTANT]
-> **If you see periods of no new commits, the project is NOT abandoned.**  
-> The USB protocol for ID-COOLING FX coolers is fixed in hardware and fully reversed. I use **RustCooling daily** on my personal PC. If any Windows or Linux kernel updates require compatibility adjustments, I will release fixes immediately.
+Проект распространяется под свободной и открытой лицензией **[MIT License](LICENSE)**.
 
----
+Используемые открытые компоненты и их лицензии:
+- **RustCooling Core & UI:** [MIT License](LICENSE) © Qyzom & Contributors.
+- **Шрифт Unbounded:** [SIL Open Font License 1.1](assets/fonts/OFL.txt) (авторы: Lexend & Contributors).
+- **Шрифт Noto Sans SC:** [SIL Open Font License 1.1](https://openfontlicense.org/) (авторы: Google LLC, Adobe Systems Inc.). Обеспечивает безупречное отображение китайских иероглифов.
+- **Драйвер LibreHardwareMonitor / WinRing0:** [Modified BSD License](http://openlibsys.org/) (автор: Noriyuki Miyazaki / OpenLibSys). Обеспечивает безопасное чтение физических MSR-сенсоров процессора на Windows.
 
-### License & Credits
-
-- **License:** [MIT License](LICENSE)
-- **Author:** [Qyzom](https://github.com/Qyzom)
-- **Typeface:** Embedded *Unbounded* licensed under [SIL Open Font License 1.1](assets/fonts/OFL.txt)
-- **Predecessor:** Inspired by my previous work on [idc-lite](https://github.com/Qyzom/idc-lite)

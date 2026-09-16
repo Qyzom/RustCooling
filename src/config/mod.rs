@@ -29,6 +29,16 @@ pub struct AppConfig {
     /// USB Product ID of the target display controller (default: 0xE317).
     #[serde(default = "default_pid")]
     pub custom_pid: u16,
+    /// Temperature smoothing threshold in degrees C (0 = Off, 1-5 = hysteresis / deadband).
+    #[serde(default = "default_temp_smoothing")]
+    pub temp_smoothing: u32,
+    /// Whether the first-run activation / setup wizard was completed.
+    #[serde(default = "default_false")]
+    pub first_run_completed: bool,
+}
+
+fn default_temp_smoothing() -> u32 {
+    1
 }
 
 fn default_false() -> bool {
@@ -70,12 +80,19 @@ impl Default for AppConfig {
             language: "en".to_string(),
             custom_vid: 0x1A86,
             custom_pid: 0xE317,
+            temp_smoothing: 1,
+            first_run_completed: false,
         }
     }
 }
 
 impl AppConfig {
     pub fn config_dir() -> PathBuf {
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(parent) = exe_path.parent() {
+                return parent.to_path_buf();
+            }
+        }
         let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
         path.push("RustCooling");
         let _ = fs::create_dir_all(&path);
@@ -115,6 +132,7 @@ impl AppConfig {
                         if cfg.update_interval_ms > 3000 || cfg.update_interval_ms < 100 {
                             cfg.update_interval_ms = cfg.update_interval_ms.clamp(100, 3000);
                         }
+                        cfg.temp_smoothing = cfg.temp_smoothing.min(5);
                         return cfg;
                     }
                 }

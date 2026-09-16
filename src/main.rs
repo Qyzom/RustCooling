@@ -29,7 +29,7 @@ slint::include_modules!();
 #[derive(Parser, Debug)]
 #[command(name = "RustCooling")]
 #[command(author = "Qyzom & Contributors")]
-#[command(version = "0.1.2")]
+#[command(version = "0.1.3")]
 #[command(about = "RustCooling - Lightweight LCD Display controller for ID-COOLING FX series coolers", long_about = None)]
 struct CliArgs {
     /// Run in headless daemon mode without GUI (for background / systemd)
@@ -43,6 +43,10 @@ struct CliArgs {
     /// Override update interval in milliseconds
     #[arg(short, long)]
     interval: Option<u64>,
+
+    /// Install Ring 0 driver service (internal helper called with elevated privileges)
+    #[arg(long)]
+    install_driver: bool,
 }
 
 pub fn trim_memory() {
@@ -263,6 +267,8 @@ fn apply_translations(w: &MainWindow) {
     w.set_tr_mode_load(t.mode_load.as_str().into());
     w.set_tr_setting_interval(t.setting_interval.as_str().into());
     w.set_tr_setting_temp_source(t.setting_temp_source.as_str().into());
+    w.set_tr_setting_temp_smoothing(t.setting_temp_smoothing.as_str().into());
+    w.set_tr_smoothing_off(t.smoothing_off.as_str().into());
     w.set_tr_temp_src_package(t.temp_src_package.as_str().into());
     w.set_tr_temp_src_core0(t.temp_src_core0.as_str().into());
     w.set_tr_temp_src_avg(t.temp_src_avg.as_str().into());
@@ -279,6 +285,17 @@ fn apply_translations(w: &MainWindow) {
     w.set_tr_open_config_folder(t.setting_open_config.as_str().into());
     w.set_tr_about_title(t.about_title.as_str().into());
     w.set_tr_about_desc(t.about_desc.as_str().into());
+    w.set_tr_activation_title(t.activation_title.as_str().into());
+    w.set_tr_activation_subtitle(t.activation_subtitle.as_str().into());
+    w.set_tr_activation_driver_title(t.activation_driver_title.as_str().into());
+    w.set_tr_activation_driver_desc(t.activation_driver_desc.as_str().into());
+    w.set_tr_activation_driver_btn(t.activation_driver_btn.as_str().into());
+    w.set_tr_activation_driver_installed(t.activation_driver_installed.as_str().into());
+    w.set_tr_activation_continue_btn(t.activation_continue_btn.as_str().into());
+    w.set_tr_setting_driver_title(t.setting_driver_title.as_str().into());
+    w.set_tr_driver_status_active(t.driver_status_active.as_str().into());
+    w.set_tr_driver_status_missing(t.driver_status_missing.as_str().into());
+    w.set_tr_driver_btn_install(t.driver_btn_install.as_str().into());
 }
 
 fn parse_hex_u16(s: &str) -> Option<u16> {
@@ -291,8 +308,33 @@ fn parse_hex_u16(s: &str) -> Option<u16> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::System::Threading::{
+            GetCurrentProcess, SetPriorityClass, ABOVE_NORMAL_PRIORITY_CLASS, HIGH_PRIORITY_CLASS,
+        };
+        if SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS) == 0 {
+            SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
+        }
+    }
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let args = CliArgs::parse();
+
+    #[cfg(windows)]
+    if args.install_driver {
+        info!("Running with --install-driver. Setting up WinRing0 service...");
+        match telemetry::driver::install_service() {
+            Ok(_) => {
+                info!("Driver service successfully installed!");
+                std::process::exit(0);
+            }
+            Err(e) => {
+                eprintln!("Error installing driver: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
 
     let mut config = AppConfig::load();
     if let Some(interval) = args.interval {
@@ -311,7 +353,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_ref = Arc::new(Mutex::new(config));
 
     info!("==================================================");
-    info!(" RustCooling v0.1.2 - ID-COOLING FX LCD Controller");
+    info!(" RustCooling v0.1.3 - ID-COOLING FX LCD Controller");
     info!("==================================================");
 
     let monitor = MonitorService::new(Arc::clone(&config_ref));
@@ -426,6 +468,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         main_window.set_setting_animation_enabled(cfg.animation_enabled);
         main_window.set_setting_language(cfg.language.as_str().into());
         main_window.set_setting_temp_source(cfg.temp_source.as_str().into());
+        main_window.set_setting_temp_smoothing(cfg.temp_smoothing as i32);
         main_window.set_setting_vid_hex(format!("{:04X}", cfg.custom_vid).into());
         main_window.set_setting_pid_hex(format!("{:04X}", cfg.custom_pid).into());
         main_window.set_device_vid_pid_text(
@@ -435,8 +478,77 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .into(),
         );
+
+        #[cfg(windows)]
+        let driver_installed = telemetry::driver::is_driver_accessible();
+        #[cfg(not(windows))]
+        let driver_installed = true;
+
+        #[cfg(windows)]
+        let is_activation = !cfg.first_run_completed && !driver_installed;
+        #[cfg(not(windows))]
+        let is_activation = false;
+
+        main_window.set_is_activation_mode(is_activation);
+        main_window.set_is_driver_installed(driver_installed);
     }
     apply_translations(&main_window);
+
+    // Request driver installation callback (UAC elevation)
+    let win_for_driver = main_window.as_weak();
+    main_window.on_request_install_driver(move || {
+        info!("UI Event: Request Install Driver clicked");
+        #[cfg(windows)]
+        {
+            if let Err(e) = telemetry::driver::request_elevation_install() {
+                warn!("Failed to request elevation: {}", e);
+            } else {
+                let win_clone = win_for_driver.clone();
+                slint::Timer::single_shot(Duration::from_millis(1500), move || {
+                    let accessible = telemetry::driver::is_driver_accessible();
+                    info!("Driver accessibility check after elevation: {}", accessible);
+                    if let Some(w) = win_clone.upgrade() {
+                        w.set_is_driver_installed(accessible);
+                    }
+                });
+            }
+        }
+    });
+
+    // Finish activation callback
+    let config_for_finish = Arc::clone(&config_ref);
+    let win_for_finish = main_window.as_weak();
+    main_window.on_finish_activation(move || {
+        info!("UI Event: Finish Activation clicked");
+        if let Ok(mut cfg) = config_for_finish.lock() {
+            cfg.first_run_completed = true;
+            let _ = cfg.save();
+        }
+        if let Some(w) = win_for_finish.upgrade() {
+            w.set_is_activation_mode(false);
+        }
+    });
+
+    // Change language callback in activation view
+    let config_for_lang = Arc::clone(&config_ref);
+    let win_for_lang = main_window.as_weak();
+    let tray_for_lang = Rc::clone(&tray_ref);
+    main_window.on_change_language(move |lang| {
+        let lang_str = lang.to_string();
+        info!("UI Event: Change Language to {}", lang_str);
+        I18n::set_language(&lang_str);
+        if let Ok(mut cfg) = config_for_lang.lock() {
+            cfg.language = lang_str.clone();
+            let _ = cfg.save();
+        }
+        if let Some(w) = win_for_lang.upgrade() {
+            w.set_setting_language(lang_str.as_str().into());
+            apply_translations(&w);
+        }
+        if let Some(ref t) = *tray_for_lang.borrow() {
+            t.update_labels();
+        }
+    });
 
     // Open URL callback (for GitHub link)
     main_window.on_open_url(|url| {
@@ -465,6 +577,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(mut cfg) = config_for_reset.lock() {
             *cfg = default_cfg.clone();
         }
+        #[cfg(windows)]
+        {
+            info!("Re-installing WinRing0 driver on reset...");
+            let _ = telemetry::driver::install_service();
+        }
         if let Some(w) = win_for_reset.upgrade() {
             w.set_setting_display_mode(default_cfg.display_mode.as_str().into());
             w.set_setting_autostart(default_cfg.auto_start);
@@ -472,6 +589,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             w.set_setting_animation_enabled(default_cfg.animation_enabled);
             w.set_setting_language(default_cfg.language.as_str().into());
             w.set_setting_temp_source(default_cfg.temp_source.as_str().into());
+            w.set_setting_temp_smoothing(default_cfg.temp_smoothing as i32);
             w.set_setting_vid_hex(format!("{:04X}", default_cfg.custom_vid).into());
             w.set_setting_pid_hex(format!("{:04X}", default_cfg.custom_pid).into());
             w.set_device_vid_pid_text(
@@ -481,6 +599,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .into(),
             );
+            #[cfg(windows)]
+            w.set_is_driver_installed(telemetry::driver::is_driver_accessible());
             apply_translations(&w);
         }
         if let Some(ref t) = *tray_for_reset.borrow() {
@@ -493,7 +613,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_for_save = Arc::clone(&config_ref);
     let win_for_save = main_window.as_weak();
     let tray_for_save = Rc::clone(&tray_ref);
-    main_window.on_save_settings(move |mode, autostart, interval, lang, anim_enabled, temp_src, vid_hex, pid_hex| {
+    main_window.on_save_settings(move |mode, autostart, interval, lang, anim_enabled, temp_src, vid_hex, pid_hex, temp_smoothing| {
         let lang_str = lang.to_string();
         let temp_src_str = temp_src.to_string();
         I18n::set_language(&lang_str);
@@ -516,11 +636,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             cfg.language = lang_str.clone();
             cfg.animation_enabled = anim_enabled;
             cfg.temp_source = temp_src_str.clone();
+            cfg.temp_smoothing = (temp_smoothing as u32).min(5);
             cfg.custom_vid = parsed_vid;
             cfg.custom_pid = parsed_pid;
             let _ = cfg.save();
-            info!("Settings applied: mode={}, autostart={}, interval={}ms, lang={}, anim_enabled={}, temp_src={}, vid=0x{:04X}, pid=0x{:04X}",
-                mode, actual_autostart, interval, lang_str, anim_enabled, temp_src_str, parsed_vid, parsed_pid);
+            info!("Settings applied: mode={}, autostart={}, interval={}ms, lang={}, anim_enabled={}, temp_src={}, smoothing={}C, vid=0x{:04X}, pid=0x{:04X}",
+                mode, actual_autostart, interval, lang_str, anim_enabled, temp_src_str, cfg.temp_smoothing, parsed_vid, parsed_pid);
         }
         if let Some(w) = win_for_save.upgrade() {
             w.set_setting_autostart(actual_autostart);
@@ -535,6 +656,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(w) = win_for_open.upgrade() {
             let actual_autostart = is_autostart_registered();
             w.set_setting_autostart(actual_autostart);
+            #[cfg(windows)]
+            w.set_is_driver_installed(telemetry::driver::is_driver_accessible());
             w.set_show_settings(true);
         }
     });
@@ -703,7 +826,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let screen_w = GetSystemMetrics(SM_CXSCREEN);
         let screen_h = GetSystemMetrics(SM_CYSCREEN);
         let x = (screen_w - 360) / 2;
-        let y = (screen_h - 352) / 2;
+        let y = (screen_h - 360) / 2;
         main_window
             .window()
             .set_position(slint::PhysicalPosition::new(x, y));
@@ -799,7 +922,7 @@ mod window_tests {
 
         let saved = Arc::new(AtomicBool::new(false));
         let saved_clone = Arc::clone(&saved);
-        win.on_save_settings(move |_mode, _auto, _int, _lang, _anim, _src, _vid, _pid| {
+        win.on_save_settings(move |_mode, _auto, _int, _lang, _anim, _src, _vid, _pid, _smoothing| {
             saved_clone.store(true, Ordering::SeqCst);
         });
 
@@ -817,12 +940,45 @@ mod window_tests {
             "core0".into(),
             "1A86".into(),
             "E317".into(),
+            1,
         );
-        assert!(saved.load(Ordering::SeqCst), "save_settings callback must fire");
+        // Test Activation Mode and Driver Callbacks
+        let driver_req = Arc::new(AtomicBool::new(false));
+        let driver_req_clone = Arc::clone(&driver_req);
+        win.on_request_install_driver(move || {
+            driver_req_clone.store(true, Ordering::SeqCst);
+        });
 
-        win.invoke_close_settings();
-        assert!(settings_closed.load(Ordering::SeqCst), "close_settings callback must fire");
-        assert!(!win.get_show_settings(), "View must switch back to monitor view");
+        let finish_act = Arc::new(AtomicBool::new(false));
+        let finish_act_clone = Arc::clone(&finish_act);
+        win.on_finish_activation(move || {
+            finish_act_clone.store(true, Ordering::SeqCst);
+        });
+
+        let lang_changed = Arc::new(AtomicBool::new(false));
+        let lang_changed_clone = Arc::clone(&lang_changed);
+        win.on_change_language(move |_lang| {
+            lang_changed_clone.store(true, Ordering::SeqCst);
+        });
+
+        win.set_is_activation_mode(true);
+        assert!(win.get_is_activation_mode(), "Must be in activation mode");
+        win.set_is_driver_installed(false);
+        assert!(!win.get_is_driver_installed(), "Driver must be reported as uninstalled");
+
+        win.invoke_request_install_driver();
+        assert!(driver_req.load(Ordering::SeqCst), "request_install_driver must fire");
+
+        win.invoke_change_language("zh".into());
+        assert!(lang_changed.load(Ordering::SeqCst), "change_language must fire");
+
+        win.invoke_finish_activation();
+        assert!(finish_act.load(Ordering::SeqCst), "finish_activation must fire");
+
+        win.set_is_activation_mode(false);
+        win.set_is_driver_installed(true);
+        assert!(!win.get_is_activation_mode());
+        assert!(win.get_is_driver_installed());
 
         // 2. Test Drag Safety (Drag must never break subsequent button clicks)
         let drag_started = Arc::new(AtomicBool::new(false));
