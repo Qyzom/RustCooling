@@ -89,7 +89,7 @@ sequenceDiagram
 ### Windows (LibreHardwareMonitor Ring 0 Kernel Driver):
 - **Driver:** Embedded LibreHardwareMonitor kernel driver (`assets/driver/WinRing0x64.sys`).
 - **Storage:** Extracted portably directly alongside `RustCooling.exe`.
-- **Service Control Manager:** Registered as a Windows kernel driver service (`WinRing0_1_2_0`, `SERVICE_KERNEL_DRIVER`, `SERVICE_AUTO_START`).
+- **Service Control Manager:** Registered as an on-demand Windows kernel driver service (`WinRing0_1_2_0`, `SERVICE_KERNEL_DRIVER`, `SERVICE_DEMAND_START`), automatically started when needed and stopped/unloaded from kernel memory upon application exit (including console termination signals).
 - **MSR Queries (`IOCTL_OLS_READ_MSR = 0x9C402084`):**
   - `0x1A2` (`IA32_TEMPERATURE_TARGET`): Extracts TjMax from bits 16–23 (default 100°C).
   - `0x19C` (`IA32_THERM_STATUS`): Read per-core Digital Thermal Sensor (DTS) temperature (`TjMax - delta`). Pinned across logical threads using `SetThreadAffinityMask`.
@@ -119,7 +119,6 @@ sequenceDiagram
 
 ## 6. Memory & Performance Benchmarks
 
-- **Startup Trim:** 500 ms after the window is displayed, `EmptyWorkingSet` is called to trim cold-start working set allocations.
 - **Active Window RAM:** **~12 – 14 MB** (physical working set).
 - **System Tray RAM:** **< 3 MB** (~1.1 – 2.5 MB).
 - **Headless CLI Daemon:** **~2 – 4 MB** (`--daemon`).

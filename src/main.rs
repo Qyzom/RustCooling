@@ -256,15 +256,31 @@ fn parse_hex_u16(s: &str) -> Option<u16> {
     u16::from_str_radix(s, 16).ok()
 }
 
+#[cfg(windows)]
+unsafe extern "system" fn console_ctrl_handler(ctrl_type: u32) -> windows_sys::Win32::Foundation::BOOL {
+    use windows_sys::Win32::System::Console::{
+        CTRL_CLOSE_EVENT, CTRL_C_EVENT, CTRL_SHUTDOWN_EVENT,
+    };
+    match ctrl_type {
+        CTRL_C_EVENT | CTRL_CLOSE_EVENT | CTRL_SHUTDOWN_EVENT => {
+            let _ = crate::telemetry::driver::stop_service();
+            0
+        }
+        _ => 0,
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(windows)]
     unsafe {
+        use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
         use windows_sys::Win32::System::Threading::{
             GetCurrentProcess, SetPriorityClass, ABOVE_NORMAL_PRIORITY_CLASS, HIGH_PRIORITY_CLASS,
         };
         if SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS) == 0 {
             SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
         }
+        SetConsoleCtrlHandler(Some(console_ctrl_handler), 1);
     }
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -729,8 +745,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
         let screen_w = GetSystemMetrics(SM_CXSCREEN);
         let screen_h = GetSystemMetrics(SM_CYSCREEN);
-        let x = (screen_w - 360) / 2;
-        let y = (screen_h - 360) / 2;
+        let scale = main_window.window().scale_factor();
+        let win_w = (360.0 * scale).round() as i32;
+        let win_h = (360.0 * scale).round() as i32;
+        let x = (screen_w - win_w) / 2;
+        let y = (screen_h - win_h) / 2;
         main_window
             .window()
             .set_position(slint::PhysicalPosition::new(x, y));
