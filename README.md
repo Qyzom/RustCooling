@@ -89,14 +89,14 @@ Pre-built binaries are available on the [**Releases**](https://github.com/Qyzom/
 
 #### Linux (Debian / Ubuntu / Linux Mint)
 ```bash
-sudo dpkg -i RustCooling-0.1.3.deb
+sudo dpkg -i RustCooling-1.0.0.deb
 ```
 *(Desktop shortcut and udev rules for non-root USB pump access will be configured automatically).*
 
 #### Linux (Arch / Fedora / Generic Tarball)
 ```bash
-tar -xzf RustCooling-0.1.3.tar.gz
-cd RustCooling-0.1.3
+tar -xzf RustCooling-1.0.0.tar.gz
+cd RustCooling-1.0.0
 sudo ./install.sh
 ```
 

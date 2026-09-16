@@ -180,7 +180,7 @@ export component MainWindow inherits Window {
 
     // Properties bound to Rust telemetry
     in property <int> cpu_temp: 0;
-    in property <int> cpu_load: 0;
+    in property <int> cpu_load: -1;
     in property <bool> is_connected: false;
     in property <string> broadcast_label: "CPU Temperature";
     in property <string> broadcast_value: "—";
@@ -218,7 +218,7 @@ export component MainWindow inherits Window {
     in property <string> tr_setting_debug: "Hardware & USB VID / PID";
     in property <string> tr_setting_reset_defaults: "Reset to Defaults";
     in property <string> tr_open_config_folder: "Program Files";
-    in property <string> tr_about_title: "RustCooling v0.1.3";
+    in property <string> tr_about_title: "RustCooling v1.0.0";
     in property <string> tr_about_desc: "GitHub: Qyzom/RustCooling";
 
     // Activation View State & Strings

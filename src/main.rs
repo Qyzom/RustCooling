@@ -29,7 +29,7 @@ slint::include_modules!();
 #[derive(Parser, Debug)]
 #[command(name = "RustCooling")]
 #[command(author = "Qyzom & Contributors")]
-#[command(version = "0.1.3")]
+#[command(version = "1.0.0")]
 #[command(about = "RustCooling - Lightweight LCD Display controller for ID-COOLING FX series coolers", long_about = None)]
 struct CliArgs {
     /// Run in headless daemon mode without GUI (for background / systemd)
@@ -318,7 +318,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_ref = Arc::new(Mutex::new(config));
 
     info!("==================================================");
-    info!(" RustCooling v0.1.3 - ID-COOLING FX LCD Controller");
+    info!(" RustCooling v1.0.0 - ID-COOLING FX LCD Controller");
     info!("==================================================");
 
     let monitor = MonitorService::new(Arc::clone(&config_ref));
@@ -713,7 +713,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             w.set_cpu_temp(new_temp);
                         }
 
-                        let new_load = m.load_percent.map(|l| l.round() as i32).unwrap_or(0);
+                        let new_load = m.load_percent.map(|l| l.round() as i32).unwrap_or(-1);
                         if last_load.get() != new_load {
                             last_load.set(new_load);
                             w.set_cpu_load(new_load);
