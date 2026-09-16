@@ -514,19 +514,17 @@ export component MainWindow inherits Window {
                         }
                     }
 
-                    // Bottom Continue Button (disabled until driver is installed)
+                    // Bottom Continue Button
                     AppButton {
                         height: 36px;
-                        text: root.tr_activation_continue_btn;
-                        enabled: root.is_driver_installed;
+                        text: root.is_driver_installed ? root.tr_activation_continue_btn : (root.tr_activation_continue_btn + " (Sensors fallback)");
+                        enabled: true;
                         bg: root.is_driver_installed ? #7bd0c1 : #181a24;
-                        hover_bg: root.is_driver_installed ? #90dcd0 : #181a24;
-                        text_color: root.is_driver_installed ? #101218 : #505468;
+                        hover_bg: root.is_driver_installed ? #90dcd0 : #2e3346;
+                        text_color: root.is_driver_installed ? #101218 : #e2e4ed;
                         font_size: 11px;
                         clicked => {
-                            if root.is_driver_installed {
-                                root.finish_activation();
-                            }
+                            root.finish_activation();
                         }
                     }
                 }

@@ -153,6 +153,10 @@ impl MonitorService {
                                           last_val: Option<u16>,
                                           smoothing: u32|
                  -> u16 {
+                    if raw_temp.is_nan() || !raw_temp.is_finite() {
+                        return last_val.unwrap_or(0);
+                    }
+
                     if smoothing == 0 {
                         *smoothed = Some(raw_temp);
                         raw_temp.round().clamp(0.0, 199.0) as u16
@@ -221,7 +225,12 @@ impl MonitorService {
                     }
                 }
 
-                thread::sleep(Duration::from_millis(interval_ms));
+                let sleep_quanta = Duration::from_millis(50);
+                let mut elapsed = 0u64;
+                while running.load(Ordering::Relaxed) && elapsed < interval_ms {
+                    thread::sleep(sleep_quanta);
+                    elapsed += 50;
+                }
             }
 
             // Graceful shutdown: turn off display
