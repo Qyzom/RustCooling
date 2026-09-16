@@ -1,59 +1,60 @@
 ﻿# Changelog
 
-Все важные изменения проекта RustCooling документируются в этом файле.
+All notable changes to the RustCooling project are documented in this file.
 
-Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/), и проект придерживается [Семантического версионирования](https://semver.org/lang/ru/).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
 ## [0.1.3] — 2026-09-16
 
-### Добавлено
-- **Прямое чтение физических сенсоров CPU через Ring 0:** В Windows-версию встроен проверенный микро-драйвер ядра LibreHardwareMonitor (`WinRing0x64.sys`), считывающий реальные показания Digital Thermal Sensor (DTS) процессора напрямую из MSR-регистров кремния (Intel TjMax/DTS, AMD Tctl).
-- **Экран первого запуска (Активация):** Добавлен специальный режим первичной настройки с возможностью однократного запроса прав Администратора (UAC) для регистрации и запуска службы драйвера в фоновом режиме.
-- **Шрифт Noto Sans SC для китайского языка:** В приложение встроен шрифт Noto Sans SC (Bold) для безупречного рендеринга китайских иероглифов без артефактов и выпадений глифов.
-- **Полная портативность хранения:** Файл настроек `config.json` и файл драйвера `WinRing0x64.sys` теперь хранятся непосредственно в папке рядом с `RustCooling.exe`, не засоряя системные директории (`%APPDATA%`).
+### Added
+- **Direct Physical CPU Sensor Reading via Ring 0:** Integrated LibreHardwareMonitor's proven kernel driver (`WinRing0x64.sys`) into Windows builds, reading real hardware Digital Thermal Sensor (DTS) metrics directly from physical MSR registers (Intel TjMax/DTS, AMD Tctl).
+- **First-Run Setup & Activation Screen:** Added a first-run setup wizard allowing one-click UAC administrator permission elevation to register and start the background kernel driver service.
+- **Embedded Noto Sans SC Font for Chinese:** Embedded Google Noto Sans SC (Bold) typeface to ensure flawless rendering of Simplified Chinese glyphs without tofu artifacts or clipping.
+- **True Portable Storage:** Settings file `config.json` and kernel driver `WinRing0x64.sys` are now stored directly in the folder alongside `RustCooling.exe`, leaving `%APPDATA%` completely clean.
 
-### Исправлено
-- **Вёрстка и геометрия главного окна:** Высота окна увеличена до 360 px, оптимизированы вертикальные отступы и размеры шрифтов, что полностью устранило наползание элементов интерфейса и обрезание нижней кнопки настроек при выборе китайского языка.
-- **Локализация кнопки драйвера:** Текст кнопки «Установить / Обновить (UAC)» заменён на лаконичное «Обновить» во всех 5 поддерживаемых локализациях (RU, EN, DE, FR, ZH), гарантируя идеальное размещение в карточке статуса.
-- **Отказ от ARM-сборок:** Добавлена архитектурная документация об осознанном отсутствии поддержки ARM ввиду отсутствия десктопных материнских плат с креплениями СЖО под ARM-процессоры.
+### Fixed
+- **Main Window Geometry & Layout:** Window height increased to 360 px with optimized vertical paddings and spacing, eliminating layout clipping and button overlap under Chinese typography.
+- **Concise Driver Status Button:** Renamed the driver action button to a concise "Update" across all 5 languages (EN, RU, DE, FR, ZH).
+- **ARM Architectural Clarification:** Documented that ARM desktop AIO liquid coolers do not physically exist, clarifying why ARM builds are intentionally omitted.
 
 ---
 
 ## [0.1.2] — 2026-09-14
 
-### Добавлено
-- **Немецкая и французская локализации:** Полный перевод интерфейса и трея на немецкий (`de`) и французский (`fr`) языки (всего поддерживается 5 языков).
-- **Плавный авто-триминг памяти:** После создания и отрисовки окна рабочий набор памяти автоматически оптимизируется через `EmptyWorkingSet`, снижая потребление до рекордных < 12 МБ без необходимости ручного сворачивания.
-- **Отображение иконки в диспетчере задач:** В ресурсы исполняемого файла встроены многослойные DIB и PNG иконки различных разрешений.
+### Added
+- **German and French Localizations:** Full UI and tray menu translation into German (`de`) and French (`fr`), supporting 5 languages in total.
+- **Automated Startup Memory Trimming:** Post-startup working set memory is trimmed via Win32 `EmptyWorkingSet`, dropping RAM usage to < 12 MB right after launch.
+- **Embedded Multi-Resolution Icons:** Embedded multi-layer DIB and PNG icon assets into executable PE resources for Explorer and Task Manager.
 
-### Изменено
-- **Чистое имя процесса:** Параметр `FileDescription` в таблице PE-ресурсов строго приведен к `RustCooling` без суффиксов.
-- **Упрощение анимации переходов:** Удалена избыточная интерполяция; анимация переведена в оптимизированный режим с шагом 50 мс.
-- **Синхронизация автозапуска:** Переключатель автозапуска в настройках синхронизирован с реальным состоянием реестра Windows и `.desktop` файлов Linux.
+### Changed
+- **Clean Process Identification:** `FileDescription` in PE resources is strictly set to `RustCooling` without suffix clutter.
+- **Optimized Transition Animation:** Replaced redundant interpolation with an efficient 50 ms step roller animation.
+- **Synchronized System Autostart:** Settings toggle accurately reflects the real Windows Registry and Linux `.desktop` autostart state.
 
 ---
 
 ## [0.1.1] — 2026-09-14
 
-### Добавлено
-- **Мгновенное разворачивание из трея:** Обработка событий системного трея переведена на нативные хуки сообщений Win32/X11 с прямой передачей через очередь событий Slint (0 мс задержки).
-- **Гарантированный фокус окна:** При разворачивании из трея выполняются вызовы `SW_RESTORE`, `SetForegroundWindow` и `BringWindowToTop`.
-- **Галерея скриншотов:** В документацию добавлены реальные скриншоты главного экрана и настроек.
+### Added
+- **Instant System Tray Event Handling:** Re-engineered tray event handling with native Win32/X11 message hooks dispatched directly through Slint's event loop (0 ms latency).
+- **Guaranteed Window Focus & Restoration:** Opening from system tray calls `SW_RESTORE`, `SetForegroundWindow`, and `BringWindowToTop`.
+- **UI Gallery:** Added real application screenshots directly into the documentation.
 
-### Исправлено
-- **Устранение подвисания указателя мыши:** Исправлена блокировка событий курсора при взаимодействии с системным треем.
-- **Очистка устаревшего кода:** Удалены неиспользуемые колбэки и рудименты из кодовой базы.
+### Fixed
+- **Mouse Pointer Grab Deadlock:** Resolved cursor freeze and pointer release issues when minimizing/restoring from tray.
+- **Codebase Cleanup:** Audited code and eliminated unused callbacks and legacy rudiments.
 
 ---
 
 ## [0.1.0] — 2026-09-13
 
-### Добавлено
-- **Первый релиз RustCooling:** Полный нативный перенос приложения на язык Rust с нуля.
-- **Монолитный бинарник:** Графический интерфейс, работа с USB HID, сбор телеметрии и системный трей объединены в один файл без внешних зависимостей.
-- **Нативная поддержка Linux:** Чтение телеметрии через интерфейсы ядра `/sys/class/hwmon` и `sysfs` без Wine и root-прав.
-- **Аппаратное ускорение UI:** Интерфейс на Slint с векторным рендерингом FemtoVG.
-- **Поддержка ID-COOLING FX Series:** Полноценная поддержка моделей FX240, FX280, FX360 (VID `0x1A86`, PID `0xE317`).
-- **CLI-демон:** Режим запуска `--daemon` для серверов и оконных менеджеров без рабочего стола.
+### Added
+- **Initial Release:** Complete rewrite of the ID-COOLING FX Series LCD liquid cooler controller in 100% pure Rust.
+- **Monolithic Single Binary:** Self-contained application (< 15 MB RAM active, < 5 MB in tray) with zero external runtime dependencies.
+- **Zero-Compromise Linux Support:** Direct hardware monitoring via `/sys/class/hwmon` and `sysfs` without Wine or root privileges.
+- **Hardware-Accelerated UI:** High-performance Slint interface with FemtoVG OpenGL rendering.
+- **Hardware Compatibility:** Full support for ID-COOLING FX Series coolers (FX240, FX280, FX360; USB VID `0x1A86`, PID `0xE317`).
+- **Headless Daemon Mode:** Built-in `--daemon` CLI flag for server and window manager environments.
