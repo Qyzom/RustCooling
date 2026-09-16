@@ -43,8 +43,8 @@
 | Feature | Official Vendor App | idc-lite (My Previous C# App) | **RustCooling (Current)** |
 | :--- | :---: | :---: | :---: |
 | **Technology Stack** | Electron / Node.js + C++ | C# / .NET 8 + WPF | **100% Pure Rust + Slint UI** |
-| **RAM (Active GUI)** | ~150 – 300 MB | ~60 – 120 MB | **< 12 MB** (~10.8 MB) |
-| **RAM (System Tray)** | ~80 – 150 MB | ~35 – 60 MB | **< 3 MB** (~1.1 MB) |
+| **RAM (Active GUI)** | ~210 – 300 MB | ~120 MB | **< 12 MB** (~10.8 MB) |
+| **RAM (System Tray)** | ~200 – 210 MB | ~120 MB | **< 3 MB** (~1.1 MB) |
 | **RAM (Headless Daemon)** | Not available | Separate process (~20 MB) | **~2 – 4 MB** (`--daemon`) |
 | **CPU Utilization** | 2.0% – 5.0% continuous | ~1.0% | **0.0%** (Event-driven) |
 | **Linux Support** | None (Windows only) | Experimental | **Native (hwmon / sysfs / udev)** |
