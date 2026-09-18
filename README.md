@@ -66,8 +66,8 @@
 | Feature | Official Vendor Software | idc-lite (My Previous C# App) | **RustCooling (Rust)** |
 | :--- | :---: | :---: | :---: |
 | **Tech Stack** | Electron / Node.js + C++ | C# / .NET 8 (WPF) | **100% Pure Rust + Slint** |
-| **RAM (Active Window)** | ~200 – 300 MB | ~60 – 120 MB | **~12 – 14 MB** |
-| **RAM (System Tray)** | ~80 – 150 MB | ~35 – 60 MB | **< 3 MB** (~1.1 – 2.5 MB) |
+| **RAM (Active Window)** | ~200 – 300 MB | ~120 MB | **~12 – 14 MB** |
+| **RAM (System Tray)** | ~200  MB | ~110 MB | **< 3 MB** (~1.1 – 2.5 MB) |
 | **Background CPU Load** | 2.0% – 5.0% | ~1.0% | **0.0%** (Event-driven) |
 | **Temp Jitter Smoothing** | ❌ None (jitters constantly) | ❌ None | **✔ Yes (configurable 0–100% filter)** |
 | **Linux Support** | ❌ None | ⚠️ Experimental | **✔ Native (hwmon, sysfs, udev)** |
