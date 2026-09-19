@@ -204,6 +204,7 @@ All GitHub releases across the repository **must strictly adhere to the followin
 ### Release Assets
 - **`RustCooling.exe`** — Portable standalone executable for Windows 10/11 x64 (no installation required, ready to run).
 - **`RustCooling-X.X.X.exe`** — Versioned standalone executable for Windows 10/11 x64.
+- **`RustCooling-X.X.X.AppImage`** — Standalone universal AppImage for all x86_64 Linux distributions.
 - **`RustCooling-X.X.X.deb`** — Debian, Ubuntu, and Linux Mint package with automatic udev rules configuration.
 - **`RustCooling-X.X.X.tar.gz`** — Universal archive for Arch Linux, Fedora, and other distributions with `install.sh` script.
 ```
@@ -216,6 +217,7 @@ All GitHub releases across the repository **must strictly adhere to the followin
 5. **Asset Naming Convention:**
    - Windows default binary: `RustCooling.exe`
    - Windows versioned binary: `RustCooling-X.X.X.exe`
+   - Linux AppImage: `RustCooling-X.X.X.AppImage` (generated automatically by GitHub Actions CI)
    - Debian/Ubuntu installer: `RustCooling-X.X.X.deb` (generated automatically by GitHub Actions CI)
    - Generic Linux archive: `RustCooling-X.X.X.tar.gz` (generated automatically by GitHub Actions CI)
 6. **Publishing Process:**
@@ -230,5 +232,5 @@ All GitHub releases across the repository **must strictly adhere to the followin
        --title "RustCooling X.X.X" \
        --notes-file release_notes.md
      ```
-   - GitHub Actions (`.github/workflows/release.yml`) triggers on the pushed tag, compiles Linux `.deb` and `.tar.gz`, and automatically attaches them to the release via `gh release upload ... --clobber`.
+   - GitHub Actions (`.github/workflows/release.yml`) triggers on the pushed tag, compiles Linux `.AppImage`, `.deb`, and `.tar.gz`, and automatically attaches them to the release via `gh release upload ... --clobber`.
 

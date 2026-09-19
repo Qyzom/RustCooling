@@ -87,13 +87,26 @@ Pre-built binaries are available on the [**Releases**](https://github.com/Qyzom/
 3. On first run, the activation screen will appear: click **"Grant Rights & Install"** (UAC) to register the LibreHardwareMonitor sensor driver once.
 4. Click **"Continue"** — the application is ready to use! System autostart is available in Settings.
 
+#### Linux (Universal AppImage — All Distributions)
+```bash
+chmod +x RustCooling-1.0.0.AppImage
+./RustCooling-1.0.0.AppImage
+```
+
+#### Linux (Arch Linux / AUR)
+```bash
+cd packaging/aur
+makepkg -si
+```
+*(Or via AUR helper `yay -S rustcooling-bin` / `paru -S rustcooling-bin`)*
+
 #### Linux (Debian / Ubuntu / Linux Mint)
 ```bash
 sudo dpkg -i RustCooling-1.0.0.deb
 ```
 *(Desktop shortcut and udev rules for non-root USB pump access will be configured automatically).*
 
-#### Linux (Arch / Fedora / Generic Tarball)
+#### Linux (Fedora / Generic Tarball)
 ```bash
 tar -xzf RustCooling-1.0.0.tar.gz
 cd RustCooling-1.0.0
