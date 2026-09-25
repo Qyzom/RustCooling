@@ -29,7 +29,7 @@ slint::include_modules!();
 #[derive(Parser, Debug)]
 #[command(name = "RustCooling")]
 #[command(author = "Qyzom & Contributors")]
-#[command(version = "1.0.0")]
+#[command(version)]
 #[command(about = "RustCooling - Lightweight LCD Display controller for ID-COOLING FX series coolers", long_about = None)]
 struct CliArgs {
     /// Run in headless daemon mode without GUI (for background / systemd)
@@ -58,6 +58,10 @@ pub fn show_and_focus_window(w: &MainWindow) {
 pub fn hide_window_to_tray(w: &MainWindow) {
     w.window().dispatch_event(slint::platform::WindowEvent::PointerExited);
     let _ = w.hide();
+    #[cfg(target_os = "linux")]
+    unsafe {
+        libc::malloc_trim(0);
+    }
 }
 
 fn set_autostart(enable: bool) {
@@ -318,7 +322,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_ref = Arc::new(Mutex::new(config));
 
     info!("==================================================");
-    info!(" RustCooling v1.0.0 - ID-COOLING FX LCD Controller");
+    info!(" RustCooling v{} - ID-COOLING FX LCD Controller", env!("CARGO_PKG_VERSION"));
     info!("==================================================");
 
     let monitor = MonitorService::new(Arc::clone(&config_ref));
@@ -393,6 +397,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let on_tray_action_retry = on_tray_action.clone();
 
+    #[cfg(target_os = "linux")]
+    {
+        if let Err(e) = gtk::init() {
+            warn!("Failed to initialize GTK for system tray: {:?}", e);
+        }
+    }
+
     // Initialize System Tray after Slint/Winit is initialized on the UI thread
     let tray = match SystemTray::new(on_tray_action) {
         Ok(t) => {
@@ -423,10 +434,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let is_activation = false;
 
         main_window.set_is_activation_mode(is_activation);
+        main_window.set_show_driver_card(cfg!(windows));
     }
     apply_translations(&main_window);
 
     // Request driver installation callback (UAC elevation)
+    #[cfg(windows)]
     let win_for_driver = main_window.as_weak();
     main_window.on_request_install_driver(move || {
         info!("UI Event: Request Install Driver clicked");
@@ -609,62 +622,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Smooth, reliable window dragging that preserves Slint pointer capture
-    struct DragState {
-        is_dragging: bool,
-        start_cursor: (i32, i32),
-        start_win: (i32, i32),
-    }
-    let drag_state = Rc::new(RefCell::new(DragState {
-        is_dragging: false,
-        start_cursor: (0, 0),
-        start_win: (0, 0),
-    }));
-
-    let drag_for_start = Rc::clone(&drag_state);
+    // Native, smooth window dragging for Wayland/X11 and Windows
     let win_for_drag_start = main_window.as_weak();
     main_window.on_drag_start(move || {
-        #[cfg(windows)]
-        {
-            use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
-            let mut pt = windows_sys::Win32::Foundation::POINT { x: 0, y: 0 };
-            unsafe { GetCursorPos(&mut pt) };
-            if let Some(w) = win_for_drag_start.upgrade() {
-                let pos = w.window().position();
-                let mut state = drag_for_start.borrow_mut();
-                state.is_dragging = true;
-                state.start_cursor = (pt.x, pt.y);
-                state.start_win = (pos.x, pos.y);
-            }
+        if let Some(w) = win_for_drag_start.upgrade() {
+            use i_slint_backend_winit::WinitWindowAccessor;
+            let _ = w.window().with_winit_window(|win| {
+                let _ = win.drag_window();
+            });
         }
     });
-
-    let drag_for_move = Rc::clone(&drag_state);
-    let win_for_drag_move = main_window.as_weak();
-    main_window.on_drag_move(move || {
-        #[cfg(windows)]
-        {
-            let state = drag_for_move.borrow();
-            if state.is_dragging {
-                use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
-                let mut pt = windows_sys::Win32::Foundation::POINT { x: 0, y: 0 };
-                unsafe { GetCursorPos(&mut pt) };
-                let dx = pt.x - state.start_cursor.0;
-                let dy = pt.y - state.start_cursor.1;
-                if let Some(w) = win_for_drag_move.upgrade() {
-                    w.window().set_position(slint::PhysicalPosition::new(
-                        state.start_win.0 + dx,
-                        state.start_win.1 + dy,
-                    ));
-                }
-            }
-        }
-    });
-
-    let drag_for_end = Rc::clone(&drag_state);
-    main_window.on_drag_end(move || {
-        drag_for_end.borrow_mut().is_dragging = false;
-    });
+    main_window.on_drag_move(|| {});
+    main_window.on_drag_end(|| {});
 
     // Periodic UI update timer (60ms)
     let handle_for_timer = main_window.as_weak();
@@ -683,6 +652,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         slint::TimerMode::Repeated,
         Duration::from_millis(60),
         move || {
+            #[cfg(target_os = "linux")]
+            {
+                while gtk::events_pending() {
+                    gtk::main_iteration_do(false);
+                }
+            }
+
             // Attempt a single retry for tray initialization if it wasn't ready at startup (after ~1.5s)
             let tick = tray_retry_counter.fetch_add(1, Ordering::Relaxed);
             if tick == 25 && tray_for_timer.borrow().is_none() {
@@ -900,6 +876,11 @@ mod window_tests {
         win.set_is_driver_installed(true);
         assert!(!win.get_is_activation_mode());
         assert!(win.get_is_driver_installed());
+
+        win.set_show_driver_card(false);
+        assert!(!win.get_show_driver_card());
+        win.set_show_driver_card(true);
+        assert!(win.get_show_driver_card());
 
         // 2. Test Drag Safety (Drag must never break subsequent button clicks)
         let drag_started = Arc::new(AtomicBool::new(false));

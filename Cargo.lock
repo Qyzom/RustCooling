@@ -4,13 +4,16 @@ version = 4
 
 [[package]]
 name = "RustCooling"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "auto-launch",
  "clap",
  "dirs 6.0.0",
  "env_logger",
+ "gtk",
  "hidapi",
+ "i-slint-backend-winit",
+ "libc",
  "log",
  "muda 0.15.3",
  "serde",

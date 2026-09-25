@@ -74,6 +74,11 @@
 | **Startup Time** | 3.0 – 6.0 sec | 1.5 – 3.0 sec | **< 50 ms** |
 | **UI Languages** | EN, ZH | EN, RU, ZH | **EN, RU, ZH, DE, FR** |
 
+> [!TIP]
+> **RAM on Linux vs Windows:**  
+> On Windows, RustCooling sits at ~12–14 MB (and < 3 MB in tray) because Windows D3D isolates driver runtimes and trims working sets on minimize. On Linux, the core engine uses only **~2.6 MB** heap (`RssAnon`), but Linux system monitors count shared Mesa GPU libraries and LLVM JIT into the total `VmRSS` (~120 MB).  
+> To run with minimal memory (~20 MB total) on Linux without Mesa/LLVM overhead, run with software rendering: `SLINT_BACKEND=winit-software RustCooling`, or in headless mode: `RustCooling --daemon` (< 3 MB).
+
 ---
 
 ### Quick Start
@@ -88,27 +93,28 @@ Pre-built binaries are available on the [**Releases**](https://github.com/Qyzom/
 
 #### Linux (Universal AppImage — All Distributions)
 ```bash
-chmod +x RustCooling-1.0.0.AppImage
-./RustCooling-1.0.0.AppImage
+chmod +x RustCooling-1.0.1.AppImage
+./RustCooling-1.0.1.AppImage
 ```
 
-#### Linux (Arch Linux / AUR)
+#### Linux (Arch Linux / CachyOS / Manjaro)
+Build and install natively via `pacman` with full system tray and desktop integration:
 ```bash
-cd packaging/aur
+cd packaging/arch
 makepkg -si
 ```
-*(Or via AUR helper `yay -S rustcooling-bin` / `paru -S rustcooling-bin`)*
+*(Or via AUR: `yay -S rustcooling-bin` / `paru -S rustcooling-bin`)*
 
 #### Linux (Debian / Ubuntu / Linux Mint)
 ```bash
-sudo dpkg -i RustCooling-1.0.0.deb
+sudo dpkg -i RustCooling-1.0.1.deb
 ```
 *(Desktop shortcut and udev rules for non-root USB pump access will be configured automatically).*
 
 #### Linux (Fedora / Generic Tarball)
 ```bash
-tar -xzf RustCooling-1.0.0.tar.gz
-cd RustCooling-1.0.0
+tar -xzf RustCooling-1.0.1.tar.gz
+cd RustCooling-1.0.1
 sudo ./install.sh
 ```
 

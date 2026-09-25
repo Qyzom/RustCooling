@@ -1,4 +1,6 @@
 fn main() {
+    println!("cargo:rerun-if-changed=ui/app.slint");
+    println!("cargo:rerun-if-changed=build.rs");
     slint_build::compile("ui/app.slint").unwrap();
 
     #[cfg(windows)]

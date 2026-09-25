@@ -26,7 +26,7 @@
   "temp_src_core0": "Core 0",
   "temp_src_avg": "Average Cores",
   "temp_src_max": "Max Core",
-  "about_title": "RustCooling v1.0.0",
+  "about_title": "RustCooling v1.0.1",
   "about_desc": "GitHub: Qyzom/RustCooling",
   "setting_open_config": "Program Files",
   "setting_debug_title": "Hardware & USB VID / PID",

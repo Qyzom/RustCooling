@@ -5,3 +5,6 @@ dist/
 *.log
 *.exe
 log_*.txt
+packaging/**/pkg/
+packaging/**/src/
+**/*.pkg.tar.*

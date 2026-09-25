@@ -218,10 +218,11 @@ export component MainWindow inherits Window {
     in property <string> tr_setting_debug: "Hardware & USB VID / PID";
     in property <string> tr_setting_reset_defaults: "Reset to Defaults";
     in property <string> tr_open_config_folder: "Program Files";
-    in property <string> tr_about_title: "RustCooling v1.0.0";
+    in property <string> tr_about_title: "RustCooling v1.0.1";
     in property <string> tr_about_desc: "GitHub: Qyzom/RustCooling";
 
     // Activation View State & Strings
+    in-out property <bool> show_driver_card: false;
     in-out property <bool> is_activation_mode: false;
     in-out property <bool> is_driver_installed: false;
     in property <string> tr_activation_title: "RustCooling - Активация";
@@ -1398,8 +1399,8 @@ export component MainWindow inherits Window {
                                 }
                             }
 
-                            // Card: Sensor Driver (Ring 0)
-                            Rectangle {
+                            // Card: Sensor Driver (Ring 0) - only shown on Windows
+                            if root.show_driver_card : Rectangle {
                                 background: #171924;
                                 border-radius: 12px;
                                 border-width: 1px;
