@@ -71,7 +71,6 @@
 | **Background CPU Load** | 2.0% – 5.0% | ~1.0% | **0.0%** (Event-driven) |
 | **Temp Jitter Smoothing** | ❌ None (jitters constantly) | ❌ None | **✔ Yes (configurable 0–100% filter)** |
 | **Linux Support** | ❌ None | ⚠️ Experimental | **✔ Native (hwmon, sysfs, udev)** |
-| **Sensor Driver** | Proprietary closed Ring 0 | WinRing0.sys (external) | **✔ Embedded LibreHardwareMonitor (Win) / Driverless (Linux)** |
 | **Startup Time** | 3.0 – 6.0 sec | 1.5 – 3.0 sec | **< 50 ms** |
 | **UI Languages** | EN, ZH | EN, RU, ZH | **EN, RU, ZH, DE, FR** |
 
