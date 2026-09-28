@@ -8,7 +8,6 @@
 [Full Changelog](https://github.com/Qyzom/RustCooling/commits/main)
 
 ### Release Assets
-- **`RustCooling.exe`** — Portable standalone executable for Windows 10/11 x64 (no installation required, ready to run).
 - **`RustCooling-1.0.1.exe`** — Versioned standalone executable for Windows 10/11 x64.
 - **`RustCooling-1.0.1.AppImage`** — Standalone universal AppImage for all x86_64 Linux distributions.
 - **`RustCooling-1.0.1.deb`** — Debian, Ubuntu, and Linux Mint package with automatic udev rules configuration.

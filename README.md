@@ -86,7 +86,7 @@
 Pre-built binaries are available on the [**Releases**](https://github.com/Qyzom/RustCooling/releases/latest) page.
 
 #### Windows (Portable)
-1. Download **[`RustCooling.exe`](https://github.com/Qyzom/RustCooling/releases/latest)**.
+1. Download **[`RustCooling-1.0.1.exe`](https://github.com/Qyzom/RustCooling/releases/latest)**.
 2. Place it in any folder of your choice (e.g. `C:\Tools\RustCooling\`). Configuration (`config.json`) and the micro-driver will reside directly next to it.
 3. On first run, the activation screen will appear: click **"Grant Rights & Install"** (UAC) to register the LibreHardwareMonitor sensor driver once.
 4. Click **"Continue"** — the application is ready to use! System autostart is available in Settings.
