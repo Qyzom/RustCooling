@@ -1,14 +1,14 @@
 ### What's New
-- Native Arch Linux packaging: fixed missing dependencies, eliminated build conflicts with GCC LTO (`options=('!lto')`), and added automated `pacman` build support (`makepkg -si`).
-- Fixed system tray on Linux: added explicit GTK3 initialization and event loop pumping in the UI timer, restoring tray menus and minimize/restore actions on Wayland and X11.
-- Native Wayland window dragging: replaced Win32 `GetCursorPos` delta math with Winit's native `drag_window()`, enabling flawless window movement in Hyprland, Sway, and other Wayland compositors.
-- UI cleanup on Linux: hid the Windows-only WinRing0 kernel driver settings card when running under Linux.
-- Linux memory optimization: added `malloc_trim(0)` when hiding to system tray to release freed heap pages back to the kernel.
+- Restored smooth roller transition animation: temperature and load step degree-by-degree at 50 ms intervals with accurate polling compensation.
+- Optimized Linux sysfs hwmon scanning: isolated CPU sensors to prevent NVMe/WiFi drives from contaminating core average/max telemetry.
+- Streamlined Linux `/proc/stat` CPU load reader using line-buffered streams to reduce memory allocations and latency.
+- Added application icon metadata to Linux autostart desktop entry for desktop environment settings.
+- CI/CD release workflow optimization: removed duplicate unversioned executable build and improved version tag extraction.
 
 [Full Changelog](https://github.com/Qyzom/RustCooling/commits/main)
 
 ### Release Assets
-- **`RustCooling-1.0.1.exe`** — Versioned standalone executable for Windows 10/11 x64.
-- **`RustCooling-1.0.1.AppImage`** — Standalone universal AppImage for all x86_64 Linux distributions.
-- **`RustCooling-1.0.1.deb`** — Debian, Ubuntu, and Linux Mint package with automatic udev rules configuration.
-- **`RustCooling-1.0.1.tar.gz`** — Universal archive for Arch Linux, Fedora, and other distributions with `install.sh` script.
+- **`RustCooling-1.0.2.exe`** — Versioned standalone executable for Windows 10/11 x64 (no installation required, ready to run).
+- **`RustCooling-1.0.2.AppImage`** — Standalone universal AppImage for all x86_64 Linux distributions.
+- **`RustCooling-1.0.2.deb`** — Debian, Ubuntu, and Linux Mint package with automatic udev rules configuration.
+- **`RustCooling-1.0.2.tar.gz`** — Universal archive for Arch Linux, Fedora, and other distributions with `install.sh` script.
