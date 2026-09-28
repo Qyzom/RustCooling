@@ -33,33 +33,50 @@ impl LinuxTelemetry {
         let hwmon_base = Path::new("/sys/class/hwmon");
         if hwmon_base.exists() {
             if let Ok(entries) = fs::read_dir(hwmon_base) {
-                let mut dirs: Vec<_> = entries.filter_map(|e| e.ok().map(|d| d.path())).collect();
+                let mut hwmon_devices: Vec<(std::path::PathBuf, String)> = entries
+                    .filter_map(|e| e.ok().map(|d| d.path()))
+                    .map(|dir| {
+                        let name = fs::read_to_string(dir.join("name"))
+                            .ok()
+                            .map(|s| s.trim().to_lowercase())
+                            .unwrap_or_default();
+                        (dir, name)
+                    })
+                    .collect();
 
-                // Prioritize known CPU thermal drivers
-                let preferred_drivers = [
+                // Known primary CPU thermal drivers
+                let preferred_cpu_drivers = [
                     "coretemp",
                     "k10temp",
                     "zenpower",
                     "cpu_thermal",
                     "soc_thermal",
-                    "acpitz",
                 ];
-                dirs.sort_by_key(|dir| {
-                    let name_path = dir.join("name");
-                    if let Ok(content) = fs::read_to_string(&name_path) {
-                        let name = content.trim().to_lowercase();
-                        if preferred_drivers.iter().any(|d| name.contains(d)) {
-                            return 0;
-                        }
+
+                // Prioritize dedicated CPU thermal drivers
+                hwmon_devices.sort_by_key(|(_, name)| {
+                    if preferred_cpu_drivers.iter().any(|d| name.contains(d)) {
+                        0
+                    } else if name.contains("acpitz") {
+                        1
+                    } else {
+                        2
                     }
-                    1
                 });
 
                 let mut package_temp: Option<f32> = None;
                 let mut core0_temp: Option<f32> = None;
                 let mut core_temps: Vec<f32> = Vec::new();
+                let mut found_primary_cpu = false;
 
-                for dir in dirs {
+                for (dir, driver_name) in hwmon_devices {
+                    let is_cpu_driver = preferred_cpu_drivers.iter().any(|d| driver_name.contains(d));
+
+                    // Once primary CPU driver temps are collected, skip non-CPU devices (nvme, wifi, etc.)
+                    if found_primary_cpu && !is_cpu_driver {
+                        continue;
+                    }
+
                     if let Ok(files) = fs::read_dir(&dir) {
                         for file in files.filter_map(|f| f.ok()) {
                             let file_name = file.file_name().to_string_lossy().to_string();
@@ -76,11 +93,27 @@ impl LinuxTelemetry {
                                     String::new()
                                 };
 
+                                // Skip non-CPU devices if their label indicates non-CPU sensors
+                                if !is_cpu_driver {
+                                    let is_likely_cpu = label.contains("cpu")
+                                        || label.contains("package")
+                                        || label.contains("core")
+                                        || label.contains("tctl")
+                                        || label.contains("tdie");
+                                    if !is_likely_cpu {
+                                        continue;
+                                    }
+                                }
+
                                 if let Ok(val_str) = fs::read_to_string(file.path()) {
                                     if let Ok(val) = val_str.trim().parse::<f32>() {
                                         // sysfs temps are usually in millidegrees Celsius
                                         let c = if val > 1000.0 { val / 1000.0 } else { val };
                                         if (15.0..=120.0).contains(&c) {
+                                            if is_cpu_driver {
+                                                found_primary_cpu = true;
+                                            }
+
                                             if label.contains("tdie")
                                                 || label.contains("tctl")
                                                 || label.contains("package")
@@ -102,8 +135,8 @@ impl LinuxTelemetry {
                                                 || label.contains("cpu")
                                             {
                                                 core_temps.push(c);
-                                            } else {
-                                                // Generic sensor fallback
+                                            } else if is_cpu_driver {
+                                                // Generic sensor inside a dedicated CPU thermal driver
                                                 core_temps.push(c);
                                             }
                                         }
@@ -179,37 +212,37 @@ impl LinuxTelemetry {
 
     /// Read CPU load percentage from /proc/stat by calculating delta against previous sample.
     fn read_cpu_load(&mut self) -> Option<f32> {
-        if let Ok(content) = fs::read_to_string("/proc/stat") {
-            if let Some(first_line) = content.lines().next() {
-                if first_line.starts_with("cpu ") {
-                    let parts: Vec<&str> = first_line.split_whitespace().collect();
-                    if parts.len() >= 5 {
-                        let user: u64 = parts[1].parse().unwrap_or(0);
-                        let nice: u64 = parts[2].parse().unwrap_or(0);
-                        let system: u64 = parts[3].parse().unwrap_or(0);
-                        let idle: u64 = parts[4].parse().unwrap_or(0);
-                        let iowait: u64 = parts.get(5).and_then(|s| s.parse().ok()).unwrap_or(0);
-                        let irq: u64 = parts.get(6).and_then(|s| s.parse().ok()).unwrap_or(0);
-                        let softirq: u64 = parts.get(7).and_then(|s| s.parse().ok()).unwrap_or(0);
-                        let steal: u64 = parts.get(8).and_then(|s| s.parse().ok()).unwrap_or(0);
+        let file = fs::File::open("/proc/stat").ok()?;
+        let mut reader = std::io::BufReader::new(file);
+        let mut first_line = String::new();
+        use std::io::BufRead;
+        reader.read_line(&mut first_line).ok()?;
 
-                        let idle_all = idle + iowait;
-                        let system_all = system + irq + softirq;
-                        let total = user + nice + system_all + idle_all + steal;
+        if first_line.starts_with("cpu ") {
+            let mut parts = first_line.split_whitespace().skip(1);
+            let user: u64 = parts.next()?.parse().unwrap_or(0);
+            let nice: u64 = parts.next()?.parse().unwrap_or(0);
+            let system: u64 = parts.next()?.parse().unwrap_or(0);
+            let idle: u64 = parts.next()?.parse().unwrap_or(0);
+            let iowait: u64 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+            let irq: u64 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+            let softirq: u64 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+            let steal: u64 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
 
-                        let total_delta = total.saturating_sub(self.prev_total);
-                        let idle_delta = idle_all.saturating_sub(self.prev_idle);
+            let idle_all = idle + iowait;
+            let system_all = system + irq + softirq;
+            let total = user + nice + system_all + idle_all + steal;
 
-                        self.prev_total = total;
-                        self.prev_idle = idle_all;
+            let total_delta = total.saturating_sub(self.prev_total);
+            let idle_delta = idle_all.saturating_sub(self.prev_idle);
 
-                        if total_delta > 0 {
-                            let busy = total_delta.saturating_sub(idle_delta);
-                            let load = (busy as f32 * 100.0) / (total_delta as f32);
-                            return Some(load.clamp(0.0, 100.0));
-                        }
-                    }
-                }
+            self.prev_total = total;
+            self.prev_idle = idle_all;
+
+            if total_delta > 0 {
+                let busy = total_delta.saturating_sub(idle_delta);
+                let load = (busy as f32 * 100.0) / (total_delta as f32);
+                return Some(load.clamp(0.0, 100.0));
             }
         }
         None
@@ -228,5 +261,22 @@ impl TelemetryProvider for LinuxTelemetry {
 
     fn get_metrics(&self) -> CpuMetrics {
         self.metrics.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_linux_telemetry_initialization() {
+        let mut provider = LinuxTelemetry::new();
+        provider.set_temp_source("package");
+        provider.update();
+        let metrics = provider.get_metrics();
+        // On systems with thermal sysfs, temperature should be detected or None
+        if let Some(t) = metrics.temperature {
+            assert!((10.0..=125.0).contains(&t));
+        }
     }
 }

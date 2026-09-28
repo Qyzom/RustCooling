@@ -104,6 +104,7 @@ fn set_autostart(enable: bool) {
                          Version=1.0\n\
                          Name=RustCooling\n\
                          Comment=ID-COOLING FX LCD Controller\n\
+                         Icon=rustcooling\n\
                          Exec=\"{}\" --minimized\n\
                          Terminal=false\n\
                          Categories=Utility;HardwareSettings;\n\
@@ -780,6 +781,7 @@ mod window_tests {
              Version=1.0\n\
              Name=RustCooling\n\
              Comment=ID-COOLING FX LCD Controller\n\
+             Icon=rustcooling\n\
              Exec=\"{}\" --minimized\n\
              Terminal=false\n\
              Categories=Utility;HardwareSettings;\n\
@@ -788,6 +790,7 @@ mod window_tests {
         );
         assert!(entry.contains("Exec=\"/usr/local/bin/RustCooling\" --minimized"));
         assert!(entry.contains("Type=Application"));
+        assert!(entry.contains("Icon=rustcooling"));
     }
 
     #[test]

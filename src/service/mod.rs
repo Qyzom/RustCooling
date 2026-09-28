@@ -307,6 +307,7 @@ fn render_animated_metric(
                 let step_delay_ms = calculate_step_delay(steps, interval_ms);
 
                 let mut curr = prev_val as i32;
+                let mut completed_val = prev_val;
                 for _ in 0..steps {
                     if !running.load(Ordering::Relaxed) {
                         break;
@@ -320,10 +321,11 @@ fn render_animated_metric(
                     if let Ok(mut val) = state.broadcast_value.lock() {
                         *val = format!("{} {}", curr_u16, unit);
                     }
+                    completed_val = curr_u16;
                     thread::sleep(Duration::from_millis(step_delay_ms));
                 }
 
-                *last_displayed_val = Some(target_val);
+                *last_displayed_val = Some(completed_val);
                 step_delay_ms * steps as u64
             }
         }
