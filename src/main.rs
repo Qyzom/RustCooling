@@ -815,9 +815,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Close window (top-right cross) -> exits GUI, frees terminal, and hands off to background daemon
     let keep_for_close = Arc::clone(&keep_daemon_on_exit);
     main_window.on_close_window(move || {
-        info!("Window close requested -> exiting GUI and switching to background daemon");
+        info!("Window close requested (UI button) -> exiting GUI and switching to background daemon");
         keep_for_close.store(true, Ordering::SeqCst);
         let _ = slint::quit_event_loop();
+    });
+
+    // Window manager close request (Super+Q in Hyprland, Alt+F4, xdg_toplevel close)
+    let keep_for_req = Arc::clone(&keep_daemon_on_exit);
+    main_window.window().on_close_requested(move || {
+        info!("Window manager close requested (Super+Q / Alt+F4 / WM) -> exiting GUI and switching to background daemon");
+        keep_for_req.store(true, Ordering::SeqCst);
+        let _ = slint::quit_event_loop();
+        slint::CloseRequestResponse::HideWindow
     });
 
     // Native, smooth window dragging for Wayland/X11 and Windows
