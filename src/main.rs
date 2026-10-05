@@ -336,8 +336,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut raw_args: Vec<String> = std::env::args().collect();
     for arg in raw_args.iter_mut() {
-        if arg == "-tui" {
+        if arg == "-tui" || arg == "tui" {
             *arg = "--tui".to_string();
+        } else if arg == "daemon" {
+            *arg = "--daemon".to_string();
+        } else if arg == "stop" {
+            *arg = "--stop".to_string();
+        } else if arg == "status" {
+            *arg = "--status".to_string();
         }
     }
     let args = CliArgs::parse_from(raw_args);
@@ -487,7 +493,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("Launching interactive TUI mode...");
         service::lifecycle::stop_daemon();
         let monitor = Arc::new(MonitorService::new(Arc::clone(&config_ref)));
+        // Pre-arm screen persistence so terminal closure or unexpected crash does not shut down the display
+        monitor.leave_screen_on();
         monitor.start();
+
+        #[cfg(target_os = "linux")]
+        unsafe {
+            extern "C" fn tui_sighup_handler(_: libc::c_int) {
+                // When terminal window is closed, immediately spawn detached background daemon
+                let _ = crate::service::lifecycle::spawn_daemon();
+                unsafe {
+                    libc::_exit(0);
+                }
+            }
+            libc::signal(libc::SIGHUP, tui_sighup_handler as *const () as usize);
+            libc::signal(libc::SIGTERM, tui_sighup_handler as *const () as usize);
+        }
 
         let mut app = tui::TuiApp::new(Arc::clone(&config_ref), Arc::clone(&monitor));
         let keep_daemon = app.run().unwrap_or(true);
@@ -499,6 +520,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 warn!("Failed to spawn daemon process.");
             }
         } else {
+            // User explicitly requested power off with X
+            monitor.power_off_on_stop();
             monitor.stop();
             #[cfg(windows)]
             {

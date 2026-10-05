@@ -2,7 +2,7 @@ use crate::config::AppConfig;
 use crate::i18n::I18n;
 use crate::service::MonitorService;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyModifiers},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -24,8 +24,8 @@ struct TerminalCleanupGuard;
 
 impl Drop for TerminalCleanupGuard {
     fn drop(&mut self) {
+        let _ = execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture);
         let _ = disable_raw_mode();
-        let _ = execute!(stdout(), LeaveAlternateScreen);
     }
 }
 
@@ -78,7 +78,7 @@ impl TuiApp {
     pub fn run(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
         enable_raw_mode()?;
         let mut stdout = stdout();
-        execute!(stdout, EnterAlternateScreen)?;
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
         let _guard = TerminalCleanupGuard;
 
         let backend = CrosstermBackend::new(stdout);
@@ -109,56 +109,68 @@ impl TuiApp {
 
             let timeout = Duration::from_millis(100).saturating_sub(last_tick.elapsed());
             if event::poll(timeout)? {
-                if let Event::Key(key) = event::read()? {
-                    if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
-                        keep_daemon_running = true;
-                        break;
-                    }
-
-                    match key.code {
-                        KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
+                match event::read()? {
+                    Event::Key(key) => {
+                        if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
                             keep_daemon_running = true;
                             break;
                         }
-                        KeyCode::Char('x') | KeyCode::Char('X') => {
-                            keep_daemon_running = false;
-                            break;
-                        }
-                        KeyCode::Tab => {
-                            self.selected_tab = (self.selected_tab + 1) % 2;
-                        }
-                        KeyCode::BackTab => {
-                            self.selected_tab = if self.selected_tab == 0 { 1 } else { 0 };
-                        }
-                        KeyCode::Char('s') | KeyCode::Char('S') => {
-                            self.save_settings();
-                        }
-                        KeyCode::Char('r') | KeyCode::Char('R') => {
-                            self.reset_defaults();
-                        }
-                        KeyCode::Up | KeyCode::Char('k') => {
-                            if self.selected_tab == 1 && self.selected_setting > 0 {
-                                self.selected_setting -= 1;
+
+                        match key.code {
+                            KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
+                                keep_daemon_running = true;
+                                break;
                             }
-                        }
-                        KeyCode::Down | KeyCode::Char('j') => {
-                            if self.selected_tab == 1 && self.selected_setting < 11 {
-                                self.selected_setting += 1;
-                            }
-                        }
-                        KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('-') if self.selected_tab == 1 => {
-                            self.adjust_setting(false);
-                        }
-                        KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('+') | KeyCode::Enter | KeyCode::Char(' ') if self.selected_tab == 1 => {
-                            if self.selected_setting == 11 {
+                            KeyCode::Char('x') | KeyCode::Char('X') => {
                                 keep_daemon_running = false;
                                 break;
-                            } else {
-                                self.adjust_setting(true);
                             }
+                            KeyCode::Char('1') => {
+                                self.selected_tab = 0;
+                            }
+                            KeyCode::Char('2') => {
+                                self.selected_tab = 1;
+                            }
+                            KeyCode::Tab => {
+                                self.selected_tab = (self.selected_tab + 1) % 2;
+                            }
+                            KeyCode::BackTab => {
+                                self.selected_tab = if self.selected_tab == 0 { 1 } else { 0 };
+                            }
+                            KeyCode::Char('s') | KeyCode::Char('S') => {
+                                self.save_settings();
+                            }
+                            KeyCode::Char('r') | KeyCode::Char('R') => {
+                                self.reset_defaults();
+                            }
+                            KeyCode::Up | KeyCode::Char('k') => {
+                                if self.selected_tab == 1 && self.selected_setting > 0 {
+                                    self.selected_setting -= 1;
+                                }
+                            }
+                            KeyCode::Down | KeyCode::Char('j') => {
+                                if self.selected_tab == 1 && self.selected_setting < 11 {
+                                    self.selected_setting += 1;
+                                }
+                            }
+                            KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('-') if self.selected_tab == 1 => {
+                                self.adjust_setting(false);
+                            }
+                            KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('+') | KeyCode::Enter | KeyCode::Char(' ') if self.selected_tab == 1 => {
+                                if self.selected_setting == 11 {
+                                    keep_daemon_running = false;
+                                    break;
+                                } else {
+                                    self.adjust_setting(true);
+                                }
+                            }
+                            _ => {}
                         }
-                        _ => {}
                     }
+                    Event::Mouse(_) => {
+                        // Completely ignore mouse events (mouse wheel scroll, clicks, moves). Does nothing!
+                    }
+                    _ => {}
                 }
             }
 
@@ -330,8 +342,8 @@ impl TuiApp {
         frame.render_widget(title_widget, header_chunks[0]);
 
         let tab_titles = vec![
-            format!(" 1. {} ", t.app_title),
-            format!(" 2. {} ", t.settings_title),
+            format!(" [1] {} ", t.app_title),
+            format!(" [2] {} ", t.settings_title),
         ];
         let tabs = Tabs::new(tab_titles)
             .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::DarkGray)))
@@ -515,7 +527,7 @@ impl TuiApp {
             Line::from(Span::raw(""))
         };
 
-        let keys_text = " [Tab] View | [↑/↓] Select | [←/→] Change | [S] Save | [Q] Exit (Daemon in background) | [X] Stop";
+        let keys_text = " [1/2/Tab] Tabs | [↑/↓] Select | [←/→] Change | [S] Save | [Q] Exit to Daemon | [X] Stop";
         let footer_widget = Paragraph::new(vec![
             msg_line,
             Line::from(Span::styled(keys_text, Style::default().fg(Color::Cyan))),

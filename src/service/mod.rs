@@ -266,6 +266,10 @@ impl MonitorService {
         self.device.power_off_on_drop.store(false, Ordering::SeqCst);
     }
 
+    pub fn power_off_on_stop(&self) {
+        self.device.power_off_on_drop.store(true, Ordering::SeqCst);
+    }
+
     pub fn stop(&self) {
         self.running.store(false, Ordering::SeqCst);
         if let Ok(mut guard) = self.worker_handle.lock() {

@@ -53,6 +53,17 @@ if [ -f "$SERVICE_FILE" ]; then
     install -m 644 "$SERVICE_FILE" /usr/lib/systemd/user/rustcooling.service
 fi
 
+echo "[*] Installing application fonts (Unbounded & Noto Sans SC)..."
+FONTS_DIR="$SCRIPT_DIR/fonts"
+[ -d "$FONTS_DIR" ] || FONTS_DIR="$REPO_ROOT/assets/fonts"
+if [ -d "$FONTS_DIR" ]; then
+    install -d /usr/share/fonts/truetype/rustcooling
+    install -m 644 "$FONTS_DIR"/*.ttf /usr/share/fonts/truetype/rustcooling/ 2>/dev/null || true
+    if command -v fc-cache >/dev/null 2>&1; then
+        fc-cache -f /usr/share/fonts/truetype/rustcooling >/dev/null 2>&1 || true
+    fi
+fi
+
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database -q /usr/share/applications || true
 fi
