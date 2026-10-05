@@ -119,9 +119,9 @@ sequenceDiagram
 
 ## 6. Memory & Performance Benchmarks
 
-- **Active Window RAM:** **~12 – 14 MB** (physical working set).
-- **System Tray RAM:** **< 3 MB** (~1.1 – 2.5 MB).
-- **Headless CLI Daemon:** **~2 – 4 MB** (`--daemon`).
+- **Active Window RAM (GUI):** **~12 – 14 MB** (Windows), **~80 – 120 MB** (Linux Mesa OpenGL/GTK3).
+- **Interactive TUI Mode:** **~4 – 7 MB** (`--tui` / `rustcooling -t`).
+- **Headless CLI Daemon:** **~2 – 4 MB** (`--daemon` / `rustcooling -d`).
 - **Background CPU Usage:** **0.0%** (event-driven timer loop).
 
 ---
@@ -135,10 +135,11 @@ sequenceDiagram
 
 ## 8. Configuration & Portability
 
-- **Portable File Storage:** `config.json` and `WinRing0x64.sys` are saved directly in the folder containing `RustCooling.exe`. The application never writes to `%APPDATA%`.
+- **Portable File Storage:** `config.json` and `WinRing0x64.sys` are saved directly in the folder containing `RustCooling.exe` on Windows or `~/.config/RustCooling/config.json` on Linux.
 - **Autostart Integration:** Tied to the real system state:
   - Windows: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (`auto-launch` crate).
-  - Linux: `~/.config/autostart/RustCooling.desktop`.
+  - Linux Desktop: `~/.config/autostart/RustCooling.desktop`.
+  - Linux Systemd User Service: `systemctl --user enable --now rustcooling.service`.
 - **Temperature Smoothing:** Configurable exponential moving average (alpha) + deadband hysteresis filter (0–100% / 0–5°C deadband) to eliminate 7-segment jitter.
 
 ---
@@ -164,7 +165,7 @@ RustCooling/
 │   │   └── NotoSansSC-Bold.ttf      # CJK typography (Simplified Chinese)
 │   └── icons/                       # Multi-resolution icons (16x16 up to 256x256, .ico, .rgba)
 ├── i18n/                            # Localization files (en.json, ru.json, zh.json, de.json, fr.json)
-├── packaging/                       # Linux udev rules, .desktop files, install scripts
+├── packaging/                       # Linux udev rules, desktop files, systemd units, install scripts
 ├── src/
 │   ├── config/                      # Portable config serialization and directory resolution
 │   ├── hid/                         # USB HID communication via hidapi
@@ -177,6 +178,7 @@ RustCooling/
 │   │   ├── windows.rs               # Windows telemetry coordinator (MSR + sysinfo fallback)
 │   │   └── linux.rs                 # Linux sysfs / hwmon telemetry reader
 │   ├── tray/                        # System tray icon, context menu, and event hooks
+│   ├── tui/                         # Interactive ratatui TUI dashboard and settings interface
 │   └── main.rs                      # Entry point, Slint UI bindings, CLI args, memory trimming
 ├── ui/
 │   └── app.slint                    # Slint UI definitions (Monitor, Settings, Activation screens)
