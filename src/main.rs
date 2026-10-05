@@ -7,6 +7,7 @@ mod protocol;
 mod service;
 mod telemetry;
 mod tray;
+mod tui;
 
 use clap::Parser;
 use config::AppConfig;
@@ -32,6 +33,10 @@ slint::include_modules!();
 #[command(version)]
 #[command(about = "RustCooling - Lightweight LCD Display controller for ID-COOLING FX series coolers", long_about = None)]
 struct CliArgs {
+    /// Run in interactive TUI mode (Terminal User Interface)
+    #[arg(short, long)]
+    tui: bool,
+
     /// Run in headless daemon mode without GUI (for background / systemd)
     #[arg(short, long)]
     daemon: bool,
@@ -47,6 +52,10 @@ struct CliArgs {
     /// Install Ring 0 driver service (internal helper called with elevated privileges)
     #[arg(long)]
     install_driver: bool,
+
+    /// Print current telemetry status and exit
+    #[arg(short, long)]
+    status: bool,
 }
 
 pub fn show_and_focus_window(w: &MainWindow) {
@@ -261,6 +270,17 @@ fn parse_hex_u16(s: &str) -> Option<u16> {
     u16::from_str_radix(s, 16).ok()
 }
 
+fn is_headless_environment() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        std::env::var("DISPLAY").is_err() && std::env::var("WAYLAND_DISPLAY").is_err()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
+}
+
 #[cfg(windows)]
 unsafe extern "system" fn console_ctrl_handler(ctrl_type: u32) -> windows_sys::Win32::Foundation::BOOL {
     use windows_sys::Win32::System::Console::{
@@ -326,14 +346,57 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(" RustCooling v{} - ID-COOLING FX LCD Controller", env!("CARGO_PKG_VERSION"));
     info!("==================================================");
 
-    let monitor = MonitorService::new(Arc::clone(&config_ref));
+    let monitor = Arc::new(MonitorService::new(Arc::clone(&config_ref)));
     monitor.start();
 
+    if args.status {
+        std::thread::sleep(Duration::from_millis(400));
+        let state = monitor.get_state();
+        let is_conn = state.is_connected.load(Ordering::Relaxed);
+        let (temp, load) = if let Ok(m) = state.metrics.lock() {
+            (
+                m.temperature.map(|t| t.round() as i32).unwrap_or(0),
+                m.load_percent.map(|l| l.round() as i32).unwrap_or(0),
+            )
+        } else {
+            (0, 0)
+        };
+        let b_val = state
+            .broadcast_value
+            .lock()
+            .map(|v| v.clone())
+            .unwrap_or_else(|_| "0".to_string());
+        println!("RustCooling Telemetry Status:");
+        println!("  Connected:     {}", is_conn);
+        println!("  CPU Temp:      {} °C", temp);
+        println!("  CPU Load:      {} %", load);
+        println!("  Display Output: {}", b_val);
+        monitor.stop();
+        return Ok(());
+    }
+
     if args.daemon {
-        info!("Running in headless daemon mode. Press Enter to exit.");
+        info!("Running in headless daemon mode (~2MB RAM). Press Enter to exit.");
         let mut input = String::new();
         let _ = std::io::stdin().read_line(&mut input);
         info!("Shutting down daemon...");
+        monitor.stop();
+        #[cfg(windows)]
+        {
+            let _ = crate::telemetry::driver::stop_service();
+        }
+        return Ok(());
+    }
+
+    let is_headless = is_headless_environment();
+    let launch_tui = args.tui || (!args.minimized && is_headless);
+
+    if launch_tui {
+        info!("Launching interactive TUI mode...");
+        let mut app = tui::TuiApp::new(Arc::clone(&config_ref), Arc::clone(&monitor));
+        if let Err(e) = app.run() {
+            warn!("TUI error: {:?}", e);
+        }
         monitor.stop();
         #[cfg(windows)]
         {
