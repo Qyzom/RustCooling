@@ -52,13 +52,27 @@ pub struct TuiApp {
 impl TuiApp {
     pub fn new(config_ref: Arc<Mutex<AppConfig>>, monitor: Arc<MonitorService>) -> Self {
         let cfg = config_ref.lock().unwrap().clone();
+        let mut temp_history = Vec::with_capacity(500);
+        let mut load_history = Vec::with_capacity(500);
+        let state = monitor.get_state();
+        if let Ok(m) = state.metrics.lock() {
+            if let Some(t) = m.temperature {
+                let val = t.round().clamp(0.0, 120.0) as u64;
+                temp_history.extend(std::iter::repeat_n(val, 120));
+            }
+            if let Some(l) = m.load_percent {
+                let val = l.round().clamp(0.0, 100.0) as u64;
+                load_history.extend(std::iter::repeat_n(val, 120));
+            }
+        }
+
         Self {
             config_ref,
             monitor,
             selected_tab: 0,
             selected_setting: 0,
-            temp_history: Vec::with_capacity(60),
-            load_history: Vec::with_capacity(60),
+            temp_history,
+            load_history,
             status_message: None,
 
             display_mode: cfg.display_mode,
@@ -92,13 +106,13 @@ impl TuiApp {
             let state = self.monitor.get_state();
             if let Ok(m) = state.metrics.lock() {
                 if let Some(t) = m.temperature {
-                    if self.temp_history.len() >= 60 {
+                    if self.temp_history.len() >= 500 {
                         self.temp_history.remove(0);
                     }
                     self.temp_history.push(t.round().clamp(0.0, 120.0) as u64);
                 }
                 if let Some(l) = m.load_percent {
-                    if self.load_history.len() >= 60 {
+                    if self.load_history.len() >= 500 {
                         self.load_history.remove(0);
                     }
                     self.load_history.push(l.round().clamp(0.0, 100.0) as u64);
@@ -188,6 +202,7 @@ impl TuiApp {
 
     fn save_settings(&mut self) {
         I18n::set_language(&self.language);
+        let t = I18n::get();
         let save_res = {
             let mut cfg = self.config_ref.lock().unwrap();
             cfg.display_mode = self.display_mode.clone();
@@ -208,7 +223,8 @@ impl TuiApp {
         if let Err(e) = save_res {
             self.set_status(&format!("Error saving config: {}", e));
         } else {
-            self.set_status("[✓] Settings saved successfully to config.json!");
+            self.set_status(&t.status_saved);
+            self.selected_tab = 0;
         }
     }
 
@@ -229,7 +245,8 @@ impl TuiApp {
             *cfg = def.clone();
             let _ = cfg.save();
         }
-        self.set_status("[✓] Settings reset to default values.");
+        let t = I18n::get();
+        self.set_status(&t.status_reset);
     }
 
     fn adjust_setting(&mut self, forward: bool) {
@@ -336,7 +353,7 @@ impl TuiApp {
         let title_text = format!(" RustCooling v{} ", env!("CARGO_PKG_VERSION"));
         let title_widget = Paragraph::new(Line::from(vec![
             Span::styled(title_text, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-            Span::styled(" [ID-COOLING FX Controller]", Style::default().fg(Color::DarkGray)),
+            Span::styled(format!(" [{}]", t.sub_controller), Style::default().fg(Color::DarkGray)),
         ]))
         .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::Cyan)));
         frame.render_widget(title_widget, header_chunks[0]);
@@ -358,7 +375,7 @@ impl TuiApp {
             self.render_settings(frame, chunks[1], &t);
         }
 
-        self.render_footer(frame, chunks[2]);
+        self.render_footer(frame, chunks[2], &t);
     }
 
     fn render_dashboard(&self, frame: &mut Frame, area: Rect, t: &crate::i18n::Translation) {
@@ -376,20 +393,20 @@ impl TuiApp {
 
         // Hardware Status Line
         let conn_status = if is_conn {
-            Span::styled(format!("🟢 {}", t.status_connected), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
+            Span::styled(t.status_connected.as_str(), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
         } else {
-            Span::styled(format!("🟡 {}", t.status_searching), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+            Span::styled(t.status_searching.as_str(), Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
         };
 
         let vid_pid_str = format!("0x{:04X}:0x{:04X}", self.custom_vid, self.custom_pid);
         let status_lines = vec![
             Line::from(vec![
-                Span::raw("Device: "),
+                Span::raw(&t.device_label),
                 Span::styled("ID-COOLING FX Series ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
                 Span::styled(format!("({})", vid_pid_str), Style::default().fg(Color::DarkGray)),
-                Span::raw("  │  Status: "),
+                Span::raw(format!("  │  {}", t.status_label)),
                 conn_status,
-                Span::raw("  │  Interval: "),
+                Span::raw(format!("  │  {}", t.interval_label)),
                 Span::styled(format!("{} ms", self.update_interval_ms), Style::default().fg(Color::Cyan)),
             ]),
         ];
@@ -428,7 +445,7 @@ impl TuiApp {
         frame.render_widget(temp_gauge, metrics_chunks[0]);
 
         let load_gauge = Gauge::default()
-            .block(Block::default().title(format!(" {} (Display Output: {}) ", t.chip_load, broadcast_val)))
+            .block(Block::default().title(format!(" {} ({}: {}) ", t.chip_load, t.display_output_label, broadcast_val)))
             .gauge_style(Style::default().fg(Color::Green).bg(Color::DarkGray))
             .percent(load_val.clamp(0, 100) as u16)
             .label(format!("{} %", load_val));
@@ -440,16 +457,35 @@ impl TuiApp {
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(main_chunks[2]);
 
+        let chart_width = spark_chunks[0].width.saturating_sub(2).max(1) as usize;
+
+        let make_full_width_slice = |history: &[u64]| -> Vec<u64> {
+            if history.is_empty() {
+                vec![0; chart_width]
+            } else if history.len() >= chart_width {
+                history[history.len() - chart_width..].to_vec()
+            } else {
+                let initial = history.first().copied().unwrap_or(0);
+                let pad_count = chart_width - history.len();
+                let mut padded = vec![initial; pad_count];
+                padded.extend_from_slice(history);
+                padded
+            }
+        };
+
+        let temp_data = make_full_width_slice(&self.temp_history);
+        let load_data = make_full_width_slice(&self.load_history);
+
         let temp_spark = Sparkline::default()
-            .block(Block::default().title(" Temperature Trend (°C) ").borders(Borders::ALL).border_style(Style::default().fg(Color::Red)))
-            .data(&self.temp_history)
+            .block(Block::default().title(format!(" {} ", t.temp_trend_title)).borders(Borders::ALL).border_style(Style::default().fg(Color::Red)))
+            .data(&temp_data)
             .max(100)
             .style(Style::default().fg(Color::Red));
         frame.render_widget(temp_spark, spark_chunks[0]);
 
         let load_spark = Sparkline::default()
-            .block(Block::default().title(" CPU Load Trend (%) ").borders(Borders::ALL).border_style(Style::default().fg(Color::Green)))
-            .data(&self.load_history)
+            .block(Block::default().title(format!(" {} ", t.load_trend_title)).borders(Borders::ALL).border_style(Style::default().fg(Color::Green)))
+            .data(&load_data)
             .max(100)
             .style(Style::default().fg(Color::Green));
         frame.render_widget(load_spark, spark_chunks[1]);
@@ -476,11 +512,11 @@ impl TuiApp {
             _ => "English (en)",
         };
         let autostart_str = match self.autostart_mode.as_str() {
-            "daemon" => "Daemon (~2 MB RAM)",
-            "gui" => "GUI (in Tray)",
-            _ => "Disabled",
+            "daemon" => &t.opt_daemon,
+            "gui" => &t.opt_gui,
+            _ => &t.opt_disabled,
         };
-        let tray_str = if self.show_tray { "Enabled" } else { "Disabled" };
+        let tray_str = if self.show_tray { &t.opt_enabled } else { &t.opt_disabled };
 
         let items = vec![
             format!("{}: < {} >", t.setting_display_mode, mode_str),
@@ -488,13 +524,13 @@ impl TuiApp {
             format!("{}: < {} >", t.setting_temp_source, src_str),
             format!("{}: < {} >", t.setting_temp_smoothing, smoothing_str),
             format!("{}: < {} >", t.setting_language, lang_str),
-            format!("Target USB VID: < 0x{:04X} >", self.custom_vid),
-            format!("Target USB PID: < 0x{:04X} >", self.custom_pid),
+            format!("{}: < 0x{:04X} >", t.target_vid_label, self.custom_vid),
+            format!("{}: < 0x{:04X} >", t.target_pid_label, self.custom_pid),
             format!("{}: < {} >", t.setting_autostart, autostart_str),
-            format!("System Tray Icon: < {} >", tray_str),
+            format!("{}: < {} >", t.setting_tray_icon, tray_str),
             format!("  [ {} (S) ]", t.btn_save_return),
             format!("  [ {} (R) ]", t.setting_reset_defaults),
-            "  [ Power Off Display & Stop (X) ]".to_string(),
+            format!("  [ {} ]", t.btn_power_off_stop),
         ];
 
         let list_items: Vec<ListItem> = items
@@ -516,7 +552,7 @@ impl TuiApp {
         frame.render_widget(list, area);
     }
 
-    fn render_footer(&self, frame: &mut Frame, area: Rect) {
+    fn render_footer(&self, frame: &mut Frame, area: Rect, t: &crate::i18n::Translation) {
         let msg_line = if let Some((ref msg, time)) = self.status_message {
             if time.elapsed() < Duration::from_secs(4) {
                 Line::from(Span::styled(msg.as_str(), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)))
@@ -527,10 +563,9 @@ impl TuiApp {
             Line::from(Span::raw(""))
         };
 
-        let keys_text = " [1/2/Tab] Tabs | [↑/↓] Select | [←/→] Change | [S] Save | [Q] Exit to Daemon | [X] Stop";
         let footer_widget = Paragraph::new(vec![
             msg_line,
-            Line::from(Span::styled(keys_text, Style::default().fg(Color::Cyan))),
+            Line::from(Span::styled(&t.tui_keys_help, Style::default().fg(Color::Cyan))),
         ])
         .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::DarkGray)));
 
