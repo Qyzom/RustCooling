@@ -1,11 +1,13 @@
 use crate::protocol::{build_hid_report, Command};
 use hidapi::{HidApi, HidDevice};
 use log::{debug, info, warn};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 pub struct DeviceManager {
     hid_api: Arc<Mutex<Option<HidApi>>>,
     device: Arc<Mutex<Option<HidDevice>>>,
+    pub power_off_on_drop: Arc<AtomicBool>,
 }
 
 impl DeviceManager {
@@ -13,6 +15,7 @@ impl DeviceManager {
         Self {
             hid_api: Arc::new(Mutex::new(None)),
             device: Arc::new(Mutex::new(None)),
+            power_off_on_drop: Arc::new(AtomicBool::new(true)),
         }
     }
 
@@ -128,7 +131,9 @@ impl DeviceManager {
 
 impl Drop for DeviceManager {
     fn drop(&mut self) {
-        let _ = self.send_show(false);
+        if self.power_off_on_drop.load(Ordering::SeqCst) {
+            let _ = self.send_show(false);
+        }
         self.close_device();
     }
 }

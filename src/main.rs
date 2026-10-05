@@ -56,6 +56,10 @@ struct CliArgs {
     /// Print current telemetry status and exit
     #[arg(short, long)]
     status: bool,
+
+    /// Stop running background daemon and turn off LCD screen
+    #[arg(long)]
+    stop: bool,
 }
 
 pub fn show_and_focus_window(w: &MainWindow) {
@@ -73,20 +77,26 @@ pub fn hide_window_to_tray(w: &MainWindow) {
     }
 }
 
-fn set_autostart(enable: bool) {
+pub fn set_autostart_mode(mode: &str) {
+    let mode = mode.to_lowercase();
     #[cfg(windows)]
     {
         if let Ok(current_exe) = std::env::current_exe() {
             let app_name = "RustCooling";
             let current_exe_str = current_exe.to_string_lossy();
+            let args: &[&str] = if mode == "daemon" {
+                &["--daemon"]
+            } else {
+                &["--minimized"]
+            };
             let auto = AutoLaunchBuilder::new()
                 .set_app_name(app_name)
                 .set_app_path(&current_exe_str)
-                .set_args(&["--minimized"])
+                .set_args(args)
                 .build();
 
             if let Ok(auto) = auto {
-                if enable {
+                if mode != "none" {
                     let _ = auto.enable();
                 } else {
                     let _ = auto.disable();
@@ -100,13 +110,15 @@ fn set_autostart(enable: bool) {
             let autostart_dir = config_dir.join("autostart");
             let desktop_file = autostart_dir.join("RustCooling.desktop");
 
-            if enable {
+            if mode != "none" {
                 if let Ok(current_exe) = std::env::current_exe() {
-                    if let Err(e) = std::fs::create_dir_all(&autostart_dir) {
-                        warn!("Failed to create autostart directory: {e}");
-                        return;
-                    }
+                    let _ = std::fs::create_dir_all(&autostart_dir);
                     let exe_path = current_exe.to_string_lossy();
+                    let exec_cmd = if mode == "daemon" {
+                        format!("\"{}\" --daemon", exe_path)
+                    } else {
+                        format!("\"{}\" --minimized", exe_path)
+                    };
                     let desktop_entry = format!(
                         "[Desktop Entry]\n\
                          Type=Application\n\
@@ -114,17 +126,19 @@ fn set_autostart(enable: bool) {
                          Name=RustCooling\n\
                          Comment=ID-COOLING FX LCD Controller\n\
                          Icon=rustcooling\n\
-                         Exec=\"{}\" --minimized\n\
+                         Exec={}\n\
                          Terminal=false\n\
                          Categories=Utility;HardwareSettings;\n\
                          StartupNotify=false\n",
-                        exe_path
+                        exec_cmd
                     );
-                    if let Err(e) = std::fs::write(&desktop_file, desktop_entry) {
-                        warn!("Failed to write autostart desktop file: {e}");
-                    } else {
-                        info!("Linux autostart enabled: created {:?}", desktop_file);
+                    if let Ok(existing) = std::fs::read_to_string(&desktop_file) {
+                        if existing == desktop_entry {
+                            return;
+                        }
                     }
+                    let _ = std::fs::write(&desktop_file, desktop_entry);
+                    info!("Linux autostart enabled with mode '{}': created {:?}", mode, desktop_file);
                 }
             } else if desktop_file.exists() {
                 let _ = std::fs::remove_file(&desktop_file);
@@ -132,6 +146,10 @@ fn set_autostart(enable: bool) {
             }
         }
     }
+}
+
+pub fn set_autostart(enable: bool) {
+    set_autostart_mode(if enable { "gui" } else { "none" });
 }
 
 pub fn is_autostart_registered() -> bool {
@@ -281,6 +299,13 @@ fn is_headless_environment() -> bool {
     }
 }
 
+static DAEMON_STOP: AtomicBool = AtomicBool::new(false);
+
+#[cfg(target_os = "linux")]
+extern "C" fn daemon_sig_handler(_: libc::c_int) {
+    DAEMON_STOP.store(true, Ordering::SeqCst);
+}
+
 #[cfg(windows)]
 unsafe extern "system" fn console_ctrl_handler(ctrl_type: u32) -> windows_sys::Win32::Foundation::BOOL {
     use windows_sys::Win32::System::Console::{
@@ -288,8 +313,9 @@ unsafe extern "system" fn console_ctrl_handler(ctrl_type: u32) -> windows_sys::W
     };
     match ctrl_type {
         CTRL_C_EVENT | CTRL_CLOSE_EVENT | CTRL_SHUTDOWN_EVENT => {
+            DAEMON_STOP.store(true, Ordering::SeqCst);
             let _ = crate::telemetry::driver::stop_service();
-            0
+            1
         }
         _ => 0,
     }
@@ -308,9 +334,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         SetConsoleCtrlHandler(Some(console_ctrl_handler), 1);
     }
 
-    let args = CliArgs::parse();
+    let mut raw_args: Vec<String> = std::env::args().collect();
+    for arg in raw_args.iter_mut() {
+        if arg == "-tui" {
+            *arg = "--tui".to_string();
+        }
+    }
+    let args = CliArgs::parse_from(raw_args);
     let is_headless = is_headless_environment();
-    let launch_tui = args.tui || (!args.minimized && !args.daemon && !args.status && is_headless);
+    let launch_tui = args.tui || (!args.minimized && !args.daemon && !args.status && !args.stop && is_headless);
 
     if launch_tui {
         let mut builder = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
@@ -349,7 +381,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     I18n::init(&config.language);
 
     if config.auto_start {
-        set_autostart(true);
+        set_autostart_mode(&config.autostart_mode);
+    }
+
+    if args.stop {
+        println!("Stopping RustCooling background daemon...");
+        let stopped = service::lifecycle::stop_daemon();
+        let dev = hid::DeviceManager::new();
+        if dev.open_device(config.custom_vid, config.custom_pid) {
+            let _ = dev.send_show(false);
+        }
+        if stopped {
+            println!("RustCooling daemon stopped and display powered off.");
+        } else {
+            println!("RustCooling display powered off.");
+        }
+        return Ok(());
     }
 
     let config_ref = Arc::new(Mutex::new(config));
@@ -358,10 +405,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!(" RustCooling v{} - ID-COOLING FX LCD Controller", env!("CARGO_PKG_VERSION"));
     info!("==================================================");
 
-    let monitor = Arc::new(MonitorService::new(Arc::clone(&config_ref)));
-    monitor.start();
-
     if args.status {
+        let daemon_pid = service::lifecycle::get_daemon_pid();
+        if let Some(pid) = daemon_pid {
+            let mut provider = telemetry::create_telemetry_provider();
+            provider.update();
+            std::thread::sleep(Duration::from_millis(200));
+            provider.update();
+            let metrics = provider.get_metrics();
+            println!("RustCooling Telemetry Status:");
+            println!("  Daemon:         Active (PID {})", pid);
+            println!("  CPU Temp:       {} °C", metrics.temperature.map(|t| t.round() as i32).unwrap_or(0));
+            println!("  CPU Load:       {} %", metrics.load_percent.map(|l| l.round() as i32).unwrap_or(0));
+            return Ok(());
+        }
+
+        let monitor = Arc::new(MonitorService::new(Arc::clone(&config_ref)));
+        monitor.start();
         std::thread::sleep(Duration::from_millis(400));
         let state = monitor.get_state();
         let is_conn = state.is_connected.load(Ordering::Relaxed);
@@ -379,19 +439,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|v| v.clone())
             .unwrap_or_else(|_| "0".to_string());
         println!("RustCooling Telemetry Status:");
-        println!("  Connected:     {}", is_conn);
-        println!("  CPU Temp:      {} °C", temp);
-        println!("  CPU Load:      {} %", load);
+        println!("  Connected:      {}", is_conn);
+        println!("  CPU Temp:       {} °C", temp);
+        println!("  CPU Load:       {} %", load);
         println!("  Display Output: {}", b_val);
+        monitor.leave_screen_on();
         monitor.stop();
         return Ok(());
     }
 
     if args.daemon {
-        info!("Running in headless daemon mode (~2MB RAM). Press Enter to exit.");
-        let mut input = String::new();
-        let _ = std::io::stdin().read_line(&mut input);
+        if let Some(pid) = service::lifecycle::get_daemon_pid() {
+            if pid != std::process::id() {
+                info!("Another daemon instance is already active (PID {}). Exiting.", pid);
+                return Ok(());
+            }
+        }
+        service::lifecycle::write_daemon_pid(std::process::id());
+
+        let monitor = Arc::new(MonitorService::new(Arc::clone(&config_ref)));
+        monitor.start();
+
+        info!("RustCooling running in headless daemon mode (~2MB RAM, PID {}).", std::process::id());
+
+        #[cfg(target_os = "linux")]
+        unsafe {
+            libc::signal(libc::SIGHUP, libc::SIG_IGN);
+            libc::signal(libc::SIGINT, daemon_sig_handler as *const () as usize);
+            libc::signal(libc::SIGTERM, daemon_sig_handler as *const () as usize);
+        }
+
+        while !DAEMON_STOP.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(500));
+        }
+
         info!("Shutting down daemon...");
+        service::lifecycle::remove_daemon_pid();
         monitor.stop();
         #[cfg(windows)]
         {
@@ -399,23 +482,36 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         return Ok(());
     }
-
-    let is_headless = is_headless_environment();
-    let launch_tui = args.tui || (!args.minimized && is_headless);
 
     if launch_tui {
         info!("Launching interactive TUI mode...");
+        service::lifecycle::stop_daemon();
+        let monitor = Arc::new(MonitorService::new(Arc::clone(&config_ref)));
+        monitor.start();
+
         let mut app = tui::TuiApp::new(Arc::clone(&config_ref), Arc::clone(&monitor));
-        if let Err(e) = app.run() {
-            warn!("TUI error: {:?}", e);
-        }
-        monitor.stop();
-        #[cfg(windows)]
-        {
-            let _ = crate::telemetry::driver::stop_service();
+        let keep_daemon = app.run().unwrap_or(true);
+
+        if keep_daemon {
+            monitor.leave_screen_on();
+            monitor.stop();
+            if !service::lifecycle::spawn_daemon() {
+                warn!("Failed to spawn daemon process.");
+            }
+        } else {
+            monitor.stop();
+            #[cfg(windows)]
+            {
+                let _ = crate::telemetry::driver::stop_service();
+            }
         }
         return Ok(());
     }
+
+    // Stop background daemon so GUI has direct device control
+    service::lifecycle::stop_daemon();
+    let monitor = Arc::new(MonitorService::new(Arc::clone(&config_ref)));
+    monitor.start();
 
     // Initialize Slint GUI
     let main_window = match MainWindow::new() {
@@ -432,6 +528,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let initial_visible = !args.minimized;
     let is_window_visible = Arc::new(AtomicBool::new(initial_visible));
+    let keep_daemon_on_exit = Arc::new(AtomicBool::new(false));
 
     // Instant event handler for tray icon and context menu
     let win_handle_for_tray = main_window.as_weak();
@@ -481,15 +578,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Initialize System Tray after Slint/Winit is initialized on the UI thread
-    let tray = match SystemTray::new(on_tray_action) {
-        Ok(t) => {
-            info!("System tray successfully initialized!");
-            Some(t)
+    let show_tray = config_ref.lock().map(|c| c.show_tray).unwrap_or(true);
+    let tray = if show_tray {
+        match SystemTray::new(on_tray_action) {
+            Ok(t) => {
+                info!("System tray successfully initialized!");
+                Some(t)
+            }
+            Err(e) => {
+                warn!("Failed to initialize system tray icon: {e}");
+                None
+            }
         }
-        Err(e) => {
-            warn!("Failed to initialize system tray icon: {e}");
-            None
-        }
+    } else {
+        info!("System tray disabled in configuration.");
+        None
     };
     let tray_ref = Rc::new(RefCell::new(tray));
 
@@ -680,10 +783,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Close window (top-right cross) -> hides window to system tray (or exits if tray unavailable)
+    // Close window (top-right cross) -> hides window to system tray (or exits to daemon if tray disabled)
     let win_for_close = main_window.as_weak();
     let vis_for_close = Arc::clone(&is_window_visible);
     let tray_for_close = Rc::clone(&tray_ref);
+    let keep_for_close = Arc::clone(&keep_daemon_on_exit);
     main_window.on_close_window(move || {
         let has_tray = tray_for_close.borrow().is_some();
         if has_tray {
@@ -693,7 +797,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 vis_for_close.store(false, Ordering::SeqCst);
             }
         } else {
-            info!("Close requested, but no system tray is active -> quitting event loop");
+            info!("Close requested and tray is disabled -> exiting GUI and switching to background daemon");
+            keep_for_close.store(true, Ordering::SeqCst);
             let _ = slint::quit_event_loop();
         }
     });
@@ -737,7 +842,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // Attempt a single retry for tray initialization if it wasn't ready at startup (after ~1.5s)
             let tick = tray_retry_counter.fetch_add(1, Ordering::Relaxed);
-            if tick == 25 && tray_for_timer.borrow().is_none() {
+            if tick == 25 && tray_for_timer.borrow().is_none() && config_ref.lock().map(|c| c.show_tray).unwrap_or(true) {
                 match SystemTray::new(on_tray_action_retry.clone()) {
                     Ok(t) => {
                         info!("System tray successfully initialized on retry!");
@@ -822,11 +927,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Step 9: Calling slint::run_event_loop_until_quit()...");
     let run_res = slint::run_event_loop_until_quit();
     info!("Step 10: Event loop exited with result: {:?}", run_res);
-    monitor.stop();
 
-    #[cfg(windows)]
-    {
-        let _ = crate::telemetry::driver::stop_service();
+    if keep_daemon_on_exit.load(Ordering::SeqCst) {
+        info!("Handing off display to background daemon...");
+        monitor.leave_screen_on();
+        monitor.stop();
+        let _ = service::lifecycle::spawn_daemon();
+    } else {
+        monitor.stop();
+        #[cfg(windows)]
+        {
+            let _ = crate::telemetry::driver::stop_service();
+        }
     }
 
     Ok(())

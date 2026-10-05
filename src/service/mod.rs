@@ -1,3 +1,5 @@
+pub mod lifecycle;
+
 use crate::config::AppConfig;
 use crate::hid::DeviceManager;
 use crate::telemetry::{create_telemetry_provider, CpuMetrics};
@@ -245,9 +247,11 @@ impl MonitorService {
                 }
             }
 
-            // Graceful shutdown: turn off display
-            debug!("Sending CMD_SHOW(0) and closing device...");
-            let _ = device.send_show(false);
+            // Graceful shutdown: turn off display if requested
+            if device.power_off_on_drop.load(Ordering::SeqCst) {
+                debug!("Sending CMD_SHOW(0) and closing device...");
+                let _ = device.send_show(false);
+            }
             device.close_device();
             state.is_connected.store(false, Ordering::SeqCst);
             info!("Monitor background service stopped.");
@@ -256,6 +260,10 @@ impl MonitorService {
         if let Ok(mut guard) = self.worker_handle.lock() {
             *guard = Some(handle);
         }
+    }
+
+    pub fn leave_screen_on(&self) {
+        self.device.power_off_on_drop.store(false, Ordering::SeqCst);
     }
 
     pub fn stop(&self) {

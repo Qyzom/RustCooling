@@ -35,6 +35,20 @@ pub struct AppConfig {
     /// Whether the first-run activation / setup wizard was completed.
     #[serde(default = "default_false")]
     pub first_run_completed: bool,
+    /// Autostart mode: "none", "daemon", "gui".
+    #[serde(default = "default_autostart_mode")]
+    pub autostart_mode: String,
+    /// Whether system tray icon is enabled.
+    #[serde(default = "default_true")]
+    pub show_tray: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_autostart_mode() -> String {
+    "none".to_string()
 }
 
 fn default_temp_smoothing() -> u32 {
@@ -82,6 +96,8 @@ impl Default for AppConfig {
             custom_pid: 0xE317,
             temp_smoothing: 1,
             first_run_completed: false,
+            autostart_mode: "none".to_string(),
+            show_tray: true,
         }
     }
 }
@@ -141,6 +157,11 @@ impl AppConfig {
                             cfg.update_interval_ms = cfg.update_interval_ms.clamp(100, 3000);
                         }
                         cfg.temp_smoothing = cfg.temp_smoothing.min(5);
+                        if cfg.autostart_mode == "none" && cfg.auto_start {
+                            cfg.autostart_mode = "gui".to_string();
+                        } else if cfg.autostart_mode != "none" {
+                            cfg.auto_start = true;
+                        }
                         return cfg;
                     }
                 }
