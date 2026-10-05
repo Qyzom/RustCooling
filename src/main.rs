@@ -536,6 +536,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let monitor = Arc::new(MonitorService::new(Arc::clone(&config_ref)));
     monitor.start();
 
+    #[cfg(unix)]
+    unsafe {
+        // Prevent terminal closure from abruptly killing GUI without daemon handoff
+        libc::signal(libc::SIGHUP, libc::SIG_IGN);
+    }
+
     // Initialize Slint GUI
     let main_window = match MainWindow::new() {
         Ok(w) => {
@@ -806,24 +812,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Close window (top-right cross) -> hides window to system tray (or exits to daemon if tray disabled)
-    let win_for_close = main_window.as_weak();
-    let vis_for_close = Arc::clone(&is_window_visible);
-    let tray_for_close = Rc::clone(&tray_ref);
+    // Close window (top-right cross) -> exits GUI, frees terminal, and hands off to background daemon
     let keep_for_close = Arc::clone(&keep_daemon_on_exit);
     main_window.on_close_window(move || {
-        let has_tray = tray_for_close.borrow().is_some();
-        if has_tray {
-            info!("Close requested -> hiding window to system tray");
-            if let Some(w) = win_for_close.upgrade() {
-                hide_window_to_tray(&w);
-                vis_for_close.store(false, Ordering::SeqCst);
-            }
-        } else {
-            info!("Close requested and tray is disabled -> exiting GUI and switching to background daemon");
-            keep_for_close.store(true, Ordering::SeqCst);
-            let _ = slint::quit_event_loop();
-        }
+        info!("Window close requested -> exiting GUI and switching to background daemon");
+        keep_for_close.store(true, Ordering::SeqCst);
+        let _ = slint::quit_event_loop();
     });
 
     // Native, smooth window dragging for Wayland/X11 and Windows
@@ -831,9 +825,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     main_window.on_drag_start(move || {
         if let Some(w) = win_for_drag_start.upgrade() {
             use i_slint_backend_winit::WinitWindowAccessor;
-            let _ = w.window().with_winit_window(|win| {
-                let _ = win.drag_window();
+            let res = w.window().with_winit_window(|win| {
+                win.drag_window()
             });
+            info!("Window drag initiated: {:?}", res);
         }
     });
     main_window.on_drag_move(|| {});

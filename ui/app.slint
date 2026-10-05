@@ -176,7 +176,7 @@ export component MainWindow inherits Window {
     width: 360px;
     height: 360px;
     background: transparent;
-    default-font-family: "Unbounded, Noto Sans SC";
+    default-font-family: "Unbounded";
 
     // Properties bound to Rust telemetry
     in property <int> cpu_temp: 0;
@@ -296,35 +296,38 @@ export component MainWindow inherits Window {
                 border-top-left-radius: 16px;
                 border-top-right-radius: 16px;
 
+                // Full title bar drag area spanning from left edge to close button
+                drag_touch := TouchArea {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width - 48px;
+                    height: parent.height;
+                    mouse-cursor: move;
+
+                    pointer-event(event) => {
+                        if event.kind == PointerEventKind.down {
+                            root.drag_start();
+                        } else if event.kind == PointerEventKind.move {
+                            root.drag_move();
+                        } else if event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel {
+                            root.drag_end();
+                        }
+                    }
+                }
+
                 HorizontalLayout {
                     padding-left: 14px;
                     padding-right: 14px;
                     alignment: space-between;
 
-                    // Brand Title & Window Drag Area
-                    TouchArea {
+                    // Brand Title Text
+                    Text {
                         horizontal-stretch: 1;
-                        mouse-cursor: default;
-
-                        pointer-event(event) => {
-                            if event.kind == PointerEventKind.down {
-                                root.drag_start();
-                            } else if event.kind == PointerEventKind.move {
-                                root.drag_move();
-                            } else if event.kind == PointerEventKind.up || event.kind == PointerEventKind.cancel {
-                                root.drag_end();
-                            }
-                        }
-
-                        Text {
-                            width: 100%;
-                            height: 100%;
-                            text: root.is_activation_mode ? root.tr_activation_title : (root.show_settings ? (root.tr_app_title + " - " + root.tr_settings_title) : root.tr_app_title);
-                            font-size: 13px;
-                            font-weight: 800;
-                            color: #e2e4ed;
-                            vertical-alignment: center;
-                        }
+                        text: root.is_activation_mode ? root.tr_activation_title : (root.show_settings ? (root.tr_app_title + " - " + root.tr_settings_title) : root.tr_app_title);
+                        font-size: 13px;
+                        font-weight: 800;
+                        color: #e2e4ed;
+                        vertical-alignment: center;
                     }
 
                     // Window Close Button ✕ (Symmetric 14px right margin, centered vertically)
