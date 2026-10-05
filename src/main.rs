@@ -308,8 +308,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         SetConsoleCtrlHandler(Some(console_ctrl_handler), 1);
     }
 
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     let args = CliArgs::parse();
+    let is_headless = is_headless_environment();
+    let launch_tui = args.tui || (!args.minimized && !args.daemon && !args.status && is_headless);
+
+    if launch_tui {
+        let mut builder = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"));
+        let log_path = AppConfig::config_dir().join("rustcooling.log");
+        if let Ok(file) = std::fs::File::create(log_path) {
+            builder.target(env_logger::Target::Pipe(Box::new(file)));
+        }
+        let _ = builder.try_init();
+    } else {
+        let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).try_init();
+    }
 
     #[cfg(windows)]
     if args.install_driver {

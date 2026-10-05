@@ -38,7 +38,6 @@ pub struct TuiApp {
     load_history: Vec<u64>,
     status_message: Option<(String, Instant)>,
 
-    // Local editable config fields in settings tab
     display_mode: String,
     update_interval_ms: u64,
     temp_source: String,
@@ -286,8 +285,8 @@ impl TuiApp {
             .margin(1)
             .constraints([
                 Constraint::Length(3), // Header & Tabs
-                Constraint::Min(10),   // Main Content
-                Constraint::Length(3), // Footer / Status
+                Constraint::Min(12),   // Main Body
+                Constraint::Length(3), // Footer Status
             ])
             .split(size);
 
@@ -310,7 +309,7 @@ impl TuiApp {
             format!(" 2. {} ", t.settings_title),
         ];
         let tabs = Tabs::new(tab_titles)
-            .block(Block::default().borders(Borders::ALL))
+            .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::DarkGray)))
             .select(self.selected_tab)
             .style(Style::default().fg(Color::Gray))
             .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
@@ -331,15 +330,14 @@ impl TuiApp {
 
         let main_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(7), Constraint::Min(8)])
+            .constraints([
+                Constraint::Length(4), // Status card
+                Constraint::Length(7), // Gauges card
+                Constraint::Min(5),    // Sparklines
+            ])
             .split(area);
 
-        let top_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
-            .split(main_chunks[0]);
-
-        // Hardware Status Card
+        // Hardware Status Line
         let conn_status = if is_conn {
             Span::styled(format!("🟢 {}", t.status_connected), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
         } else {
@@ -348,17 +346,22 @@ impl TuiApp {
 
         let vid_pid_str = format!("0x{:04X}:0x{:04X}", self.custom_vid, self.custom_pid);
         let status_lines = vec![
-            Line::from(vec![Span::raw("Device: "), Span::styled("ID-COOLING FX Series", Style::default().fg(Color::White))]),
-            Line::from(vec![Span::raw("USB VID:PID: "), Span::styled(vid_pid_str, Style::default().fg(Color::Cyan))]),
-            Line::from(vec![Span::raw("Status: "), conn_status]),
-            Line::from(vec![Span::raw("Interval: "), Span::styled(format!("{} ms", self.update_interval_ms), Style::default().fg(Color::Magenta))]),
+            Line::from(vec![
+                Span::raw("Device: "),
+                Span::styled("ID-COOLING FX Series ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled(format!("({})", vid_pid_str), Style::default().fg(Color::DarkGray)),
+                Span::raw("  │  Status: "),
+                conn_status,
+                Span::raw("  │  Interval: "),
+                Span::styled(format!("{} ms", self.update_interval_ms), Style::default().fg(Color::Cyan)),
+            ]),
         ];
 
         let status_block = Paragraph::new(status_lines)
             .block(Block::default().title(format!(" {} ", t.device_name)).borders(Borders::ALL).border_style(Style::default().fg(Color::Blue)));
-        frame.render_widget(status_block, top_chunks[0]);
+        frame.render_widget(status_block, main_chunks[0]);
 
-        // Live Metrics Card
+        // Live Telemetry Gauges
         let (temp_val, load_val) = if let Ok(m) = state.metrics.lock() {
             (
                 m.temperature.map(|t| t.round() as i32).unwrap_or(0),
@@ -371,44 +374,44 @@ impl TuiApp {
         let broadcast_val = if let Ok(v) = state.broadcast_value.lock() {
             v.clone()
         } else {
-            "0".to_string()
+            "-".to_string()
         };
 
         let metrics_chunks = Layout::default()
             .direction(Direction::Vertical)
             .margin(1)
             .constraints([Constraint::Length(2), Constraint::Length(2)])
-            .split(top_chunks[1]);
+            .split(main_chunks[1]);
 
         let temp_gauge = Gauge::default()
             .block(Block::default().title(format!(" {} ", t.chip_temp)))
-            .gauge_style(Style::default().fg(Color::Red).bg(Color::Black))
+            .gauge_style(Style::default().fg(Color::Red).bg(Color::DarkGray))
             .percent(temp_val.clamp(0, 100) as u16)
             .label(format!("{} °C", temp_val));
         frame.render_widget(temp_gauge, metrics_chunks[0]);
 
         let load_gauge = Gauge::default()
-            .block(Block::default().title(format!(" {} (Cap Display: {}) ", t.chip_load, broadcast_val)))
-            .gauge_style(Style::default().fg(Color::Green).bg(Color::Black))
+            .block(Block::default().title(format!(" {} (Display Output: {}) ", t.chip_load, broadcast_val)))
+            .gauge_style(Style::default().fg(Color::Green).bg(Color::DarkGray))
             .percent(load_val.clamp(0, 100) as u16)
             .label(format!("{} %", load_val));
         frame.render_widget(load_gauge, metrics_chunks[1]);
 
-        // Sparklines
+        // History Sparklines
         let spark_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(main_chunks[1]);
+            .split(main_chunks[2]);
 
         let temp_spark = Sparkline::default()
-            .block(Block::default().title(" Temperature History (°C) ").borders(Borders::ALL).border_style(Style::default().fg(Color::Red)))
+            .block(Block::default().title(" Temperature Trend (°C) ").borders(Borders::ALL).border_style(Style::default().fg(Color::Red)))
             .data(&self.temp_history)
             .max(100)
             .style(Style::default().fg(Color::Red));
         frame.render_widget(temp_spark, spark_chunks[0]);
 
         let load_spark = Sparkline::default()
-            .block(Block::default().title(" CPU Load History (%) ").borders(Borders::ALL).border_style(Style::default().fg(Color::Green)))
+            .block(Block::default().title(" CPU Load Trend (%) ").borders(Borders::ALL).border_style(Style::default().fg(Color::Green)))
             .data(&self.load_history)
             .max(100)
             .style(Style::default().fg(Color::Green));
