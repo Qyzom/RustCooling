@@ -1,0 +1,13 @@
+[Unit]
+Description=RustCooling LCD Display Controller Daemon
+Documentation=https://github.com/Qyzom/RustCooling
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/rustcooling --daemon
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

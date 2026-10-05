@@ -1,6 +1,6 @@
 # Maintainer: Qyzom <t0lotsmail@gmail.com>
 pkgname=rustcooling-bin
-pkgver=1.0.2
+pkgver=1.0.3
 pkgrel=1
 pkgdesc="Ultra-lightweight LCD Display controller for ID-COOLING FX series liquid coolers"
 arch=('x86_64')
@@ -15,7 +15,11 @@ sha256sums=('SKIP')
 package() {
     cd "$srcdir"
     install -Dm755 RustCooling "$pkgdir/usr/bin/RustCooling"
+    ln -sf RustCooling "$pkgdir/usr/bin/rustcooling"
     install -Dm644 99-idcooling.rules "$pkgdir/usr/lib/udev/rules.d/99-idcooling.rules"
     install -Dm644 rustcooling.desktop "$pkgdir/usr/share/applications/rustcooling.desktop"
+    if [ -f rustcooling.service ]; then
+        install -Dm644 rustcooling.service "$pkgdir/usr/lib/systemd/user/rustcooling.service"
+    fi
     install -Dm644 logo.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/rustcooling.png"
 }
