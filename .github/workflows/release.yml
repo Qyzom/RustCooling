@@ -168,17 +168,20 @@ jobs:
                 "RustCooling-${VERSION}.deb" \
                 "RustCooling-${VERSION}.tar.gz" \
                 --title "RustCooling ${VERSION}" \
-                --notes-file RELEASE_NOTES.md
+                --notes-file RELEASE_NOTES.md \
+                --draft=false
             else
               gh release create "$TAG_NAME" \
                 "RustCooling-${VERSION}.AppImage" \
                 "RustCooling-${VERSION}.deb" \
                 "RustCooling-${VERSION}.tar.gz" \
                 --title "RustCooling ${VERSION}" \
-                --generate-notes
+                --generate-notes \
+                --draft=false
             fi
           else
             gh release upload "$TAG_NAME" "RustCooling-${VERSION}.AppImage" "RustCooling-${VERSION}.deb" "RustCooling-${VERSION}.tar.gz" --clobber
+            gh release edit "$TAG_NAME" --draft=false || true
           fi
 
   build-windows:
@@ -209,4 +212,5 @@ jobs:
             TAG_NAME="v${VERSION}"
           fi
           cp target/release/RustCooling.exe "RustCooling-${VERSION}.exe"
-          gh release upload "$TAG_NAME" "RustCooling-${VERSION}.exe" --clobber || true
+          gh release upload "$TAG_NAME" "RustCooling-${VERSION}.exe" --clobber
+          gh release edit "$TAG_NAME" --draft=false || true
