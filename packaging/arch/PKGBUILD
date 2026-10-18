@@ -31,5 +31,8 @@ package() {
     install -Dm644 packaging/linux/rustcooling.service "$pkgdir/usr/lib/systemd/user/rustcooling.service"
     install -Dm644 logo.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/rustcooling.png"
     install -Dm644 assets/fonts/Unbounded.ttf "$pkgdir/usr/share/fonts/truetype/rustcooling/Unbounded.ttf"
+    install -Dm644 assets/fonts/Unbounded-Bold.ttf "$pkgdir/usr/share/fonts/truetype/rustcooling/Unbounded-Bold.ttf"
+    install -Dm644 assets/fonts/Unbounded-ExtraBold.ttf "$pkgdir/usr/share/fonts/truetype/rustcooling/Unbounded-ExtraBold.ttf"
+    install -Dm644 assets/fonts/Unbounded-Black.ttf "$pkgdir/usr/share/fonts/truetype/rustcooling/Unbounded-Black.ttf"
     install -Dm644 assets/fonts/NotoSansSC-Bold.ttf "$pkgdir/usr/share/fonts/truetype/rustcooling/NotoSansSC-Bold.ttf"
 }

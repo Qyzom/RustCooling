@@ -65,6 +65,8 @@ jobs:
           cp packaging/linux/rustcooling.desktop pkg/usr/share/applications/
           cp packaging/linux/rustcooling.service pkg/usr/lib/systemd/user/
           cp assets/icons/logo_256.png pkg/usr/share/icons/hicolor/256x256/apps/rustcooling.png
+          mkdir -p pkg/usr/share/fonts/truetype/rustcooling
+          cp assets/fonts/*.ttf pkg/usr/share/fonts/truetype/rustcooling/
 
           cat << EOF > pkg/DEBIAN/control
           Package: rustcooling
@@ -91,6 +93,9 @@ jobs:
           if command -v update-desktop-database >/dev/null 2>&1; then
             update-desktop-database -q /usr/share/applications || true
           fi
+          if command -v fc-cache >/dev/null 2>&1; then
+            fc-cache -f /usr/share/fonts/truetype/rustcooling >/dev/null 2>&1 || true
+          fi
           exit 0
           EOF
           chmod 755 pkg/DEBIAN/postinst
@@ -114,6 +119,8 @@ jobs:
           cp packaging/linux/install.sh tarball/
           cp packaging/linux/uninstall.sh tarball/
           cp assets/icons/logo_256.png tarball/logo.png
+          mkdir -p tarball/fonts
+          cp assets/fonts/*.ttf tarball/fonts/
           tar -czvf "RustCooling-${VERSION}.tar.gz" -C tarball .
 
       - name: Package AppImage (.AppImage)
