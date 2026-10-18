@@ -1,6 +1,6 @@
 ### What's New
 - Dedicated standalone CLI/TUI binary (`rustcooling-cli`) defaulting directly to interactive terminal dashboard without requiring `-t`.
-- Distinct release packages for Linux: dedicated GUI packages (`RustCooling-GUI`) and minimal zero-dependency CLI/TUI packages (`RustCooling-CLI` / `RustCooling-TUI`).
+- Distinct release packages for Linux: dedicated GUI packages (`RustCooling-GUI`) and minimal zero-dependency CLI/TUI packages (`RustCooling-CLI`).
 - Completely isolated configuration directories (`RustCooling-gui` and `RustCooling-tui`) for clean separation of GUI and TUI states.
 - Cleaned up TUI settings to remove system tray and complex autostart toggles, keeping an effortless daemon autostart toggle.
 - Visual interface labels updated to explicitly distinguish version flavors: `RustCooling v1.0.4 (GUI)` and `RustCooling v1.0.4 (TUI)`.

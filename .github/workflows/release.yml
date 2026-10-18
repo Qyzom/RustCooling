@@ -272,7 +272,11 @@ jobs:
             fi
           else
             gh release upload "$TAG_NAME" "${ASSETS[@]}" --clobber
-            gh release edit "$TAG_NAME" --draft=false || true
+            if [ -f RELEASE_NOTES.md ]; then
+              gh release edit "$TAG_NAME" --notes-file RELEASE_NOTES.md --draft=false || true
+            else
+              gh release edit "$TAG_NAME" --draft=false || true
+            fi
           fi
 
   build-windows:

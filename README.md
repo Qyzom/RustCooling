@@ -42,7 +42,7 @@
 ### Key Features (Missing in the Official Vendor App)
 
 1. **Interactive Terminal UI (TUI) Mode (~4–7 MB RAM):**  
-   Run `rustcooling tui` or `rustcooling -t` for a minimalist, distraction-free terminal dashboard powered by `ratatui`. Features real-time CPU telemetry gauges, edge-to-edge history sparklines, full runtime settings editor, and 5-language localization. Mouse wheel events are ignored so scrolling never accidentally changes your settings.
+   In the CLI package (`RustCooling-CLI`), running `rustcooling` directly launches the interactive dashboard. In the GUI package, run `rustcooling tui` or `rustcooling -t` for a minimalist, distraction-free terminal dashboard powered by `ratatui`. Features real-time CPU telemetry gauges, edge-to-edge history sparklines, full runtime settings editor, and 5-language localization. Mouse wheel events are ignored so scrolling never accidentally changes your settings.
 2. **Headless Daemon Mode (~2–4 MB RAM) & Seamless Terminal Detachment:**  
    When closing the terminal running TUI, RustCooling automatically catches `SIGHUP` and hands off monitoring to a detached background daemon without powering off your pump screen. Alternatively, run `rustcooling daemon` or enable the included systemd user service.
 3. **One-Shot Status Query for Status Bars:**  
@@ -60,7 +60,7 @@
 8. **Instant Cold Start (< 50 ms):**  
    No heavy runtimes or framework loading — the application launches instantaneously.
 9. **Completely Standalone, Portable & Clean:**  
-   Single self-contained binary with zero external runtime dependencies. Configuration (`config.json`) and driver files are kept strictly alongside the executable on Windows or in `~/.config/RustCooling/config.json` on Linux.
+   Single self-contained binary with zero external runtime dependencies. Configuration (`config.json`) and driver files are kept strictly alongside the executable on Windows, or in isolated configuration directories on Linux (`~/.config/RustCooling-gui/` and `~/.config/RustCooling-tui/`).
 
 > [!NOTE]
 > **Regarding ARM Architecture Support:**  
@@ -190,14 +190,17 @@ systemctl --user enable --now rustcooling
 ---
 
 ### Building from Source
-
+ 
 ```bash
 git clone https://github.com/Qyzom/RustCooling.git
 cd RustCooling
 cargo test
 cargo build --release
 ```
-The compiled binary will be located in `target/release/RustCooling.exe` (Windows) or `target/release/RustCooling` (Linux).
+The compiled binaries will be located in:
+- Windows: `target/release/RustCooling.exe` (GUI)
+- Linux GUI: `target/release/RustCooling`
+- Linux CLI/TUI: `target/release/rustcooling-cli`
 
 ---
 
