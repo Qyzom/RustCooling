@@ -66,6 +66,19 @@ pub fn show_and_focus_window(w: &MainWindow) {
     w.window().set_minimized(false);
     let _ = w.show();
     w.window().request_redraw();
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            BringWindowToTop, FindWindowW, SetForegroundWindow, ShowWindow, SW_RESTORE,
+        };
+        let title: Vec<u16> = "RustCooling\0".encode_utf16().collect();
+        let hwnd = FindWindowW(std::ptr::null(), title.as_ptr());
+        if !hwnd.is_null() {
+            ShowWindow(hwnd, SW_RESTORE);
+            SetForegroundWindow(hwnd);
+            BringWindowToTop(hwnd);
+        }
+    }
 }
 
 pub fn hide_window_to_tray(w: &MainWindow) {
@@ -77,111 +90,7 @@ pub fn hide_window_to_tray(w: &MainWindow) {
     }
 }
 
-pub fn set_autostart_mode(mode: &str) {
-    let mode = mode.to_lowercase();
-    #[cfg(windows)]
-    {
-        if let Ok(current_exe) = std::env::current_exe() {
-            let app_name = "RustCooling";
-            let current_exe_str = current_exe.to_string_lossy();
-            let args: &[&str] = if mode == "daemon" {
-                &["--daemon"]
-            } else {
-                &["--minimized"]
-            };
-            let auto = AutoLaunchBuilder::new()
-                .set_app_name(app_name)
-                .set_app_path(&current_exe_str)
-                .set_args(args)
-                .build();
-
-            if let Ok(auto) = auto {
-                if mode != "none" {
-                    let _ = auto.enable();
-                } else {
-                    let _ = auto.disable();
-                }
-            }
-        }
-    }
-    #[cfg(target_os = "linux")]
-    {
-        if let Some(config_dir) = dirs::config_dir() {
-            let autostart_dir = config_dir.join("autostart");
-            let desktop_file = autostart_dir.join("RustCooling.desktop");
-
-            if mode != "none" {
-                if let Ok(current_exe) = std::env::current_exe() {
-                    let _ = std::fs::create_dir_all(&autostart_dir);
-                    let exe_path = current_exe.to_string_lossy();
-                    let exec_cmd = if mode == "daemon" {
-                        format!("\"{}\" --daemon", exe_path)
-                    } else {
-                        format!("\"{}\" --minimized", exe_path)
-                    };
-                    let desktop_entry = format!(
-                        "[Desktop Entry]\n\
-                         Type=Application\n\
-                         Version=1.0\n\
-                         Name=RustCooling\n\
-                         Comment=ID-COOLING FX LCD Controller\n\
-                         Icon=rustcooling\n\
-                         Exec={}\n\
-                         Terminal=false\n\
-                         Categories=Utility;HardwareSettings;\n\
-                         StartupNotify=false\n",
-                        exec_cmd
-                    );
-                    if let Ok(existing) = std::fs::read_to_string(&desktop_file) {
-                        if existing == desktop_entry {
-                            return;
-                        }
-                    }
-                    let _ = std::fs::write(&desktop_file, desktop_entry);
-                    info!("Linux autostart enabled with mode '{}': created {:?}", mode, desktop_file);
-                }
-            } else if desktop_file.exists() {
-                let _ = std::fs::remove_file(&desktop_file);
-                info!("Linux autostart disabled: removed {:?}", desktop_file);
-            }
-        }
-    }
-}
-
-pub fn set_autostart(enable: bool) {
-    set_autostart_mode(if enable { "gui" } else { "none" });
-}
-
-pub fn is_autostart_registered() -> bool {
-    #[cfg(windows)]
-    {
-        if let Ok(current_exe) = std::env::current_exe() {
-            let app_name = "RustCooling";
-            let current_exe_str = current_exe.to_string_lossy();
-            if let Ok(auto) = AutoLaunchBuilder::new()
-                .set_app_name(app_name)
-                .set_app_path(&current_exe_str)
-                .set_args(&["--minimized"])
-                .build()
-            {
-                return auto.is_enabled().unwrap_or(false);
-            }
-        }
-        false
-    }
-    #[cfg(target_os = "linux")]
-    {
-        if let Some(config_dir) = dirs::config_dir() {
-            let desktop_file = config_dir.join("autostart").join("RustCooling.desktop");
-            return desktop_file.exists();
-        }
-        false
-    }
-    #[cfg(not(any(windows, target_os = "linux")))]
-    {
-        false
-    }
-}
+pub use service::autostart::{is_autostart_registered, set_autostart, set_autostart_mode};
 
 fn open_path_or_url(target: &str) {
     #[cfg(windows)]
@@ -542,6 +451,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         libc::signal(libc::SIGHUP, libc::SIG_IGN);
     }
 
+    #[cfg(not(windows))]
+    {
+        // Enforce Winit backend with FemtoVG renderer for hardware-accelerated OpenGL and embedded fonts
+        std::env::set_var("SLINT_BACKEND", "winit");
+    }
+
     // Initialize Slint GUI
     let main_window = match MainWindow::new() {
         Ok(w) => {
@@ -563,9 +478,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let win_handle_for_tray = main_window.as_weak();
     let vis_for_tray = Arc::clone(&is_window_visible);
 
+    let keep_for_tray_exit = Arc::clone(&keep_daemon_on_exit);
     let on_tray_action = move |action: tray::TrayAction| {
         let win_weak = win_handle_for_tray.clone();
         let vis = Arc::clone(&vis_for_tray);
+        let keep_exit = Arc::clone(&keep_for_tray_exit);
 
         let _ = slint::invoke_from_event_loop(move || {
             match action {
@@ -591,6 +508,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 tray::TrayAction::Exit => {
                     info!("Tray event: Exit requested");
+                    keep_exit.store(true, Ordering::SeqCst);
                     let _ = slint::quit_event_loop();
                 }
             }
@@ -812,21 +730,46 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Close window (top-right cross) -> exits GUI, frees terminal, and hands off to background daemon
+    // Close window (top-right cross) -> hides window to tray if active, otherwise exits to daemon
+    let win_for_close = main_window.as_weak();
+    let vis_for_close = Arc::clone(&is_window_visible);
+    let tray_for_close = Rc::clone(&tray_ref);
     let keep_for_close = Arc::clone(&keep_daemon_on_exit);
     main_window.on_close_window(move || {
-        info!("Window close requested (UI button) -> exiting GUI and switching to background daemon");
-        keep_for_close.store(true, Ordering::SeqCst);
-        let _ = slint::quit_event_loop();
+        let has_tray = tray_for_close.borrow().is_some();
+        if has_tray {
+            info!("Window close requested -> hiding window to system tray");
+            if let Some(w) = win_for_close.upgrade() {
+                hide_window_to_tray(&w);
+                vis_for_close.store(false, Ordering::SeqCst);
+            }
+        } else {
+            info!("Window close requested (no tray) -> exiting GUI and switching to background daemon");
+            keep_for_close.store(true, Ordering::SeqCst);
+            let _ = slint::quit_event_loop();
+        }
     });
 
     // Window manager close request (Super+Q in Hyprland, Alt+F4, xdg_toplevel close)
+    let win_for_req = main_window.as_weak();
+    let vis_for_req = Arc::clone(&is_window_visible);
+    let tray_for_req = Rc::clone(&tray_ref);
     let keep_for_req = Arc::clone(&keep_daemon_on_exit);
     main_window.window().on_close_requested(move || {
-        info!("Window manager close requested (Super+Q / Alt+F4 / WM) -> exiting GUI and switching to background daemon");
-        keep_for_req.store(true, Ordering::SeqCst);
-        let _ = slint::quit_event_loop();
-        slint::CloseRequestResponse::HideWindow
+        let has_tray = tray_for_req.borrow().is_some();
+        if has_tray {
+            info!("WM close requested -> hiding window to system tray");
+            if let Some(w) = win_for_req.upgrade() {
+                hide_window_to_tray(&w);
+                vis_for_req.store(false, Ordering::SeqCst);
+            }
+            slint::CloseRequestResponse::HideWindow
+        } else {
+            info!("WM close requested (no tray) -> exiting GUI and switching to background daemon");
+            keep_for_req.store(true, Ordering::SeqCst);
+            let _ = slint::quit_event_loop();
+            slint::CloseRequestResponse::HideWindow
+        }
     });
 
     // Native, smooth window dragging for Wayland/X11 and Windows

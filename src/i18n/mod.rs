@@ -84,6 +84,7 @@ static CURRENT_LANG: RwLock<String> = RwLock::new(String::new());
 pub struct I18n;
 
 impl I18n {
+    #[allow(dead_code)]
     pub fn init(lang: &str) {
         let mut l = CURRENT_LANG.write().unwrap();
         *l = lang.to_lowercase();

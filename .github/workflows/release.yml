@@ -58,8 +58,9 @@ jobs:
           mkdir -p pkg/usr/share/icons/hicolor/256x256/apps
 
           cp target/release/RustCooling pkg/usr/bin/RustCooling
+          cp target/release/rustcooling-cli pkg/usr/bin/rustcooling-cli
           ln -sf RustCooling pkg/usr/bin/rustcooling
-          chmod 755 pkg/usr/bin/RustCooling
+          chmod 755 pkg/usr/bin/RustCooling pkg/usr/bin/rustcooling-cli
           cp packaging/linux/99-idcooling.rules pkg/usr/lib/udev/rules.d/
           cp packaging/linux/rustcooling.desktop pkg/usr/share/applications/
           cp packaging/linux/rustcooling.service pkg/usr/lib/systemd/user/
@@ -106,6 +107,7 @@ jobs:
 
           mkdir -p tarball
           cp target/release/RustCooling tarball/
+          cp target/release/rustcooling-cli tarball/
           cp packaging/linux/99-idcooling.rules tarball/
           cp packaging/linux/rustcooling.desktop tarball/
           cp packaging/linux/rustcooling.service tarball/
@@ -198,7 +200,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build Windows Release Binary
-        run: cargo build --release
+        run: cargo build --release --bin RustCooling
 
       - name: Upload Windows Assets to Release
         env:

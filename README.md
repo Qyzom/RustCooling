@@ -113,27 +113,27 @@ rustcooling stop
 Pre-built binaries are available on the [**Releases**](https://github.com/Qyzom/RustCooling/releases/latest) page.
 
 #### Windows (Portable)
-1. Download **[`RustCooling-1.0.3.exe`](https://github.com/Qyzom/RustCooling/releases/latest)**.
+1. Download **[`RustCooling-1.0.4.exe`](https://github.com/Qyzom/RustCooling/releases/latest)**.
 2. Place it in any folder of your choice (e.g. `C:\Tools\RustCooling\`). Configuration (`config.json`) and the micro-driver will reside directly next to it.
 3. On first run, the activation screen will appear: click **"Grant Rights & Install"** (UAC) to register the LibreHardwareMonitor sensor driver once.
 4. Click **"Continue"** — the application is ready to use! System autostart is available in Settings.
 
 #### Linux (Universal AppImage — All Distributions)
 ```bash
-chmod +x RustCooling-1.0.3.AppImage
-./RustCooling-1.0.3.AppImage
+chmod +x RustCooling-1.0.4.AppImage
+./RustCooling-1.0.4.AppImage
 ```
 
 #### Linux (Debian / Ubuntu / Linux Mint)
 ```bash
-sudo dpkg -i RustCooling-1.0.3.deb
+sudo dpkg -i RustCooling-1.0.4.deb
 ```
-*(Installs `/usr/bin/rustcooling`, udev rules for non-root USB pump access, desktop shortcut, and systemd user unit automatically).*
+*(Installs `/usr/bin/rustcooling`, `rustcooling-cli`, udev rules for non-root USB pump access, desktop shortcut, and systemd user unit automatically).*
 
 #### Linux (Fedora / Arch Linux / Generic Tarball)
 ```bash
-tar -xzf RustCooling-1.0.3.tar.gz
-cd RustCooling-1.0.3
+tar -xzf RustCooling-1.0.4.tar.gz
+cd RustCooling-1.0.4
 sudo ./install.sh
 ```
 

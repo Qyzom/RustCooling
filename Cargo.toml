@@ -1,6 +1,6 @@
 [package]
 name = "RustCooling"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
 authors = ["Qyzom", "RustCooling Contributors"]
 description = "Ultra-lightweight cross-platform LCD display controller for ID-COOLING FX series liquid coolers"
@@ -11,9 +11,13 @@ exclude = ["packaging/**"]
 name = "RustCooling"
 path = "src/main.rs"
 
+[[bin]]
+name = "rustcooling-cli"
+path = "src/cli_main.rs"
+
 [dependencies]
-slint = { version = "1.9", features = ["backend-winit"] }
-i-slint-backend-winit = "1.9"
+slint = { version = "1.9", default-features = false, features = ["backend-winit", "renderer-femtovg", "compat-1-2"] }
+i-slint-backend-winit = { version = "1.9", default-features = false }
 
 hidapi = "2.6"
 sysinfo = { version = "0.33", default-features = false, features = ["system", "component"] }
