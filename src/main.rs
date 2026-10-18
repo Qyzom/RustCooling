@@ -122,7 +122,7 @@ fn open_path_or_url(target: &str) {
 
 fn apply_translations(w: &MainWindow) {
     let t = I18n::get();
-    w.set_tr_app_title(t.app_title.as_str().into());
+    w.set_tr_app_title(format!("{} (GUI)", t.app_title).as_str().into());
     w.set_tr_device_name(t.device_name.as_str().into());
     w.set_tr_status_connected(t.status_connected.as_str().into());
     w.set_tr_status_searching(t.status_searching.as_str().into());
@@ -153,7 +153,7 @@ fn apply_translations(w: &MainWindow) {
     w.set_tr_setting_debug(t.setting_debug_title.as_str().into());
     w.set_tr_setting_reset_defaults(t.setting_reset_defaults.as_str().into());
     w.set_tr_open_config_folder(t.setting_open_config.as_str().into());
-    w.set_tr_about_title(t.about_title.as_str().into());
+    w.set_tr_about_title(format!("{} (GUI)", t.about_title).as_str().into());
     w.set_tr_about_desc(t.about_desc.as_str().into());
     w.set_tr_activation_title(t.activation_title.as_str().into());
     w.set_tr_activation_subtitle(t.activation_subtitle.as_str().into());

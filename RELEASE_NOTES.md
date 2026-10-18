@@ -1,9 +1,10 @@
 ### What's New
-- Added dedicated standalone CLI binary (`rustcooling-cli`) that opens interactive TUI directly without requiring `-t`.
-- Enforced native Winit + FemtoVG rendering on Linux to properly display embedded `Unbounded` (Latin/Cyrillic) and `Noto Sans SC` (Chinese) typography without system font fallbacks.
-- Enhanced system tray integration with instant window restoration and hide-on-close behavior across both Windows and Linux.
-- Added automatic desktop shortcut generation on Linux systems upon package installation.
-- Windows release artifacts streamlined strictly to portable standalone executable (`RustCooling.exe`).
+- Dedicated standalone CLI/TUI binary (`rustcooling-cli`) defaulting directly to interactive terminal dashboard without requiring `-t`.
+- Completely isolated configuration directories (`RustCooling-gui` and `RustCooling-tui`) for clean separation of GUI and TUI states.
+- Removed GUI-specific vestiges (system tray toggle, complex autostart modes) from TUI: simplified to clean On/Off autostart for the background daemon.
+- Visual interface labels updated to explicitly distinguish version flavors: `RustCooling v1.0.4 (GUI)` and `RustCooling v1.0.4 (TUI)`.
+- Bundled and imported static `Unbounded` Bold, ExtraBold, and Black font instances for crisp and heavy typography on Linux and Windows.
+- Automatic application shortcut creation on user Desktop upon Linux package installation.
 
 [Full Changelog](https://github.com/Qyzom/RustCooling/commits/main)
 

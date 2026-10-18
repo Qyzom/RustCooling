@@ -103,7 +103,29 @@ impl Default for AppConfig {
 }
 
 impl AppConfig {
+    pub fn app_flavor() -> &'static str {
+        let exe_name = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()))
+            .unwrap_or_default();
+        if exe_name.contains("cli") || exe_name.contains("tui") {
+            "tui"
+        } else {
+            "gui"
+        }
+    }
+
     pub fn config_dir() -> PathBuf {
+        Self::config_dir_for(Self::app_flavor())
+    }
+
+    pub fn config_dir_for(flavor: &str) -> PathBuf {
+        let dir_name = if flavor == "tui" {
+            "RustCooling-tui"
+        } else {
+            "RustCooling-gui"
+        };
+
         #[cfg(windows)]
         {
             if let Ok(exe_path) = std::env::current_exe() {
@@ -112,7 +134,7 @@ impl AppConfig {
                 }
             }
             let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-            path.push("RustCooling");
+            path.push(dir_name);
             let _ = fs::create_dir_all(&path);
             path
         }
@@ -120,7 +142,7 @@ impl AppConfig {
         #[cfg(not(windows))]
         {
             let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-            path.push("RustCooling");
+            path.push(dir_name);
             let _ = fs::create_dir_all(&path);
             path
         }
@@ -135,13 +157,19 @@ impl AppConfig {
     pub fn load() -> Self {
         let path = Self::config_path();
 
-        // One-time migration from legacy "rust-cooling" directory if needed
+        // One-time migration from legacy "RustCooling" or "rust-cooling" directory if needed
         if !path.exists() {
             if let Some(mut old_dir) = dirs::config_dir() {
-                old_dir.push("rust-cooling");
+                old_dir.push("RustCooling");
                 let old_file = old_dir.join("config.json");
                 if old_file.exists() {
                     let _ = fs::copy(&old_file, &path);
+                } else if let Some(mut old_legacy) = dirs::config_dir() {
+                    old_legacy.push("rust-cooling");
+                    let legacy_file = old_legacy.join("config.json");
+                    if legacy_file.exists() {
+                        let _ = fs::copy(&legacy_file, &path);
+                    }
                 }
             }
         }
