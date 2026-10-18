@@ -88,6 +88,12 @@ pub fn hide_window_to_tray(w: &MainWindow) {
     unsafe {
         libc::malloc_trim(0);
     }
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::System::ProcessStatus::EmptyWorkingSet;
+        use windows_sys::Win32::System::Threading::GetCurrentProcess;
+        EmptyWorkingSet(GetCurrentProcess());
+    }
 }
 
 pub use service::autostart::{is_autostart_registered, set_autostart, set_autostart_mode};
