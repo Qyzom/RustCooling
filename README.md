@@ -87,10 +87,16 @@
 
 ### Command Line Interface (CLI)
 
-Once installed, the `rustcooling` command is accessible globally:
+RustCooling provides two distinct package flavors for Linux:
+
+- **CLI / TUI Package (`RustCooling-CLI`)**: Minimalist, zero GUI dependencies. Running `rustcooling` directly launches the interactive Ratatui terminal dashboard.
+- **GUI Package (`RustCooling-GUI`)**: Full desktop version with Slint OpenGL interface and system tray.
+
+Commands:
 
 ```bash
-# Launch Graphical User Interface (Slint OpenGL window)
+# In CLI package: directly opens interactive Ratatui TUI dashboard
+# In GUI package: opens hardware-accelerated Slint window
 rustcooling
 
 # Launch Interactive Terminal User Interface (Ratatui TUI dashboard)
@@ -118,22 +124,35 @@ Pre-built binaries are available on the [**Releases**](https://github.com/Qyzom/
 3. On first run, the activation screen will appear: click **"Grant Rights & Install"** (UAC) to register the LibreHardwareMonitor sensor driver once.
 4. Click **"Continue"** — the application is ready to use! System autostart is available in Settings.
 
-#### Linux (Universal AppImage — All Distributions)
+#### Linux GUI (Universal AppImage — All Distributions)
 ```bash
-chmod +x RustCooling-1.0.4.AppImage
-./RustCooling-1.0.4.AppImage
+chmod +x RustCooling-GUI-1.0.4.AppImage
+./RustCooling-GUI-1.0.4.AppImage
 ```
 
 #### Linux (Debian / Ubuntu / Linux Mint)
-```bash
-sudo dpkg -i RustCooling-1.0.4.deb
-```
-*(Installs `/usr/bin/rustcooling`, `rustcooling-cli`, udev rules for non-root USB pump access, desktop shortcut, and systemd user unit automatically).*
 
-#### Linux (Fedora / Arch Linux / Generic Tarball)
+**For Desktop GUI (with system tray, desktop entry, fonts):**
 ```bash
-tar -xzf RustCooling-1.0.4.tar.gz
-cd RustCooling-1.0.4
+sudo dpkg -i RustCooling-GUI-1.0.4.deb
+```
+
+**For Minimal Terminal TUI & Server Daemon (zero GUI dependencies):**
+```bash
+sudo dpkg -i RustCooling-CLI-1.0.4.deb
+```
+
+#### Linux (Arch Linux / Fedora / Generic Tarball)
+
+**For Desktop GUI:**
+```bash
+tar -xzf RustCooling-GUI-1.0.4.tar.gz
+sudo ./install.sh
+```
+
+**For Minimal Terminal TUI & Server Daemon:**
+```bash
+tar -xzf RustCooling-CLI-1.0.4.tar.gz
 sudo ./install.sh
 ```
 

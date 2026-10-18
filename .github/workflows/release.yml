@@ -165,7 +165,6 @@ jobs:
           chmod 755 pkg-cli/DEBIAN/postinst
 
           dpkg-deb --build --root-owner-group pkg-cli "RustCooling-CLI-${VERSION}.deb"
-          cp "RustCooling-CLI-${VERSION}.deb" "RustCooling-TUI-${VERSION}.deb"
 
       - name: Package Tarball GUI (.tar.gz)
         run: |
@@ -202,7 +201,6 @@ jobs:
           cp packaging/linux/install.sh tarball-cli/
           cp packaging/linux/uninstall.sh tarball-cli/
           tar -czvf "RustCooling-CLI-${VERSION}.tar.gz" -C tarball-cli .
-          cp "RustCooling-CLI-${VERSION}.tar.gz" "RustCooling-TUI-${VERSION}.tar.gz"
 
       - name: Package AppImage (.AppImage)
         run: |
@@ -240,7 +238,6 @@ jobs:
           chmod +x appimagetool-x86_64.AppImage
           ./appimagetool-x86_64.AppImage --appimage-extract
           ARCH=x86_64 ./squashfs-root/AppRun --no-appstream AppDir "RustCooling-GUI-${VERSION}.AppImage"
-          cp "RustCooling-GUI-${VERSION}.AppImage" "RustCooling-${VERSION}.AppImage"
 
       - name: Publish or Upload Linux Assets to Release
         env:
@@ -255,12 +252,9 @@ jobs:
           ASSETS=(
             "RustCooling-GUI-${VERSION}.deb"
             "RustCooling-CLI-${VERSION}.deb"
-            "RustCooling-TUI-${VERSION}.deb"
             "RustCooling-GUI-${VERSION}.tar.gz"
             "RustCooling-CLI-${VERSION}.tar.gz"
-            "RustCooling-TUI-${VERSION}.tar.gz"
             "RustCooling-GUI-${VERSION}.AppImage"
-            "RustCooling-${VERSION}.AppImage"
           )
           if ! gh release view "$TAG_NAME" >/dev/null 2>&1; then
             if [ -f RELEASE_NOTES.md ]; then
