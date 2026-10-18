@@ -41,49 +41,51 @@ jobs:
       - name: Build Release Binary
         run: cargo build --release
 
-      - name: Package Debian (.deb)
+      - name: Package Debian GUI (.deb)
         run: |
           TAG_NAME="${{ github.ref_name }}"
           VERSION="${TAG_NAME#v}"
           if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
             VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
           fi
-          echo "Packaging version: $VERSION"
+          echo "Packaging GUI version: $VERSION"
 
-          mkdir -p pkg/DEBIAN
-          mkdir -p pkg/usr/bin
-          mkdir -p pkg/usr/lib/udev/rules.d
-          mkdir -p pkg/usr/lib/systemd/user
-          mkdir -p pkg/usr/share/applications
-          mkdir -p pkg/usr/share/icons/hicolor/256x256/apps
+          mkdir -p pkg-gui/DEBIAN
+          mkdir -p pkg-gui/usr/bin
+          mkdir -p pkg-gui/usr/lib/udev/rules.d
+          mkdir -p pkg-gui/usr/lib/systemd/user
+          mkdir -p pkg-gui/usr/share/applications
+          mkdir -p pkg-gui/usr/share/icons/hicolor/256x256/apps
+          mkdir -p pkg-gui/usr/share/fonts/truetype/rustcooling
 
-          cp target/release/RustCooling pkg/usr/bin/RustCooling
-          cp target/release/rustcooling-cli pkg/usr/bin/rustcooling-cli
-          ln -sf RustCooling pkg/usr/bin/rustcooling
-          chmod 755 pkg/usr/bin/RustCooling pkg/usr/bin/rustcooling-cli
-          cp packaging/linux/99-idcooling.rules pkg/usr/lib/udev/rules.d/
-          cp packaging/linux/rustcooling.desktop pkg/usr/share/applications/
-          cp packaging/linux/rustcooling.service pkg/usr/lib/systemd/user/
-          cp assets/icons/logo_256.png pkg/usr/share/icons/hicolor/256x256/apps/rustcooling.png
-          mkdir -p pkg/usr/share/fonts/truetype/rustcooling
-          cp assets/fonts/*.ttf pkg/usr/share/fonts/truetype/rustcooling/
+          cp target/release/RustCooling pkg-gui/usr/bin/RustCooling
+          ln -sf RustCooling pkg-gui/usr/bin/rustcooling
+          chmod 755 pkg-gui/usr/bin/RustCooling
+          cp packaging/linux/99-idcooling.rules pkg-gui/usr/lib/udev/rules.d/
+          cp packaging/linux/rustcooling.desktop pkg-gui/usr/share/applications/
+          sed 's|/usr/local/bin|/usr/bin|g' packaging/linux/rustcooling.service > pkg-gui/usr/lib/systemd/user/rustcooling.service
+          cp assets/icons/logo_256.png pkg-gui/usr/share/icons/hicolor/256x256/apps/rustcooling.png
+          cp assets/fonts/*.ttf pkg-gui/usr/share/fonts/truetype/rustcooling/
 
-          cat << EOF > pkg/DEBIAN/control
-          Package: rustcooling
+          cat << EOF > pkg-gui/DEBIAN/control
+          Package: rustcooling-gui
           Version: ${VERSION}
           Section: utils
           Priority: optional
           Architecture: amd64
           Maintainer: Qyzom <t0lotsmail@gmail.com>
           Depends: libudev1, libfontconfig1, libc6, libgtk-3-0, libxdo3
+          Provides: rustcooling
+          Conflicts: rustcooling-cli
+          Replaces: rustcooling-cli
           Homepage: https://github.com/Qyzom/RustCooling
-          Description: Ultra-lightweight LCD Display controller for ID-COOLING FX series liquid coolers
-           Ultra-lightweight native Rust application for controlling LCD displays on
+          Description: Ultra-lightweight LCD Display GUI controller for ID-COOLING FX series liquid coolers
+           Ultra-lightweight native Rust graphical application for controlling LCD displays on
            ID-COOLING FX series liquid coolers (FX240, FX280, FX360).
-           Zero telemetry bloat, interactive TUI mode, <4 MB RAM daemon.
+           Zero telemetry bloat, system tray support, OpenGL acceleration.
           EOF
 
-          cat << 'EOF' > pkg/DEBIAN/postinst
+          cat << 'EOF' > pkg-gui/DEBIAN/postinst
           #!/bin/sh
           set -e
           if command -v udevadm >/dev/null 2>&1; then
@@ -96,13 +98,76 @@ jobs:
           if command -v fc-cache >/dev/null 2>&1; then
             fc-cache -f /usr/share/fonts/truetype/rustcooling >/dev/null 2>&1 || true
           fi
+          for u in /home/*; do
+            [ -d "$u" ] || continue
+            for d in "Desktop" "Рабочий стол"; do
+              if [ -d "$u/$d" ]; then
+                cp -f /usr/share/applications/rustcooling.desktop "$u/$d/"
+                chown "$(stat -c '%U:%G' "$u")" "$u/$d/rustcooling.desktop" 2>/dev/null || true
+                chmod 755 "$u/$d/rustcooling.desktop" 2>/dev/null || true
+                break
+              fi
+            done
+          done
           exit 0
           EOF
-          chmod 755 pkg/DEBIAN/postinst
+          chmod 755 pkg-gui/DEBIAN/postinst
 
-          dpkg-deb --build --root-owner-group pkg "RustCooling-${VERSION}.deb"
+          dpkg-deb --build --root-owner-group pkg-gui "RustCooling-GUI-${VERSION}.deb"
 
-      - name: Package Tarball (.tar.gz)
+      - name: Package Debian CLI/TUI (.deb)
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${TAG_NAME#v}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
+            VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
+          fi
+          echo "Packaging CLI/TUI version: $VERSION"
+
+          mkdir -p pkg-cli/DEBIAN
+          mkdir -p pkg-cli/usr/bin
+          mkdir -p pkg-cli/usr/lib/udev/rules.d
+          mkdir -p pkg-cli/usr/lib/systemd/user
+
+          cp target/release/rustcooling-cli pkg-cli/usr/bin/rustcooling-cli
+          ln -sf rustcooling-cli pkg-cli/usr/bin/rustcooling
+          chmod 755 pkg-cli/usr/bin/rustcooling-cli
+          cp packaging/linux/99-idcooling.rules pkg-cli/usr/lib/udev/rules.d/
+          sed 's|/usr/local/bin|/usr/bin|g' packaging/linux/rustcooling.service > pkg-cli/usr/lib/systemd/user/rustcooling.service
+
+          cat << EOF > pkg-cli/DEBIAN/control
+          Package: rustcooling-cli
+          Version: ${VERSION}
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Maintainer: Qyzom <t0lotsmail@gmail.com>
+          Depends: libudev1, libc6
+          Provides: rustcooling
+          Conflicts: rustcooling-gui
+          Replaces: rustcooling-gui
+          Homepage: https://github.com/Qyzom/RustCooling
+          Description: Ultra-lightweight LCD Display CLI & TUI controller for ID-COOLING FX series liquid coolers
+           Ultra-lightweight native Rust terminal application for controlling LCD displays on
+           ID-COOLING FX series liquid coolers (FX240, FX280, FX360).
+           Zero GUI dependencies, interactive TUI mode, <4 MB RAM background daemon.
+          EOF
+
+          cat << 'EOF' > pkg-cli/DEBIAN/postinst
+          #!/bin/sh
+          set -e
+          if command -v udevadm >/dev/null 2>&1; then
+            udevadm control --reload-rules || true
+            udevadm trigger || true
+          fi
+          exit 0
+          EOF
+          chmod 755 pkg-cli/DEBIAN/postinst
+
+          dpkg-deb --build --root-owner-group pkg-cli "RustCooling-CLI-${VERSION}.deb"
+          cp "RustCooling-CLI-${VERSION}.deb" "RustCooling-TUI-${VERSION}.deb"
+
+      - name: Package Tarball GUI (.tar.gz)
         run: |
           TAG_NAME="${{ github.ref_name }}"
           VERSION="${TAG_NAME#v}"
@@ -110,18 +175,34 @@ jobs:
             VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
           fi
 
-          mkdir -p tarball
-          cp target/release/RustCooling tarball/
-          cp target/release/rustcooling-cli tarball/
-          cp packaging/linux/99-idcooling.rules tarball/
-          cp packaging/linux/rustcooling.desktop tarball/
-          cp packaging/linux/rustcooling.service tarball/
-          cp packaging/linux/install.sh tarball/
-          cp packaging/linux/uninstall.sh tarball/
-          cp assets/icons/logo_256.png tarball/logo.png
-          mkdir -p tarball/fonts
-          cp assets/fonts/*.ttf tarball/fonts/
-          tar -czvf "RustCooling-${VERSION}.tar.gz" -C tarball .
+          mkdir -p tarball-gui
+          cp target/release/RustCooling tarball-gui/
+          cp packaging/linux/99-idcooling.rules tarball-gui/
+          cp packaging/linux/rustcooling.desktop tarball-gui/
+          cp packaging/linux/rustcooling.service tarball-gui/
+          cp packaging/linux/install.sh tarball-gui/
+          cp packaging/linux/uninstall.sh tarball-gui/
+          cp assets/icons/logo_256.png tarball-gui/logo.png
+          mkdir -p tarball-gui/fonts
+          cp assets/fonts/*.ttf tarball-gui/fonts/
+          tar -czvf "RustCooling-GUI-${VERSION}.tar.gz" -C tarball-gui .
+
+      - name: Package Tarball CLI/TUI (.tar.gz)
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${TAG_NAME#v}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
+            VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
+          fi
+
+          mkdir -p tarball-cli
+          cp target/release/rustcooling-cli tarball-cli/
+          cp packaging/linux/99-idcooling.rules tarball-cli/
+          cp packaging/linux/rustcooling.service tarball-cli/
+          cp packaging/linux/install.sh tarball-cli/
+          cp packaging/linux/uninstall.sh tarball-cli/
+          tar -czvf "RustCooling-CLI-${VERSION}.tar.gz" -C tarball-cli .
+          cp "RustCooling-CLI-${VERSION}.tar.gz" "RustCooling-TUI-${VERSION}.tar.gz"
 
       - name: Package AppImage (.AppImage)
         run: |
@@ -158,7 +239,8 @@ jobs:
           curl -sLO https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
           ./appimagetool-x86_64.AppImage --appimage-extract
-          ARCH=x86_64 ./squashfs-root/AppRun --no-appstream AppDir "RustCooling-${VERSION}.AppImage"
+          ARCH=x86_64 ./squashfs-root/AppRun --no-appstream AppDir "RustCooling-GUI-${VERSION}.AppImage"
+          cp "RustCooling-GUI-${VERSION}.AppImage" "RustCooling-${VERSION}.AppImage"
 
       - name: Publish or Upload Linux Assets to Release
         env:
@@ -170,26 +252,32 @@ jobs:
             VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
             TAG_NAME="v${VERSION}"
           fi
+          ASSETS=(
+            "RustCooling-GUI-${VERSION}.deb"
+            "RustCooling-CLI-${VERSION}.deb"
+            "RustCooling-TUI-${VERSION}.deb"
+            "RustCooling-GUI-${VERSION}.tar.gz"
+            "RustCooling-CLI-${VERSION}.tar.gz"
+            "RustCooling-TUI-${VERSION}.tar.gz"
+            "RustCooling-GUI-${VERSION}.AppImage"
+            "RustCooling-${VERSION}.AppImage"
+          )
           if ! gh release view "$TAG_NAME" >/dev/null 2>&1; then
             if [ -f RELEASE_NOTES.md ]; then
               gh release create "$TAG_NAME" \
-                "RustCooling-${VERSION}.AppImage" \
-                "RustCooling-${VERSION}.deb" \
-                "RustCooling-${VERSION}.tar.gz" \
+                "${ASSETS[@]}" \
                 --title "RustCooling ${VERSION}" \
                 --notes-file RELEASE_NOTES.md \
                 --draft=false
             else
               gh release create "$TAG_NAME" \
-                "RustCooling-${VERSION}.AppImage" \
-                "RustCooling-${VERSION}.deb" \
-                "RustCooling-${VERSION}.tar.gz" \
+                "${ASSETS[@]}" \
                 --title "RustCooling ${VERSION}" \
                 --generate-notes \
                 --draft=false
             fi
           else
-            gh release upload "$TAG_NAME" "RustCooling-${VERSION}.AppImage" "RustCooling-${VERSION}.deb" "RustCooling-${VERSION}.tar.gz" --clobber
+            gh release upload "$TAG_NAME" "${ASSETS[@]}" --clobber
             gh release edit "$TAG_NAME" --draft=false || true
           fi
 
