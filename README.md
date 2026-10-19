@@ -12,6 +12,8 @@
 [![Slint](https://img.shields.io/badge/UI-Slint_1.9-blueviolet.svg)](https://slint.dev/)
 [![Ratatui](https://img.shields.io/badge/TUI-Ratatui-red.svg)](https://ratatui.rs/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-brightgreen.svg)]()
+[![Flathub](https://img.shields.io/badge/Flathub-PR_%2310699-0078D7?logo=flathub&logoColor=white)](https://github.com/flathub/flathub/pull/10699)
+[![Arch / CachyOS](https://img.shields.io/badge/Arch%20%7C%20CachyOS-Available-1793d1?logo=arch-linux&logoColor=white)](https://github.com/Qyzom/RustCooling/releases/latest)
 [![Release](https://img.shields.io/github/v/release/Qyzom/RustCooling?color=teal)](https://github.com/Qyzom/RustCooling/releases)
 
 <br/>
@@ -114,15 +116,46 @@ rustcooling stop
 
 ---
 
-### Quick Start
+### Downloads & Quick Start
 
-Pre-built binaries are available on the [**Releases**](https://github.com/Qyzom/RustCooling/releases/latest) page.
+Pre-built standalone binaries and packages are available on the [**Releases**](https://github.com/Qyzom/RustCooling/releases/latest) page:
+
+| OS / Distribution | Package Type | Architecture | Download Link |
+| :--- | :--- | :---: | :--- |
+| **Windows 10 / 11** | Standalone Executable (Portable) | x86_64 | [**`RustCooling-1.0.4.exe`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-1.0.4.exe) |
+| **Universal Linux (All Distros)** | Standalone GUI AppImage | x86_64 | [**`RustCooling-GUI-1.0.4.AppImage`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-GUI-1.0.4.AppImage) |
+| **Arch Linux / CachyOS** | Native Package (`.pkg.tar.zst`) | x86_64 | [**`rustcooling-1.0.4-1-x86_64.pkg.tar.zst`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/rustcooling-1.0.4-1-x86_64.pkg.tar.zst) |
+| **Debian / Ubuntu / Mint** | Desktop GUI Package (`.deb`) | x86_64 | [**`RustCooling-GUI-1.0.4.deb`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-GUI-1.0.4.deb) |
+| **Debian / Ubuntu / Mint** | Minimal CLI / TUI Package (`.deb`) | x86_64 | [**`RustCooling-CLI-1.0.4.deb`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-CLI-1.0.4.deb) |
+| **Generic Linux Archive** | Universal GUI Archive (`.tar.gz`) | x86_64 | [**`RustCooling-GUI-1.0.4.tar.gz`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-GUI-1.0.4.tar.gz) |
+| **Generic Linux Archive** | Minimal CLI / TUI Archive (`.tar.gz`) | x86_64 | [**`RustCooling-CLI-1.0.4.tar.gz`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-CLI-1.0.4.tar.gz) |
+
+---
 
 #### Windows (Portable)
-1. Download **[`RustCooling-1.0.4.exe`](https://github.com/Qyzom/RustCooling/releases/latest)**.
-2. Place it in any folder of your choice (e.g. `C:\Tools\RustCooling\`). Configuration (`config.json`) and the micro-driver will reside directly next to it.
-3. On first run, the activation screen will appear: click **"Grant Rights & Install"** (UAC) to register the LibreHardwareMonitor sensor driver once.
+1. Download **[`RustCooling-1.0.4.exe`](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-1.0.4.exe)**.
+2. Place it in any folder of your choice (e.g. `C:\Tools\RustCooling\`). Configuration (`config.json`) and the micro-driver reside directly next to it.
+3. On first run, click **"Grant Rights & Install"** (UAC) to register the LibreHardwareMonitor sensor driver once.
 4. Click **"Continue"** — the application is ready to use! System autostart is available in Settings.
+
+#### Arch Linux & CachyOS
+**Direct pacman installation from latest release:**
+```bash
+sudo pacman -U https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/rustcooling-1.0.4-1-x86_64.pkg.tar.zst
+```
+
+**Or build locally from source:**
+```bash
+git clone https://github.com/Qyzom/RustCooling.git
+cd RustCooling/packaging/arch && makepkg -si
+```
+
+#### Flatpak (Flathub)
+*[Submission PR #10699](https://github.com/flathub/flathub/pull/10699) is currently in review.* Once approved, install via:
+```bash
+flatpak install flathub io.github.qyzom.RustCooling
+flatpak run io.github.qyzom.RustCooling
+```
 
 #### Linux GUI (Universal AppImage — All Distributions)
 ```bash
@@ -142,7 +175,7 @@ sudo dpkg -i RustCooling-GUI-1.0.4.deb
 sudo dpkg -i RustCooling-CLI-1.0.4.deb
 ```
 
-#### Linux (Arch Linux / Fedora / Generic Tarball)
+#### Generic Linux Tarball (Fedora / openSUSE / Void)
 
 **For Desktop GUI:**
 ```bash
