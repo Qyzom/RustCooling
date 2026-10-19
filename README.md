@@ -12,7 +12,6 @@
 [![Slint](https://img.shields.io/badge/UI-Slint_1.9-blueviolet.svg)](https://slint.dev/)
 [![Ratatui](https://img.shields.io/badge/TUI-Ratatui-red.svg)](https://ratatui.rs/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-brightgreen.svg)]()
-[![Flathub](https://img.shields.io/badge/Flathub-PR_%2310699-0078D7?logo=flathub&logoColor=white)](https://github.com/flathub/flathub/pull/10699)
 [![Arch / CachyOS](https://img.shields.io/badge/Arch%20%7C%20CachyOS-Available-1793d1?logo=arch-linux&logoColor=white)](https://github.com/Qyzom/RustCooling/releases/latest)
 [![Release](https://img.shields.io/github/v/release/Qyzom/RustCooling?color=teal)](https://github.com/Qyzom/RustCooling/releases)
 
@@ -148,13 +147,6 @@ sudo pacman -U https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/rus
 ```bash
 git clone https://github.com/Qyzom/RustCooling.git
 cd RustCooling/packaging/arch && makepkg -si
-```
-
-#### Flatpak (Flathub)
-*[Submission PR #10699](https://github.com/flathub/flathub/pull/10699) is currently in review.* Once approved, install via:
-```bash
-flatpak install flathub io.github.qyzom.RustCooling
-flatpak run io.github.qyzom.RustCooling
 ```
 
 #### Linux GUI (Universal AppImage — All Distributions)
