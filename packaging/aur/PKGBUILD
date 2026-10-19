@@ -1,20 +1,24 @@
 # Maintainer: Qyzom <t0lotsmail@gmail.com>
 pkgname=rustcooling-bin
-pkgver=1.0.3
+pkgver=1.0.4
 pkgrel=1
 pkgdesc="Ultra-lightweight LCD Display controller for ID-COOLING FX series liquid coolers"
 arch=('x86_64')
 url="https://github.com/Qyzom/RustCooling"
+license=('MIT')
 depends=('systemd-libs' 'fontconfig' 'gtk3' 'xdotool' 'libayatana-appindicator')
 optdepends=('waybar: System tray / StatusNotifierItem support in Wayland/Hyprland')
 provides=('rustcooling')
 conflicts=('rustcooling')
-source=("https://github.com/Qyzom/RustCooling/releases/download/v${pkgver}/RustCooling-${pkgver}.tar.gz")
-sha256sums=('SKIP')
+source=("https://github.com/Qyzom/RustCooling/releases/download/v${pkgver}/RustCooling-GUI-${pkgver}.tar.gz"
+        "https://github.com/Qyzom/RustCooling/releases/download/v${pkgver}/RustCooling-CLI-${pkgver}.tar.gz")
+sha256sums=('efc9dfc68505d49a5beada35c67c1ec83c4f535273bd9425d6d95b4810433ef9'
+            'e15e7516bf63e8e2b75990d76d26d5e501dd0147d8535db6c8fc024d7b4cc175')
 
 package() {
     cd "$srcdir"
     install -Dm755 RustCooling "$pkgdir/usr/bin/RustCooling"
+    install -Dm755 rustcooling-cli "$pkgdir/usr/bin/rustcooling-cli"
     ln -sf RustCooling "$pkgdir/usr/bin/rustcooling"
     install -Dm644 99-idcooling.rules "$pkgdir/usr/lib/udev/rules.d/99-idcooling.rules"
     install -Dm644 rustcooling.desktop "$pkgdir/usr/share/applications/rustcooling.desktop"
@@ -22,4 +26,11 @@ package() {
         install -Dm644 rustcooling.service "$pkgdir/usr/lib/systemd/user/rustcooling.service"
     fi
     install -Dm644 logo.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/rustcooling.png"
+    if [ -d fonts ]; then
+        install -Dm644 fonts/Unbounded.ttf "$pkgdir/usr/share/fonts/truetype/rustcooling/Unbounded.ttf"
+        install -Dm644 fonts/Unbounded-Bold.ttf "$pkgdir/usr/share/fonts/truetype/rustcooling/Unbounded-Bold.ttf"
+        install -Dm644 fonts/Unbounded-ExtraBold.ttf "$pkgdir/usr/share/fonts/truetype/rustcooling/Unbounded-ExtraBold.ttf"
+        install -Dm644 fonts/Unbounded-Black.ttf "$pkgdir/usr/share/fonts/truetype/rustcooling/Unbounded-Black.ttf"
+        install -Dm644 fonts/NotoSansSC-Bold.ttf "$pkgdir/usr/share/fonts/truetype/rustcooling/NotoSansSC-Bold.ttf"
+    fi
 }
