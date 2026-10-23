@@ -4,7 +4,7 @@
 
 # RustCooling
 
-**Ultra-lightweight pump LCD display controller for ID-COOLING FX Series liquid coolers.**  
+**Ultra-lightweight LCD display controller for ID-COOLING FX Series liquid coolers.**  
 *100% Pure Rust • Native Linux & Windows • Zero Bloat • GUI (~12 MB) • TUI (~5 MB) • Daemon (~2 MB)*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -12,7 +12,6 @@
 [![Slint](https://img.shields.io/badge/UI-Slint_1.9-blueviolet.svg)](https://slint.dev/)
 [![Ratatui](https://img.shields.io/badge/TUI-Ratatui-red.svg)](https://ratatui.rs/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-brightgreen.svg)]()
-[![Arch / CachyOS](https://img.shields.io/badge/Arch%20%7C%20CachyOS-Available-1793d1?logo=arch-linux&logoColor=white)](https://github.com/Qyzom/RustCooling/releases/latest)
 [![Release](https://img.shields.io/github/v/release/Qyzom/RustCooling?color=teal)](https://github.com/Qyzom/RustCooling/releases)
 
 <br/>
@@ -29,87 +28,58 @@
 
 ---
 
-### Author's Note
+### Overview
 
-> [!NOTE]
-> I made this project solely **for myself** to purge heavy, bloated vendor software from my personal computer. Chances are few people will ever see this repository, and that's completely fine with me.
->
-> In reality, the ID-COOLING FX display protocol is **as primitive as it gets**: the display controller fundamentally only understands two real commands — screen on/off (`0x04`) and sending a numeric value to the 7-segment display (`0x01`). Everything else (frequency, mythical registers) doesn't change anything in the physical hardware. The entire RustCooling app is simply a very lightweight, clean, and convenient wrapper around this protocol.
->
-> Whether you prefer a sleek hardware-accelerated GUI, a minimalist **Ratatui TUI dashboard** in your terminal (~5 MB RAM), or a silent background **systemd daemon** (~2 MB RAM), RustCooling covers all deployment styles out of the box.
+**RustCooling** is an open-source, ultra-efficient alternative to the bloated official vendor utility for **ID-COOLING FX Series** AIO liquid coolers (FX240, FX280, FX360). 
+
+The hardware controller is simple: it only renders numeric values (`CMD_TEMPERATURE`, `0x01`) and toggles screen power (`CMD_SHOW`, `0x04`). RustCooling provides a direct, minimal, and rock-solid wrapper around this protocol with hardware-accelerated GUI, terminal TUI, and silent background daemon support.
 
 ---
 
-### Key Features (Missing in the Official Vendor App)
+### Highlights
 
-1. **Interactive Terminal UI (TUI) Mode (~4–7 MB RAM):**  
-   In the CLI package (`RustCooling-CLI`), running `rustcooling` directly launches the interactive dashboard. In the GUI package, run `rustcooling tui` or `rustcooling -t` for a minimalist, distraction-free terminal dashboard powered by `ratatui`. Features real-time CPU telemetry gauges, edge-to-edge history sparklines, full runtime settings editor, and 5-language localization. Mouse wheel events are ignored so scrolling never accidentally changes your settings.
-2. **Headless Daemon Mode (~2–4 MB RAM) & Seamless Terminal Detachment:**  
-   When closing the terminal running TUI, RustCooling automatically catches `SIGHUP` and hands off monitoring to a detached background daemon without powering off your pump screen. Alternatively, run `rustcooling daemon` or enable the included systemd user service.
-3. **One-Shot Status Query for Status Bars:**  
-   Run `rustcooling status` to instantly query the pump connection state, current CPU temperature, load, and display output in JSON or human-readable format for Waybar, Polybar, i3status, or Conky without holding any locks.
-4. **Temperature Smoothing & Jitter Filtering:**  
-   In the official vendor software, pump numbers jump wildly with every single 1-degree fluctuation. RustCooling features an exponential moving average + deadband hysteresis filter (0–5°C): minor fluctuations are filtered out, leaving a stable, non-distracting reading on your pump.
-5. **Memory Footprint ~12–14 MB (In Tray < 3 MB):**  
-   The vendor utility is built on Electron / Node.js and eats up 200–300 MB of RAM. RustCooling is written in 100% pure native Rust with Slint UI and consumes 20–50x less memory.
-6. **True Native Linux Support:**  
-   The vendor does not support Linux at all. RustCooling reads system sensors natively through the Linux kernel (`/sys/class/hwmon` and `/proc/stat`) without Wine, root permissions, or third-party background daemons.
-7. **Direct Native Silicon Telemetry (Intel DTS & AMD Ryzen Zen 1–5):**  
-   Zero WMI overhead, 0.0% background CPU, and pinpoint accuracy directly from silicon registers.
-   - **Windows (Direct MSR & SMN Mailbox):** Reads real Intel Digital Thermal Sensors (DTS per-core & Package) via IA32 MSRs (`0x19C`, `0x1B1`) and AMD Ryzen (Zen 1–5) Tctl & CCD temperatures via PCI SMN indirect mailbox (`0:0.0`). Uses an embedded micro-driver with full security hardening: on-demand service execution (`SERVICE_DEMAND_START`), exclusive device handle, and guaranteed automatic kernel memory unloading upon exit.
-   - **Linux (Driverless Native Kernel sysfs):** Telemetry is read natively via standard `/sys/class/hwmon` interfaces (`k10temp`, `zenpower`, `coretemp`) and `/proc/stat` without root permissions.
-8. **Instant Cold Start (< 50 ms):**  
-   No heavy runtimes or framework loading — the application launches instantaneously.
-9. **Completely Standalone, Portable & Clean:**  
-   Single self-contained binary with zero external runtime dependencies. Configuration (`config.json`) and driver files are kept strictly alongside the executable on Windows, or in isolated configuration directories on Linux (`~/.config/RustCooling-gui/` and `~/.config/RustCooling-tui/`).
-
-> [!NOTE]
-> **Regarding ARM Architecture Support:**  
-> ID-COOLING FX240/280/360 liquid coolers are designed exclusively for standard desktop motherboard sockets: Intel (LGA1700/1851/1200) and AMD (AM4/AM5) connecting via an internal 9-pin USB header. Desktop motherboards on ARM featuring AIO liquid cooling mounts do not exist on the consumer market, which is why ARM support was intentionally omitted to preserve codebase efficiency and eliminate dead code.
+1. **Lightweight & Fast:** Written in 100% pure Rust. GUI consumes ~12 MB RAM (<3 MB in tray), interactive TUI takes ~5 MB, and headless daemon runs at ~2 MB with 0.0% background CPU.
+2. **Smooth Display Readings:** Built-in exponential moving average (EMA) and deadband hysteresis filter (0–5°C) to eliminate distracting 7-segment number jitter.
+3. **True Native Linux Support:** Reads CPU telemetry driverless via kernel sysfs (`/sys/class/hwmon` and `/proc/stat`) without requiring root rights or Wine.
+4. **Direct Windows Silicon Telemetry:** High-precision Intel DTS and AMD Ryzen telemetry via IA32 MSRs using an embedded LibreHardwareMonitor micro-driver with automatic kernel memory unloading.
+5. **Interactive Terminal UI (TUI):** Minimalist Ratatui dashboard with telemetry gauges, sparklines, and full settings editor. Detaches seamlessly to a background daemon on terminal closure.
+6. **One-Shot Status Query:** Run `rustcooling status` for instant telemetry output formatted for Waybar, Polybar, or scripts.
+7. **Multi-Language Support:** Full runtime localization in English (`en`), Russian (`ru`), Chinese (`zh`), German (`de`), and French (`fr`).
 
 ---
 
-### Comparison with Alternatives
+### Quick Comparison
 
-| Feature | Official Vendor Software | idc-lite (My Previous C# App) | **RustCooling (Rust)** |
-| :--- | :---: | :---: | :---: |
-| **Tech Stack** | Electron / Node.js + C++ | C# / .NET 8 (WPF) | **100% Pure Rust + Slint & Ratatui** |
-| **RAM (GUI Active Window)** | ~200 – 300 MB | ~120 MB | **~12 – 14 MB** |
-| **RAM (Interactive TUI)** | ❌ N/A | ❌ N/A | **~4 – 7 MB** |
-| **RAM (Headless Daemon)** | ❌ N/A | ❌ N/A | **~2 – 4 MB** |
-| **RAM (System Tray)** | ~200 MB | ~110 MB | **< 3 MB** (~1.1 – 2.5 MB) |
-| **Background CPU Load** | 2.0% – 5.0% | ~1.0% | **0.0%** (Event-driven) |
-| **Temp Jitter Smoothing** | ❌ None (jitters constantly) | ❌ None | **✔ Yes (configurable hysteresis filter)** |
-| **Linux Support** | ❌ None | ⚠️ Experimental | **✔ Native (hwmon, sysfs, udev)** |
-| **Startup Time** | 3.0 – 6.0 sec | 1.5 – 3.0 sec | **< 50 ms** |
-| **UI Languages** | EN, ZH | EN, RU, ZH | **EN, RU, ZH, DE, FR** |
+| Feature | Official Vendor Utility | RustCooling |
+| :--- | :---: | :---: |
+| **Tech Stack** | Electron / Node.js + C++ | **100% Pure Rust + Slint & Ratatui** |
+| **Active GUI RAM** | ~200 – 300 MB | **~12 – 14 MB** |
+| **System Tray RAM** | ~200 MB | **< 3 MB** |
+| **Interactive TUI** | ❌ None | **✔ Yes (~5 MB RAM)** |
+| **Headless Daemon** | ❌ None | **✔ Yes (~2 MB RAM)** |
+| **Background CPU** | 2.0% – 5.0% | **0.0%** (Event-driven) |
+| **Hysteresis Smoothing**| ❌ Jitters constantly | **✔ Yes (Configurable 0–5°C deadband)** |
+| **Linux Support** | ❌ None | **✔ Native (`hwmon`, `sysfs`, `udev`)** |
+| **Startup Time** | 3.0 – 6.0 sec | **< 50 ms** |
 
 ---
 
-### Command Line Interface (CLI)
-
-RustCooling provides two distinct package flavors for Linux:
-
-- **CLI / TUI Package (`RustCooling-CLI`)**: Minimalist, zero GUI dependencies. Running `rustcooling` directly launches the interactive Ratatui terminal dashboard.
-- **GUI Package (`RustCooling-GUI`)**: Full desktop version with Slint OpenGL interface and system tray.
-
-Commands:
+### CLI & TUI Usage
 
 ```bash
-# In CLI package: directly opens interactive Ratatui TUI dashboard
-# In GUI package: opens hardware-accelerated Slint window
+# Launch GUI (or interactive TUI if in terminal-only build):
 rustcooling
 
-# Launch Interactive Terminal User Interface (Ratatui TUI dashboard)
+# Launch interactive Terminal UI (Ratatui dashboard):
 rustcooling tui         # or: rustcooling -t
 
-# Launch background headless daemon (~2 MB RAM)
+# Launch headless background daemon:
 rustcooling daemon      # or: rustcooling -d
 
-# Non-blocking live telemetry status query (Waybar / Polybar / scripts)
+# Non-blocking telemetry query (for Waybar / status bars):
 rustcooling status      # or: rustcooling -s
 
-# Graceful shutdown (powers off pump display and stops daemon)
+# Power off pump screen and stop background daemon:
 rustcooling stop
 ```
 
@@ -117,103 +87,67 @@ rustcooling stop
 
 ### Downloads & Quick Start
 
-Pre-built standalone binaries and packages are available on the [**Releases**](https://github.com/Qyzom/RustCooling/releases/latest) page:
+Pre-built standalone releases are available on the [**Releases**](https://github.com/Qyzom/RustCooling/releases/latest) page:
 
-| OS / Distribution | Package Type | Architecture | Download Link |
+| OS | Package Asset | Architecture | Description |
 | :--- | :--- | :---: | :--- |
-| **Windows 10 / 11** | Standalone Executable (Portable) | x86_64 | [**`RustCooling-1.0.4.exe`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-1.0.4.exe) |
-| **Universal Linux (All Distros)** | Standalone GUI AppImage | x86_64 | [**`RustCooling-GUI-1.0.4.AppImage`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-GUI-1.0.4.AppImage) |
-| **Arch Linux / CachyOS** | Native Package (`.pkg.tar.zst`) | x86_64 | [**`rustcooling-1.0.4-1-x86_64.pkg.tar.zst`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/rustcooling-1.0.4-1-x86_64.pkg.tar.zst) |
-| **Debian / Ubuntu / Mint** | Desktop GUI Package (`.deb`) | x86_64 | [**`RustCooling-GUI-1.0.4.deb`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-GUI-1.0.4.deb) |
-| **Debian / Ubuntu / Mint** | Minimal CLI / TUI Package (`.deb`) | x86_64 | [**`RustCooling-CLI-1.0.4.deb`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-CLI-1.0.4.deb) |
-| **Generic Linux Archive** | Universal GUI Archive (`.tar.gz`) | x86_64 | [**`RustCooling-GUI-1.0.4.tar.gz`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-GUI-1.0.4.tar.gz) |
-| **Generic Linux Archive** | Minimal CLI / TUI Archive (`.tar.gz`) | x86_64 | [**`RustCooling-CLI-1.0.4.tar.gz`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-CLI-1.0.4.tar.gz) |
+| **Windows 10 / 11** | [**`RustCooling-1.1.0.exe`**](https://github.com/Qyzom/RustCooling/releases/latest) | x86_64 | Standalone portable executable with embedded kernel driver |
+| **Universal Linux** | [**`RustCooling-GUI-1.1.0.AppImage`**](https://github.com/Qyzom/RustCooling/releases/latest) | x86_64 | Standalone GUI AppImage (Slint + OpenGL + System Tray) |
+| **Universal Linux** | [**`RustCooling-TUI-1.1.0.AppImage`**](https://github.com/Qyzom/RustCooling/releases/latest) | x86_64 | Standalone terminal TUI & CLI AppImage |
 
----
+#### Linux Quick Run
 
-#### Windows (Portable)
-1. Download **[`RustCooling-1.0.4.exe`](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-1.0.4.exe)**.
-2. Place it in any folder of your choice (e.g. `C:\Tools\RustCooling\`). Configuration (`config.json`) and the micro-driver reside directly next to it.
-3. On first run, click **"Grant Rights & Install"** (UAC) to register the LibreHardwareMonitor sensor driver once.
-4. Click **"Continue"** — the application is ready to use! System autostart is available in Settings.
-
-#### Arch Linux & CachyOS
-**Direct pacman installation from latest release:**
 ```bash
-sudo pacman -U https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/rustcooling-1.0.4-1-x86_64.pkg.tar.zst
-```
-
-**Or build locally from source:**
-```bash
-git clone https://github.com/Qyzom/RustCooling.git
-cd RustCooling/packaging/arch && makepkg -si
-```
-
-#### Linux GUI & TUI (Universal AppImage — All Distributions)
-```bash
-# GUI (Slint + OpenGL + System Tray):
+# GUI AppImage
 chmod +x RustCooling-GUI-1.1.0.AppImage
 ./RustCooling-GUI-1.1.0.AppImage
 
-# Terminal TUI (Ratatui interactive dashboard & daemon):
+# TUI / CLI AppImage
 chmod +x RustCooling-TUI-1.1.0.AppImage
 ./RustCooling-TUI-1.1.0.AppImage
 ```
 
-#### Linux Systemd User Service (Background Daemon)
-To run RustCooling silently in the background on every user login without GUI/TUI windows:
+#### Linux Systemd User Service (Optional Daemon)
+To run RustCooling silently in the background on user login:
 ```bash
 systemctl --user enable --now rustcooling
 ```
 
 ---
 
-### Hardware Protocol Specification (USB HID)
+### Hardware Protocol (USB HID)
 
 - **Vendor ID (VID):** `0x1A86` (QinHeng Electronics / WCH)
 - **Product ID (PID):** `0xE317`
-- **Report Length:** 64 bytes (on Windows, Report ID `0x00` is prepended -> 65 bytes total).
+- **Report Length:** 64 bytes (on Windows, Win32 prepends Report ID `0x00` -> 65 bytes total).
 
-#### Frame Structure (64 bytes)
 ```
 [0x55, 0xBB, 0x02, CMD, VAL_HI, VAL_LO, CKSUM, 0x00 x 57]
 ```
-- `0x55, 0xBB`: Magic bytes signature.
-- `0x02`: Value payload length (2 bytes).
-- `CMD`: Command opcode.
-- `VAL_HI, VAL_LO`: Big-Endian `u16` numeric value.
-- `CKSUM`: Checksum of the first 6 bytes `(sum(0..5)) & 0xFF`.
-- Remaining 57 bytes: Zero padding (`0x00`).
 
-#### Command Table
-| Command | Hex | Description |
-| :--- | :---: | :--- |
-| `CMD_TEMPERATURE` | `0x01` | Number rendered on 7-segment display (CPU Temperature or CPU Load) |
-| `CMD_SHOW` | `0x04` | Turn display panel on (`0x0001`) or off (`0x0000`) |
+- `CMD_TEMPERATURE` (`0x01`): Number rendered on 7-segment display (numeric range: `0`–`99`, clamped up to `199`).
+- `CMD_SHOW` (`0x04`): Display panel power control (`0x0001` = on, `0x0000` = off).
+- `CKSUM`: Sum of the first 6 bytes modulo 256.
 
 ---
 
 ### Building from Source
- 
+
 ```bash
 git clone https://github.com/Qyzom/RustCooling.git
 cd RustCooling
 cargo test
 cargo build --release
 ```
-The compiled binaries will be located in:
-- Windows: `target/release/RustCooling.exe` (GUI)
+
+Compiled binaries:
+- Windows: `target/release/RustCooling.exe`
 - Linux GUI: `target/release/RustCooling`
 - Linux CLI/TUI: `target/release/rustcooling-cli`
 
 ---
 
-### License & Third-Party Components
+### License
 
-This project is licensed under the open-source **[MIT License](LICENSE)**.
-
-Third-party open-source components and their respective licenses:
-- **RustCooling Core & UI:** [MIT License](LICENSE) © Qyzom & Contributors.
-- **Unbounded Font:** [SIL Open Font License 1.1](assets/fonts/OFL.txt) (Authors: Lexend & Contributors).
-- **Noto Sans SC Font:** [SIL Open Font License 1.1](https://openfontlicense.org/) (Authors: Google LLC, Adobe Systems Inc.). Provides native Chinese character rendering.
-- **LibreHardwareMonitor Driver:** [Modified BSD License](http://openlibsys.org/) (Author: Noriyuki Miyazaki / OpenLibSys / LibreHardwareMonitor). Provides safe physical hardware sensor access on Windows.
+Licensed under the [MIT License](LICENSE).  
+Third-party font and driver licenses are documented in [`assets/`](assets/).
