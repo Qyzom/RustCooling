@@ -2,7 +2,6 @@
 - Full compiler optimization with fat Link-Time Optimization (`lto = "fat"`), single codegen unit, and symbol stripping.
 - Introduced dedicated standalone `RustCooling-TUI-1.1.0.AppImage` for interactive terminal dashboard & headless background monitoring.
 - Streamlined release packaging down to 3 standalone, zero-dependency assets (Windows `.exe`, Linux GUI `.AppImage`, Linux TUI `.AppImage`).
-- Added Flatpak manifest (`io.github.qyzom.RustCooling.yml`) and AppStream metainfo with complete hardware sensor access permissions.
 - Upgraded dependencies across all 77 transitive crates for peak performance and stability.
 
 [Full Changelog](https://github.com/Qyzom/RustCooling/commits/main)

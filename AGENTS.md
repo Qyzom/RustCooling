@@ -221,5 +221,5 @@ All GitHub releases across the repository **must strictly adhere to the followin
 6. **Publishing Process:**
    - Bump version in `Cargo.toml` and verify `cargo test` + `cargo clippy`.
    - Create Git tag: `git tag -a vX.X.X -m "RustCooling X.X.X"` and push: `git push origin main --tags`.
-   - GitHub Actions (`.github/workflows/release.yml`) triggers on the pushed tag, compiles Linux `.AppImage`, `.deb`, `.tar.gz`, and Windows `.exe`, and automatically attaches them to the release via `gh release upload ... --clobber`.
+   - GitHub Actions (`.github/workflows/release.yml`) triggers on the pushed tag, compiles Linux `.AppImage` (GUI and TUI) and Windows `.exe`, and automatically attaches them to the release via `gh release upload ... --clobber`.
 
