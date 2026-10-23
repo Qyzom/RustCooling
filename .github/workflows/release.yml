@@ -41,168 +41,7 @@ jobs:
       - name: Build Release Binary
         run: cargo build --release
 
-      - name: Package Debian GUI (.deb)
-        run: |
-          TAG_NAME="${{ github.ref_name }}"
-          VERSION="${TAG_NAME#v}"
-          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
-            VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
-          fi
-          echo "Packaging GUI version: $VERSION"
-
-          mkdir -p pkg-gui/DEBIAN
-          mkdir -p pkg-gui/usr/bin
-          mkdir -p pkg-gui/usr/lib/udev/rules.d
-          mkdir -p pkg-gui/usr/lib/systemd/user
-          mkdir -p pkg-gui/usr/share/applications
-          mkdir -p pkg-gui/usr/share/icons/hicolor/256x256/apps
-          mkdir -p pkg-gui/usr/share/fonts/truetype/rustcooling
-
-          cp target/release/RustCooling pkg-gui/usr/bin/RustCooling
-          ln -sf RustCooling pkg-gui/usr/bin/rustcooling
-          chmod 755 pkg-gui/usr/bin/RustCooling
-          cp packaging/linux/99-idcooling.rules pkg-gui/usr/lib/udev/rules.d/
-          cp packaging/linux/rustcooling.desktop pkg-gui/usr/share/applications/
-          sed 's|/usr/local/bin|/usr/bin|g' packaging/linux/rustcooling.service > pkg-gui/usr/lib/systemd/user/rustcooling.service
-          cp assets/icons/logo_256.png pkg-gui/usr/share/icons/hicolor/256x256/apps/rustcooling.png
-          cp assets/fonts/*.ttf pkg-gui/usr/share/fonts/truetype/rustcooling/
-
-          cat << EOF > pkg-gui/DEBIAN/control
-          Package: rustcooling-gui
-          Version: ${VERSION}
-          Section: utils
-          Priority: optional
-          Architecture: amd64
-          Maintainer: Qyzom <t0lotsmail@gmail.com>
-          Depends: libudev1, libfontconfig1, libc6, libgtk-3-0, libxdo3
-          Provides: rustcooling
-          Conflicts: rustcooling-cli
-          Replaces: rustcooling-cli
-          Homepage: https://github.com/Qyzom/RustCooling
-          Description: Ultra-lightweight LCD Display GUI controller for ID-COOLING FX series liquid coolers
-           Ultra-lightweight native Rust graphical application for controlling LCD displays on
-           ID-COOLING FX series liquid coolers (FX240, FX280, FX360).
-           Zero telemetry bloat, system tray support, OpenGL acceleration.
-          EOF
-
-          cat << 'EOF' > pkg-gui/DEBIAN/postinst
-          #!/bin/sh
-          set -e
-          if command -v udevadm >/dev/null 2>&1; then
-            udevadm control --reload-rules || true
-            udevadm trigger || true
-          fi
-          if command -v update-desktop-database >/dev/null 2>&1; then
-            update-desktop-database -q /usr/share/applications || true
-          fi
-          if command -v fc-cache >/dev/null 2>&1; then
-            fc-cache -f /usr/share/fonts/truetype/rustcooling >/dev/null 2>&1 || true
-          fi
-          for u in /home/*; do
-            [ -d "$u" ] || continue
-            for d in "Desktop" "Рабочий стол"; do
-              if [ -d "$u/$d" ]; then
-                cp -f /usr/share/applications/rustcooling.desktop "$u/$d/"
-                chown "$(stat -c '%U:%G' "$u")" "$u/$d/rustcooling.desktop" 2>/dev/null || true
-                chmod 755 "$u/$d/rustcooling.desktop" 2>/dev/null || true
-                break
-              fi
-            done
-          done
-          exit 0
-          EOF
-          chmod 755 pkg-gui/DEBIAN/postinst
-
-          dpkg-deb --build --root-owner-group pkg-gui "RustCooling-GUI-${VERSION}.deb"
-
-      - name: Package Debian CLI/TUI (.deb)
-        run: |
-          TAG_NAME="${{ github.ref_name }}"
-          VERSION="${TAG_NAME#v}"
-          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
-            VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
-          fi
-          echo "Packaging CLI/TUI version: $VERSION"
-
-          mkdir -p pkg-cli/DEBIAN
-          mkdir -p pkg-cli/usr/bin
-          mkdir -p pkg-cli/usr/lib/udev/rules.d
-          mkdir -p pkg-cli/usr/lib/systemd/user
-
-          cp target/release/rustcooling-cli pkg-cli/usr/bin/rustcooling-cli
-          ln -sf rustcooling-cli pkg-cli/usr/bin/rustcooling
-          chmod 755 pkg-cli/usr/bin/rustcooling-cli
-          cp packaging/linux/99-idcooling.rules pkg-cli/usr/lib/udev/rules.d/
-          sed 's|/usr/local/bin|/usr/bin|g' packaging/linux/rustcooling.service > pkg-cli/usr/lib/systemd/user/rustcooling.service
-
-          cat << EOF > pkg-cli/DEBIAN/control
-          Package: rustcooling-cli
-          Version: ${VERSION}
-          Section: utils
-          Priority: optional
-          Architecture: amd64
-          Maintainer: Qyzom <t0lotsmail@gmail.com>
-          Depends: libudev1, libc6
-          Provides: rustcooling
-          Conflicts: rustcooling-gui
-          Replaces: rustcooling-gui
-          Homepage: https://github.com/Qyzom/RustCooling
-          Description: Ultra-lightweight LCD Display CLI & TUI controller for ID-COOLING FX series liquid coolers
-           Ultra-lightweight native Rust terminal application for controlling LCD displays on
-           ID-COOLING FX series liquid coolers (FX240, FX280, FX360).
-           Zero GUI dependencies, interactive TUI mode, <4 MB RAM background daemon.
-          EOF
-
-          cat << 'EOF' > pkg-cli/DEBIAN/postinst
-          #!/bin/sh
-          set -e
-          if command -v udevadm >/dev/null 2>&1; then
-            udevadm control --reload-rules || true
-            udevadm trigger || true
-          fi
-          exit 0
-          EOF
-          chmod 755 pkg-cli/DEBIAN/postinst
-
-          dpkg-deb --build --root-owner-group pkg-cli "RustCooling-CLI-${VERSION}.deb"
-
-      - name: Package Tarball GUI (.tar.gz)
-        run: |
-          TAG_NAME="${{ github.ref_name }}"
-          VERSION="${TAG_NAME#v}"
-          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
-            VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
-          fi
-
-          mkdir -p tarball-gui
-          cp target/release/RustCooling tarball-gui/
-          cp packaging/linux/99-idcooling.rules tarball-gui/
-          cp packaging/linux/rustcooling.desktop tarball-gui/
-          cp packaging/linux/rustcooling.service tarball-gui/
-          cp packaging/linux/install.sh tarball-gui/
-          cp packaging/linux/uninstall.sh tarball-gui/
-          cp assets/icons/logo_256.png tarball-gui/logo.png
-          mkdir -p tarball-gui/fonts
-          cp assets/fonts/*.ttf tarball-gui/fonts/
-          tar -czvf "RustCooling-GUI-${VERSION}.tar.gz" -C tarball-gui .
-
-      - name: Package Tarball CLI/TUI (.tar.gz)
-        run: |
-          TAG_NAME="${{ github.ref_name }}"
-          VERSION="${TAG_NAME#v}"
-          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
-            VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
-          fi
-
-          mkdir -p tarball-cli
-          cp target/release/rustcooling-cli tarball-cli/
-          cp packaging/linux/99-idcooling.rules tarball-cli/
-          cp packaging/linux/rustcooling.service tarball-cli/
-          cp packaging/linux/install.sh tarball-cli/
-          cp packaging/linux/uninstall.sh tarball-cli/
-          tar -czvf "RustCooling-CLI-${VERSION}.tar.gz" -C tarball-cli .
-
-      - name: Package AppImage (.AppImage)
+      - name: Package AppImage GUI (.AppImage)
         run: |
           TAG_NAME="${{ github.ref_name }}"
           VERSION="${TAG_NAME#v}"
@@ -239,6 +78,40 @@ jobs:
           ./appimagetool-x86_64.AppImage --appimage-extract
           ARCH=x86_64 ./squashfs-root/AppRun --no-appstream AppDir "RustCooling-GUI-${VERSION}.AppImage"
 
+      - name: Package AppImage TUI (.AppImage)
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${TAG_NAME#v}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
+            VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
+          fi
+
+          mkdir -p AppDirTui/usr/bin
+          mkdir -p AppDirTui/usr/lib/udev/rules.d
+          mkdir -p AppDirTui/usr/share/applications
+          mkdir -p AppDirTui/usr/share/icons/hicolor/256x256/apps
+
+          cp target/release/rustcooling-cli AppDirTui/usr/bin/rustcooling-cli
+          chmod 755 AppDirTui/usr/bin/rustcooling-cli
+          cp packaging/linux/99-idcooling.rules AppDirTui/usr/lib/udev/rules.d/
+          cp packaging/linux/rustcooling-tui.desktop AppDirTui/usr/share/applications/
+          cp packaging/linux/rustcooling-tui.desktop AppDirTui/rustcooling-tui.desktop
+          cp assets/icons/logo_256.png AppDirTui/usr/share/icons/hicolor/256x256/apps/rustcooling.png
+          cp assets/icons/logo_256.png AppDirTui/rustcooling.png
+          cp assets/icons/logo_256.png AppDirTui/.DirIcon
+
+          cat << 'EOF' > AppDirTui/AppRun
+          #!/bin/sh
+          SELF=$(readlink -f "$0")
+          HERE=${SELF%/*}
+          export PATH="${HERE}/usr/bin:${PATH}"
+          export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+          exec "${HERE}/usr/bin/rustcooling-cli" "$@"
+          EOF
+          chmod 755 AppDirTui/AppRun
+
+          ARCH=x86_64 ./squashfs-root/AppRun --no-appstream AppDirTui "RustCooling-TUI-${VERSION}.AppImage"
+
       - name: Publish or Upload Linux Assets to Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -250,11 +123,8 @@ jobs:
             TAG_NAME="v${VERSION}"
           fi
           ASSETS=(
-            "RustCooling-GUI-${VERSION}.deb"
-            "RustCooling-CLI-${VERSION}.deb"
-            "RustCooling-GUI-${VERSION}.tar.gz"
-            "RustCooling-CLI-${VERSION}.tar.gz"
             "RustCooling-GUI-${VERSION}.AppImage"
+            "RustCooling-TUI-${VERSION}.AppImage"
           )
           if ! gh release view "$TAG_NAME" >/dev/null 2>&1; then
             if [ -f RELEASE_NOTES.md ]; then

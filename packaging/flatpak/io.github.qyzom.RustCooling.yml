@@ -1,0 +1,43 @@
+app-id: io.github.qyzom.RustCooling
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: RustCooling
+finish-args:
+  # Full device access for USB HID LCD hardware controller (VID 0x1A86, PID 0xE317)
+  - --device=all
+  # Access to /sys for hardware temperature monitoring (/sys/class/hwmon, /sys/class/thermal)
+  - --filesystem=/sys:ro
+  # Access to /proc for CPU utilization (/proc/stat)
+  - --filesystem=/proc:ro
+  # Display servers and GPU access for Slint OpenGL GUI
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --device=dri
+  # System tray integration
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Notifications
+  # Persistent config access
+  - --filesystem=xdg-config/RustCooling:create
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/rustcooling/cargo
+
+modules:
+  - name: rustcooling
+    buildsystem: simple
+    build-commands:
+      - cargo --version
+      - cargo build --release --bin RustCooling
+      - install -Dm755 target/release/RustCooling /app/bin/RustCooling
+      - install -Dm644 packaging/linux/rustcooling.desktop /app/share/applications/io.github.qyzom.RustCooling.desktop
+      - install -Dm644 assets/icons/logo_256.png /app/share/icons/hicolor/256x256/apps/io.github.qyzom.RustCooling.png
+      - install -Dm644 packaging/flatpak/io.github.qyzom.RustCooling.metainfo.xml /app/share/metainfo/io.github.qyzom.RustCooling.metainfo.xml
+    sources:
+      - type: dir
+        path: ../..

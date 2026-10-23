@@ -206,10 +206,7 @@ All GitHub releases across the repository **must strictly adhere to the followin
 ### Release Assets
 - **`RustCooling-X.X.X.exe`** — Versioned standalone GUI executable for Windows 10/11 x64 (no installation required, ready to run).
 - **`RustCooling-GUI-X.X.X.AppImage`** — Standalone universal GUI AppImage for all x86_64 Linux distributions.
-- **`RustCooling-GUI-X.X.X.deb`** — Debian, Ubuntu, and Linux Mint GUI package with desktop integration, system tray, and font support.
-- **`RustCooling-CLI-X.X.X.deb`** — Minimal headless Debian, Ubuntu, and Linux Mint package with interactive TUI and zero GUI dependencies.
-- **`RustCooling-GUI-X.X.X.tar.gz`** — Universal Linux GUI archive with desktop integration, fonts, and `install.sh` script.
-- **`RustCooling-CLI-X.X.X.tar.gz`** — Universal Linux TUI & CLI archive for servers and minimal terminal installations.
+- **`RustCooling-TUI-X.X.X.AppImage`** — Standalone universal interactive TUI & CLI AppImage for all x86_64 Linux distributions.
 ```
 
 ### Release Rules & Workflow:
@@ -220,10 +217,7 @@ All GitHub releases across the repository **must strictly adhere to the followin
 5. **Asset Naming Convention:**
    - Windows binary: `RustCooling-X.X.X.exe`
    - Linux GUI AppImage: `RustCooling-GUI-X.X.X.AppImage`
-   - Linux GUI Debian package: `RustCooling-GUI-X.X.X.deb`
-   - Linux CLI/TUI Debian package: `RustCooling-CLI-X.X.X.deb`
-   - Linux GUI archive: `RustCooling-GUI-X.X.X.tar.gz`
-   - Linux CLI/TUI archive: `RustCooling-CLI-X.X.X.tar.gz`
+   - Linux TUI AppImage: `RustCooling-TUI-X.X.X.AppImage`
 6. **Publishing Process:**
    - Bump version in `Cargo.toml` and verify `cargo test` + `cargo clippy`.
    - Create Git tag: `git tag -a vX.X.X -m "RustCooling X.X.X"` and push: `git push origin main --tags`.

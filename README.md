@@ -149,36 +149,15 @@ git clone https://github.com/Qyzom/RustCooling.git
 cd RustCooling/packaging/arch && makepkg -si
 ```
 
-#### Linux GUI (Universal AppImage — All Distributions)
+#### Linux GUI & TUI (Universal AppImage — All Distributions)
 ```bash
-chmod +x RustCooling-GUI-1.0.4.AppImage
-./RustCooling-GUI-1.0.4.AppImage
-```
+# GUI (Slint + OpenGL + System Tray):
+chmod +x RustCooling-GUI-1.1.0.AppImage
+./RustCooling-GUI-1.1.0.AppImage
 
-#### Linux (Debian / Ubuntu / Linux Mint)
-
-**For Desktop GUI (with system tray, desktop entry, fonts):**
-```bash
-sudo dpkg -i RustCooling-GUI-1.0.4.deb
-```
-
-**For Minimal Terminal TUI & Server Daemon (zero GUI dependencies):**
-```bash
-sudo dpkg -i RustCooling-CLI-1.0.4.deb
-```
-
-#### Generic Linux Tarball (Fedora / openSUSE / Void)
-
-**For Desktop GUI:**
-```bash
-tar -xzf RustCooling-GUI-1.0.4.tar.gz
-sudo ./install.sh
-```
-
-**For Minimal Terminal TUI & Server Daemon:**
-```bash
-tar -xzf RustCooling-CLI-1.0.4.tar.gz
-sudo ./install.sh
+# Terminal TUI (Ratatui interactive dashboard & daemon):
+chmod +x RustCooling-TUI-1.1.0.AppImage
+./RustCooling-TUI-1.1.0.AppImage
 ```
 
 #### Linux Systemd User Service (Background Daemon)
