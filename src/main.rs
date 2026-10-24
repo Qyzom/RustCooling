@@ -22,9 +22,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tray::SystemTray;
 
-#[cfg(windows)]
-use auto_launch::AutoLaunchBuilder;
-
 slint::include_modules!();
 
 #[derive(Parser, Debug)]
