@@ -58,6 +58,10 @@ jobs:
           cp target/release/RustCooling AppDir/usr/bin/RustCooling
           chmod 755 AppDir/usr/bin/RustCooling
           cp -P /usr/lib/x86_64-linux-gnu/libxdo.so* AppDir/usr/lib/ 2>/dev/null || true
+          cp -P /usr/lib/x86_64-linux-gnu/libayatana-appindicator3.so* AppDir/usr/lib/ 2>/dev/null || true
+          cp -P /usr/lib/x86_64-linux-gnu/libayatana-ido3*.so* AppDir/usr/lib/ 2>/dev/null || true
+          cp -P /usr/lib/x86_64-linux-gnu/libayatana-indicator3.so* AppDir/usr/lib/ 2>/dev/null || true
+          cp -P /usr/lib/x86_64-linux-gnu/libappindicator3.so* AppDir/usr/lib/ 2>/dev/null || true
           cp packaging/linux/99-idcooling.rules AppDir/usr/lib/udev/rules.d/
           cp packaging/linux/rustcooling.desktop AppDir/usr/share/applications/
           cp packaging/linux/rustcooling.desktop AppDir/rustcooling.desktop
