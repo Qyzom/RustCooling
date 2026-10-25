@@ -50,12 +50,14 @@ jobs:
           fi
 
           mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/lib
           mkdir -p AppDir/usr/lib/udev/rules.d
           mkdir -p AppDir/usr/share/applications
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
 
           cp target/release/RustCooling AppDir/usr/bin/RustCooling
           chmod 755 AppDir/usr/bin/RustCooling
+          cp -P /usr/lib/x86_64-linux-gnu/libxdo.so* AppDir/usr/lib/ 2>/dev/null || true
           cp packaging/linux/99-idcooling.rules AppDir/usr/lib/udev/rules.d/
           cp packaging/linux/rustcooling.desktop AppDir/usr/share/applications/
           cp packaging/linux/rustcooling.desktop AppDir/rustcooling.desktop
