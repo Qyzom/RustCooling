@@ -68,5 +68,13 @@
   "btn_power_off_stop": "Éteindre l'écran et arrêter (X)",
   "tui_keys_help": " [1/2/Tab] Onglets | [↑/↓] Sélectionner | [←/→] Modifier | [S] Sauvegarder | [Q] Quitter vers Démon | [X] Arrêter",
   "status_saved": "[✓] Paramètres enregistrés avec succès dans config.json !",
-  "status_reset": "[✓] Paramètres réinitialisés aux valeurs par défaut."
+  "status_reset": "[✓] Paramètres réinitialisés aux valeurs par défaut.",
+  "activation_udev_title": "Accès USB Pompe (udev)",
+  "activation_udev_desc": "Sous Linux, accéder à l’écran LCD ID-COOLING sans droits root nécessite une règle udev. Cliquez ci-dessous pour l’installer via pkexec.",
+  "activation_udev_btn": "Installer la règle udev",
+  "activation_udev_installed": "✓ Règle udev installée et active",
+  "setting_udev_title": "Accès USB Pompe (udev)",
+  "udev_status_active": "Actif (udev)",
+  "udev_status_missing": "Non configuré",
+  "udev_btn_install": "Configurer"
 }

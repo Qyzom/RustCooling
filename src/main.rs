@@ -57,6 +57,65 @@ struct CliArgs {
     /// Stop running background daemon and turn off LCD screen
     #[arg(long)]
     stop: bool,
+
+    /// Install udev rules for USB LCD display (internal helper called with elevated privileges)
+    #[arg(long)]
+    setup_udev: bool,
+}
+
+#[cfg(not(windows))]
+fn is_hardware_access_granted(vid: u16, pid: u16) -> bool {
+    // Check if udev rule exists in standard directories
+    let etc_rule = std::path::Path::new("/etc/udev/rules.d/99-idcooling.rules");
+    let usr_rule = std::path::Path::new("/usr/lib/udev/rules.d/99-idcooling.rules");
+    if etc_rule.exists() || usr_rule.exists() {
+        return true;
+    }
+
+    // Check if HID device can be opened directly
+    if let Ok(api) = hidapi::HidApi::new() {
+        if api.open(vid, pid).is_ok() {
+            return true;
+        }
+    }
+    false
+}
+
+#[cfg(not(windows))]
+fn request_udev_setup(vid: u16, pid: u16) -> bool {
+    let script = format!(
+        "echo '# ID-COOLING FX Series LCD Display (VID {vid:04X}, PID {pid:04X})\nSUBSYSTEM==\"usb\", ATTRS{{idVendor}}==\"{vid:04x}\", ATTRS{{idProduct}}==\"{pid:04x}\", MODE=\"0666\", TAG+=\"uaccess\"\nSUBSYSTEM==\"hidraw\", ATTRS{{idVendor}}==\"{vid:04x}\", ATTRS{{idProduct}}==\"{pid:04x}\", MODE=\"0666\", TAG+=\"uaccess\"' > /etc/udev/rules.d/99-idcooling.rules && udevadm control --reload-rules && udevadm trigger"
+    );
+
+    // Try pkexec
+    let pk_res = std::process::Command::new("pkexec")
+        .arg("sh")
+        .arg("-c")
+        .arg(&script)
+        .status();
+
+    if let Ok(st) = pk_res {
+        if st.success() {
+            std::thread::sleep(Duration::from_millis(500));
+            return is_hardware_access_granted(vid, pid);
+        }
+    }
+
+    // Fallback: try sudo if running in terminal or sudo session
+    let sudo_res = std::process::Command::new("sudo")
+        .arg("sh")
+        .arg("-c")
+        .arg(&script)
+        .status();
+
+    if let Ok(st) = sudo_res {
+        if st.success() {
+            std::thread::sleep(Duration::from_millis(500));
+            return is_hardware_access_granted(vid, pid);
+        }
+    }
+
+    false
 }
 
 pub fn show_and_focus_window(w: &MainWindow) {
@@ -160,15 +219,29 @@ fn apply_translations(w: &MainWindow) {
     w.set_tr_about_desc(t.about_desc.as_str().into());
     w.set_tr_activation_title(t.activation_title.as_str().into());
     w.set_tr_activation_subtitle(t.activation_subtitle.as_str().into());
-    w.set_tr_activation_driver_title(t.activation_driver_title.as_str().into());
-    w.set_tr_activation_driver_desc(t.activation_driver_desc.as_str().into());
-    w.set_tr_activation_driver_btn(t.activation_driver_btn.as_str().into());
-    w.set_tr_activation_driver_installed(t.activation_driver_installed.as_str().into());
+    #[cfg(windows)]
+    {
+        w.set_tr_activation_driver_title(t.activation_driver_title.as_str().into());
+        w.set_tr_activation_driver_desc(t.activation_driver_desc.as_str().into());
+        w.set_tr_activation_driver_btn(t.activation_driver_btn.as_str().into());
+        w.set_tr_activation_driver_installed(t.activation_driver_installed.as_str().into());
+        w.set_tr_setting_driver_title(t.setting_driver_title.as_str().into());
+        w.set_tr_driver_status_active(t.driver_status_active.as_str().into());
+        w.set_tr_driver_status_missing(t.driver_status_missing.as_str().into());
+        w.set_tr_driver_btn_install(t.driver_btn_install.as_str().into());
+    }
+    #[cfg(not(windows))]
+    {
+        w.set_tr_activation_driver_title(t.activation_udev_title.as_str().into());
+        w.set_tr_activation_driver_desc(t.activation_udev_desc.as_str().into());
+        w.set_tr_activation_driver_btn(t.activation_udev_btn.as_str().into());
+        w.set_tr_activation_driver_installed(t.activation_udev_installed.as_str().into());
+        w.set_tr_setting_driver_title(t.setting_udev_title.as_str().into());
+        w.set_tr_driver_status_active(t.udev_status_active.as_str().into());
+        w.set_tr_driver_status_missing(t.udev_status_missing.as_str().into());
+        w.set_tr_driver_btn_install(t.udev_btn_install.as_str().into());
+    }
     w.set_tr_activation_continue_btn(t.activation_continue_btn.as_str().into());
-    w.set_tr_setting_driver_title(t.setting_driver_title.as_str().into());
-    w.set_tr_driver_status_active(t.driver_status_active.as_str().into());
-    w.set_tr_driver_status_missing(t.driver_status_missing.as_str().into());
-    w.set_tr_driver_btn_install(t.driver_btn_install.as_str().into());
 }
 
 fn sync_ui_from_config(w: &MainWindow, cfg: &AppConfig, autostart: bool, driver_installed: bool) {
@@ -313,6 +386,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("RustCooling daemon stopped and display powered off.");
         } else {
             println!("RustCooling display powered off.");
+        }
+        return Ok(());
+    }
+
+    #[cfg(not(windows))]
+    if args.setup_udev {
+        let success = request_udev_setup(config.custom_vid, config.custom_pid);
+        if success {
+            println!("[✓] udev rules installed successfully!");
+        } else {
+            eprintln!("[!] Failed to install udev rules. Please run manually:");
+            eprintln!("    echo 'SUBSYSTEM==\"hidraw\", ATTRS{{idVendor}}==\"1a86\", ATTRS{{idProduct}}==\"e317\", MODE=\"0666\"' | sudo tee /etc/udev/rules.d/99-idcooling.rules && sudo udevadm control --reload-rules && sudo udevadm trigger");
         }
         return Ok(());
     }
@@ -510,8 +595,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 tray::TrayAction::Exit => {
-                    info!("Tray event: Exit requested");
-                    keep_exit.store(true, Ordering::SeqCst);
+                    info!("Tray event: Exit requested (stopping monitor and powering off display)");
+                    keep_exit.store(false, Ordering::SeqCst);
                     let _ = slint::quit_event_loop();
                 }
             }
@@ -553,25 +638,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(windows)]
         let driver_installed = telemetry::driver::is_driver_accessible();
         #[cfg(not(windows))]
-        let driver_installed = true;
+        let driver_installed = is_hardware_access_granted(cfg.custom_vid, cfg.custom_pid);
 
         sync_ui_from_config(&main_window, &cfg, actual_autostart, driver_installed);
 
-        #[cfg(windows)]
         let is_activation = !cfg.first_run_completed && !driver_installed;
-        #[cfg(not(windows))]
-        let is_activation = false;
 
         main_window.set_is_activation_mode(is_activation);
-        main_window.set_show_driver_card(cfg!(windows));
+        main_window.set_show_driver_card(true);
     }
     apply_translations(&main_window);
 
-    // Request driver installation callback (UAC elevation)
-    #[cfg(windows)]
+    // Request driver / udev installation callback
     let win_for_driver = main_window.as_weak();
+    let config_for_driver = Arc::clone(&config_ref);
     main_window.on_request_install_driver(move || {
-        info!("UI Event: Request Install Driver clicked");
+        info!("UI Event: Request Install Driver/Permissions clicked");
         #[cfg(windows)]
         {
             if let Err(e) = telemetry::driver::request_elevation_install() {
@@ -586,6 +668,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 });
             }
+        }
+        #[cfg(not(windows))]
+        {
+            let (vid, pid) = {
+                let cfg = config_for_driver.lock().unwrap();
+                (cfg.custom_vid, cfg.custom_pid)
+            };
+            let win_clone = win_for_driver.clone();
+            std::thread::spawn(move || {
+                let success = request_udev_setup(vid, pid);
+                info!("udev setup finished, success: {}", success);
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(w) = win_clone.upgrade() {
+                        w.set_is_driver_installed(success);
+                    }
+                });
+            });
         }
     });
 

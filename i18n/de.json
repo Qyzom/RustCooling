@@ -68,5 +68,13 @@
   "btn_power_off_stop": "Display ausschalten & Beenden (X)",
   "tui_keys_help": " [1/2/Tab] Tabs | [↑/↓] Auswählen | [←/→] Ändern | [S] Speichern | [Q] In Daemon beenden | [X] Stopp",
   "status_saved": "[✓] Einstellungen erfolgreich in config.json gespeichert!",
-  "status_reset": "[✓] Einstellungen auf Standardwerte zurückgesetzt."
+  "status_reset": "[✓] Einstellungen auf Standardwerte zurückgesetzt.",
+  "activation_udev_title": "Pumpen-USB-Zugriff (udev)",
+  "activation_udev_desc": "Unter Linux erfordert der direkte Zugriff auf das ID-COOLING-Display ohne Root-Rechte eine udev-Regel. Klicken Sie unten, um sie über pkexec zu installieren.",
+  "activation_udev_btn": "udev-Regel einrichten",
+  "activation_udev_installed": "✓ udev-Regel installiert und aktiv",
+  "setting_udev_title": "Pumpen-USB-Zugriff (udev)",
+  "udev_status_active": "Aktiv (udev)",
+  "udev_status_missing": "Nicht konfiguriert",
+  "udev_btn_install": "Einrichten"
 }

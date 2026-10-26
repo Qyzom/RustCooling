@@ -68,5 +68,13 @@
   "btn_power_off_stop": "Выключить экран и остановить (X)",
   "tui_keys_help": " [1/2/Tab] Вкладки | [↑/↓] Выбор | [←/→] Изменить | [S] Сохранить | [Q] Выход в демон | [X] Стоп",
   "status_saved": "[✓] Настройки успешно сохранены в config.json!",
-  "status_reset": "[✓] Настройки сброшены к значениям по умолчанию."
+  "status_reset": "[✓] Настройки сброшены к значениям по умолчанию.",
+  "activation_udev_title": "Доступ к USB помпы (udev)",
+  "activation_udev_desc": "В Linux для прямого доступа к USB LCD экрану ID-COOLING без прав root необходимо установить правило udev. Нажмите кнопку ниже для автоматической настройки через pkexec.",
+  "activation_udev_btn": "Настроить правило udev",
+  "activation_udev_installed": "✓ Правило udev установлено и активно",
+  "setting_udev_title": "Доступ к USB помпе (udev)",
+  "udev_status_active": "Активно (udev)",
+  "udev_status_missing": "Не настроено (нет доступа)",
+  "udev_btn_install": "Настроить"
 }

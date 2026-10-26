@@ -68,5 +68,13 @@
   "btn_power_off_stop": "Power Off Display & Stop (X)",
   "tui_keys_help": " [1/2/Tab] Tabs | [↑/↓] Select | [←/→] Change | [S] Save | [Q] Exit to Daemon | [X] Stop",
   "status_saved": "[✓] Settings saved successfully to config.json!",
-  "status_reset": "[✓] Settings reset to default values."
+  "status_reset": "[✓] Settings reset to default values.",
+  "activation_udev_title": "Pump USB Access (udev)",
+  "activation_udev_desc": "On Linux, accessing the ID-COOLING LCD display directly without root privileges requires a udev rule. Click the button below to install it via pkexec.",
+  "activation_udev_btn": "Install udev Rule",
+  "activation_udev_installed": "✓ udev rule installed and active",
+  "setting_udev_title": "Pump USB Access (udev)",
+  "udev_status_active": "Active (udev)",
+  "udev_status_missing": "Not configured (no access)",
+  "udev_btn_install": "Configure"
 }

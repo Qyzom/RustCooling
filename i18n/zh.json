@@ -68,5 +68,13 @@
   "btn_power_off_stop": "关闭屏幕并停止 (X)",
   "tui_keys_help": " [1/2/Tab] 标签页 | [↑/↓] 选择 | [←/→] 更改 | [S] 保存 | [Q] 退出至后台 | [X] 停止",
   "status_saved": "[✓] 设置已成功保存至 config.json！",
-  "status_reset": "[✓] 设置已重置为默认值。"
+  "status_reset": "[✓] 设置已重置为默认值。",
+  "activation_udev_title": "水冷泵 USB 访问权限 (udev)",
+  "activation_udev_desc": "在 Linux 上，无需 root 权限直接访问 ID-COOLING LCD 屏幕需要 udev 规则。点击下方按钮通过 pkexec 进行自动安装。",
+  "activation_udev_btn": "安装 udev 规则",
+  "activation_udev_installed": "✓ udev 规则已安装且处于活动状态",
+  "setting_udev_title": "水冷泵 USB 权限 (udev)",
+  "udev_status_active": "已激活 (udev)",
+  "udev_status_missing": "未配置 (无访问权限)",
+  "udev_btn_install": "配置"
 }

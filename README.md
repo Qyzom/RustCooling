@@ -107,6 +107,14 @@ chmod +x RustCooling-TUI-1.1.0.AppImage
 ./RustCooling-TUI-1.1.0.AppImage
 ```
 
+#### Linux USB Permissions (udev Rule)
+On Linux, accessing the USB LCD display without root (`sudo`) requires a `udev` rule for non-root user permissions.  
+The GUI has a built-in setup wizard with one-click permission installation via `pkexec`. Alternatively, you can configure it manually in one command:
+
+```bash
+echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="e317", MODE="0666", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/99-idcooling.rules && sudo udevadm control --reload-rules && sudo udevadm trigger
+```
+
 #### Linux Systemd User Service (Optional Daemon)
 To run RustCooling silently in the background on user login:
 ```bash
