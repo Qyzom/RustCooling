@@ -3,11 +3,25 @@ use log::info;
 #[cfg(windows)]
 use auto_launch::AutoLaunchBuilder;
 
+pub fn get_executable_path() -> Option<std::path::PathBuf> {
+    #[cfg(target_os = "linux")]
+    {
+        // When running as an AppImage, std::env::current_exe() points to the temporary mount point (/tmp/.mount_RustCoXXXX/usr/bin/RustCooling)
+        // which disappears after shutdown. $APPIMAGE contains the real, permanent path on disk.
+        if let Ok(appimage_path) = std::env::var("APPIMAGE") {
+            if !appimage_path.is_empty() {
+                return Some(std::path::PathBuf::from(appimage_path));
+            }
+        }
+    }
+    std::env::current_exe().ok()
+}
+
 pub fn set_autostart_mode(mode: &str) {
     let mode = mode.to_lowercase();
     #[cfg(windows)]
     {
-        if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(current_exe) = get_executable_path() {
             let app_name = "RustCooling";
             let current_exe_str = current_exe.to_string_lossy();
             let args: &[&str] = if mode == "daemon" {
@@ -37,7 +51,7 @@ pub fn set_autostart_mode(mode: &str) {
             let desktop_file = autostart_dir.join("RustCooling.desktop");
 
             if mode != "none" {
-                if let Ok(current_exe) = std::env::current_exe() {
+                if let Some(current_exe) = get_executable_path() {
                     let _ = std::fs::create_dir_all(&autostart_dir);
                     let exe_path = current_exe.to_string_lossy();
                     let exec_cmd = if mode == "daemon" {
@@ -55,7 +69,8 @@ pub fn set_autostart_mode(mode: &str) {
                          Exec={}\n\
                          Terminal=false\n\
                          Categories=Utility;HardwareSettings;\n\
-                         StartupNotify=false\n",
+                         StartupNotify=false\n\
+                         StartupWMClass=RustCooling\n",
                         exec_cmd
                     );
                     if let Ok(existing) = std::fs::read_to_string(&desktop_file) {
@@ -84,7 +99,7 @@ pub fn set_autostart(enable: bool) {
 pub fn is_autostart_registered() -> bool {
     #[cfg(windows)]
     {
-        if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(current_exe) = get_executable_path() {
             let app_name = "RustCooling";
             let current_exe_str = current_exe.to_string_lossy();
             if let Ok(auto) = AutoLaunchBuilder::new()

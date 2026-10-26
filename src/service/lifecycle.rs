@@ -98,7 +98,7 @@ pub fn spawn_daemon() -> bool {
         return true; // Already running
     }
 
-    if let Ok(current_exe) = std::env::current_exe() {
+    if let Some(current_exe) = crate::service::autostart::get_executable_path() {
         let mut cmd = Command::new(current_exe);
         cmd.arg("--daemon")
             .stdin(std::process::Stdio::null())
