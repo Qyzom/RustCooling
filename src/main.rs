@@ -528,6 +528,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
+    // Enforce single instance: prevent launching multiple concurrent GUI instances
+    let _instance_lock = match service::single_instance::SingleInstanceLock::acquire("rustcooling-gui") {
+        Some(lock) => lock,
+        None => {
+            info!("Another RustCooling GUI instance is already running. Focusing existing window and exiting.");
+            #[cfg(windows)]
+            unsafe {
+                use windows_sys::Win32::UI::WindowsAndMessaging::{
+                    BringWindowToTop, FindWindowW, SetForegroundWindow, ShowWindow, SW_RESTORE,
+                };
+                let title: Vec<u16> = "RustCooling\0".encode_utf16().collect();
+                let hwnd = FindWindowW(std::ptr::null(), title.as_ptr());
+                if !hwnd.is_null() {
+                    ShowWindow(hwnd, SW_RESTORE);
+                    SetForegroundWindow(hwnd);
+                    BringWindowToTop(hwnd);
+                }
+            }
+            return Ok(());
+        }
+    };
+
     // Stop background daemon so GUI has direct device control
     service::lifecycle::stop_daemon();
     let monitor = Arc::new(MonitorService::new(Arc::clone(&config_ref)));

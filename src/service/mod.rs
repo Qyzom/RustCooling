@@ -1,5 +1,6 @@
 pub mod autostart;
 pub mod lifecycle;
+pub mod single_instance;
 
 use crate::config::AppConfig;
 use crate::hid::DeviceManager;
