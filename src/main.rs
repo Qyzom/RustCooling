@@ -372,6 +372,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     I18n::init(&config.language);
 
     if config.auto_start {
+        if config.autostart_mode == "none" {
+            config.autostart_mode = "gui".to_string();
+            let _ = config.save();
+        }
         set_autostart_mode(&config.autostart_mode);
     }
 
@@ -815,6 +819,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(mut cfg) = config_for_save.lock() {
             cfg.display_mode = mode.to_string();
             cfg.auto_start = actual_autostart;
+            cfg.autostart_mode = if actual_autostart { "gui".to_string() } else { "none".to_string() };
             cfg.update_interval_ms = (interval as u64).clamp(100, 3000);
             cfg.language = lang_str.clone();
             cfg.animation_enabled = anim_enabled;
