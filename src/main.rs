@@ -1039,7 +1039,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         main_window.window().request_redraw();
         info!("Step 6: main_window.show() returned Ok.");
     } else {
-        info!("Step 5: Starting minimized to system tray.");
+        info!("Step 5: Starting minimized to system tray -> hiding window");
+        hide_window_to_tray(&main_window);
     }
 
     info!("Step 9: Calling slint::run_event_loop_until_quit()...");
