@@ -576,7 +576,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             {
                 use i_slint_backend_winit::winit::platform::wayland::WindowAttributesExtWayland;
                 use i_slint_backend_winit::winit::platform::x11::WindowAttributesExtX11;
-                attrs.with_name("rustcooling", "rustcooling")
+                let attrs = WindowAttributesExtWayland::with_name(attrs, "rustcooling", "rustcooling");
+                WindowAttributesExtX11::with_name(attrs, "rustcooling", "rustcooling")
             }
             #[cfg(not(target_os = "linux"))]
             {
