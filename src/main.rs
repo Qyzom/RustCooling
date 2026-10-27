@@ -569,6 +569,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         // Enforce Winit backend with FemtoVG renderer for hardware-accelerated OpenGL and embedded fonts
         std::env::set_var("SLINT_BACKEND", "winit");
+        // Ensure Wayland / X11 window manager associates window with rustcooling.desktop / GNOME dock icon
+        let _ = slint::set_xdg_app_id("rustcooling");
     }
 
     // Initialize Slint GUI
