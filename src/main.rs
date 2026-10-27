@@ -570,6 +570,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Enforce Winit backend with FemtoVG renderer for hardware-accelerated OpenGL and embedded fonts
         std::env::set_var("SLINT_BACKEND", "winit");
         // Ensure Wayland / X11 window manager associates window with rustcooling.desktop / GNOME dock icon
+        let mut backend_builder = i_slint_backend_winit::Backend::builder();
+        backend_builder = backend_builder.with_window_attributes_hook(|attrs| {
+            #[cfg(target_os = "linux")]
+            {
+                use i_slint_backend_winit::winit::platform::wayland::WindowAttributesExtWayland;
+                use i_slint_backend_winit::winit::platform::x11::WindowAttributesExtX11;
+                attrs.with_name("rustcooling", "rustcooling")
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                attrs
+            }
+        });
+        if let Ok(backend) = backend_builder.build() {
+            let _ = slint::platform::set_platform(Box::new(backend));
+        }
         let _ = slint::set_xdg_app_id("rustcooling");
     }
 
