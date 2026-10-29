@@ -70,7 +70,7 @@ pub fn set_autostart_mode(mode: &str) {
                          Terminal=false\n\
                          Categories=Utility;HardwareSettings;\n\
                          StartupNotify=false\n\
-                         StartupWMClass=RustCooling\n",
+                         StartupWMClass=rustcooling\n",
                         exec_cmd
                     );
                     if let Ok(existing) = std::fs::read_to_string(&desktop_file) {

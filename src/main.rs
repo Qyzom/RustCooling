@@ -1041,6 +1041,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         info!("Step 5: Starting minimized to system tray -> hiding window");
         hide_window_to_tray(&main_window);
+        let win_weak = main_window.as_weak();
+        let vis = Arc::clone(&is_window_visible);
+        let _ = slint::invoke_from_event_loop(move || {
+            if !vis.load(Ordering::SeqCst) {
+                if let Some(w) = win_weak.upgrade() {
+                    // Transition state to Shown then call hide_window_to_tray so Slint invokes suspend()
+                    // and drops the Wayland toplevel surface, eliminating phantom dock icon.
+                    let _ = w.show();
+                    hide_window_to_tray(&w);
+                }
+            }
+        });
     }
 
     info!("Step 9: Calling slint::run_event_loop_until_quit()...");
