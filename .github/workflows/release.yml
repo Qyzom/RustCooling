@@ -53,13 +53,16 @@ jobs:
           mkdir -p pkg/DEBIAN
           mkdir -p pkg/usr/bin
           mkdir -p pkg/usr/lib/udev/rules.d
+          mkdir -p pkg/usr/lib/systemd/user
           mkdir -p pkg/usr/share/applications
           mkdir -p pkg/usr/share/icons/hicolor/256x256/apps
 
           cp target/release/RustCooling pkg/usr/bin/RustCooling
+          ln -sf RustCooling pkg/usr/bin/rustcooling
           chmod 755 pkg/usr/bin/RustCooling
           cp packaging/linux/99-idcooling.rules pkg/usr/lib/udev/rules.d/
           cp packaging/linux/rustcooling.desktop pkg/usr/share/applications/
+          cp packaging/linux/rustcooling.service pkg/usr/lib/systemd/user/
           cp assets/icons/logo_256.png pkg/usr/share/icons/hicolor/256x256/apps/rustcooling.png
 
           cat << EOF > pkg/DEBIAN/control
@@ -74,7 +77,7 @@ jobs:
           Description: Ultra-lightweight LCD Display controller for ID-COOLING FX series liquid coolers
            Ultra-lightweight native Rust application for controlling LCD displays on
            ID-COOLING FX series liquid coolers (FX240, FX280, FX360).
-           Zero telemetry bloat, <15 MB RAM, native hwmon support.
+           Zero telemetry bloat, interactive TUI mode, <4 MB RAM daemon.
           EOF
 
           cat << 'EOF' > pkg/DEBIAN/postinst
@@ -105,6 +108,7 @@ jobs:
           cp target/release/RustCooling tarball/
           cp packaging/linux/99-idcooling.rules tarball/
           cp packaging/linux/rustcooling.desktop tarball/
+          cp packaging/linux/rustcooling.service tarball/
           cp packaging/linux/install.sh tarball/
           cp packaging/linux/uninstall.sh tarball/
           cp assets/icons/logo_256.png tarball/logo.png

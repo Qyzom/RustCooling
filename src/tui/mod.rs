@@ -38,7 +38,6 @@ pub struct TuiApp {
     load_history: Vec<u64>,
     status_message: Option<(String, Instant)>,
 
-    // Local editable config fields in settings tab
     display_mode: String,
     update_interval_ms: u64,
     temp_source: String,
@@ -46,7 +45,8 @@ pub struct TuiApp {
     language: String,
     custom_vid: u16,
     custom_pid: u16,
-    auto_start: bool,
+    autostart_mode: String,
+    show_tray: bool,
 }
 
 impl TuiApp {
@@ -68,11 +68,14 @@ impl TuiApp {
             language: cfg.language,
             custom_vid: cfg.custom_vid,
             custom_pid: cfg.custom_pid,
-            auto_start: cfg.auto_start,
+            autostart_mode: cfg.autostart_mode,
+            show_tray: cfg.show_tray,
         }
     }
 
-    pub fn run(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    /// Runs TUI loop. Returns `Ok(true)` if background daemon should be kept running,
+    /// or `Ok(false)` if user explicitly requested full shutdown (power off screen).
+    pub fn run(&mut self) -> Result<bool, Box<dyn std::error::Error>> {
         enable_raw_mode()?;
         let mut stdout = stdout();
         execute!(stdout, EnterAlternateScreen)?;
@@ -83,6 +86,7 @@ impl TuiApp {
         terminal.clear()?;
 
         let mut last_tick = Instant::now();
+        let keep_daemon_running;
 
         loop {
             let state = self.monitor.get_state();
@@ -107,11 +111,17 @@ impl TuiApp {
             if event::poll(timeout)? {
                 if let Event::Key(key) = event::read()? {
                     if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+                        keep_daemon_running = true;
                         break;
                     }
 
                     match key.code {
                         KeyCode::Char('q') | KeyCode::Char('Q') | KeyCode::Esc => {
+                            keep_daemon_running = true;
+                            break;
+                        }
+                        KeyCode::Char('x') | KeyCode::Char('X') => {
+                            keep_daemon_running = false;
                             break;
                         }
                         KeyCode::Tab => {
@@ -126,17 +136,13 @@ impl TuiApp {
                         KeyCode::Char('r') | KeyCode::Char('R') => {
                             self.reset_defaults();
                         }
-                        KeyCode::Char('d') | KeyCode::Char('D') => {
-                            self.set_status("Detached to background mode.");
-                            break;
-                        }
                         KeyCode::Up | KeyCode::Char('k') => {
                             if self.selected_tab == 1 && self.selected_setting > 0 {
                                 self.selected_setting -= 1;
                             }
                         }
                         KeyCode::Down | KeyCode::Char('j') => {
-                            if self.selected_tab == 1 && self.selected_setting < 9 {
+                            if self.selected_tab == 1 && self.selected_setting < 11 {
                                 self.selected_setting += 1;
                             }
                         }
@@ -144,7 +150,12 @@ impl TuiApp {
                             self.adjust_setting(false);
                         }
                         KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('+') | KeyCode::Enter | KeyCode::Char(' ') if self.selected_tab == 1 => {
-                            self.adjust_setting(true);
+                            if self.selected_setting == 11 {
+                                keep_daemon_running = false;
+                                break;
+                            } else {
+                                self.adjust_setting(true);
+                            }
                         }
                         _ => {}
                     }
@@ -156,7 +167,7 @@ impl TuiApp {
             }
         }
 
-        Ok(())
+        Ok(keep_daemon_running)
     }
 
     fn set_status(&mut self, msg: &str) {
@@ -174,11 +185,13 @@ impl TuiApp {
             cfg.language = self.language.clone();
             cfg.custom_vid = self.custom_vid;
             cfg.custom_pid = self.custom_pid;
-            cfg.auto_start = self.auto_start;
+            cfg.autostart_mode = self.autostart_mode.clone();
+            cfg.show_tray = self.show_tray;
+            cfg.auto_start = self.autostart_mode != "none";
             cfg.save()
         };
 
-        crate::set_autostart(self.auto_start);
+        crate::set_autostart_mode(&self.autostart_mode);
 
         if let Err(e) = save_res {
             self.set_status(&format!("Error saving config: {}", e));
@@ -196,9 +209,10 @@ impl TuiApp {
         self.language = def.language.clone();
         self.custom_vid = def.custom_vid;
         self.custom_pid = def.custom_pid;
-        self.auto_start = def.auto_start;
+        self.autostart_mode = def.autostart_mode.clone();
+        self.show_tray = def.show_tray;
         I18n::set_language(&self.language);
-        crate::set_autostart(false);
+        crate::set_autostart_mode("none");
         if let Ok(mut cfg) = self.config_ref.lock() {
             *cfg = def.clone();
             let _ = cfg.save();
@@ -265,12 +279,22 @@ impl TuiApp {
                 }
             }
             7 => {
-                self.auto_start = !self.auto_start;
+                let modes = ["none", "daemon", "gui"];
+                let pos = modes.iter().position(|&m| m == self.autostart_mode).unwrap_or(0);
+                let new_pos = if forward {
+                    (pos + 1) % modes.len()
+                } else {
+                    (pos + modes.len() - 1) % modes.len()
+                };
+                self.autostart_mode = modes[new_pos].to_string();
             }
             8 => {
-                self.save_settings();
+                self.show_tray = !self.show_tray;
             }
             9 => {
+                self.save_settings();
+            }
+            10 => {
                 self.reset_defaults();
             }
             _ => {}
@@ -286,8 +310,8 @@ impl TuiApp {
             .margin(1)
             .constraints([
                 Constraint::Length(3), // Header & Tabs
-                Constraint::Min(10),   // Main Content
-                Constraint::Length(3), // Footer / Status
+                Constraint::Min(12),   // Main Body
+                Constraint::Length(3), // Footer Status
             ])
             .split(size);
 
@@ -310,7 +334,7 @@ impl TuiApp {
             format!(" 2. {} ", t.settings_title),
         ];
         let tabs = Tabs::new(tab_titles)
-            .block(Block::default().borders(Borders::ALL))
+            .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::DarkGray)))
             .select(self.selected_tab)
             .style(Style::default().fg(Color::Gray))
             .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
@@ -331,15 +355,14 @@ impl TuiApp {
 
         let main_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(7), Constraint::Min(8)])
+            .constraints([
+                Constraint::Length(4), // Status card
+                Constraint::Length(7), // Gauges card
+                Constraint::Min(5),    // Sparklines
+            ])
             .split(area);
 
-        let top_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
-            .split(main_chunks[0]);
-
-        // Hardware Status Card
+        // Hardware Status Line
         let conn_status = if is_conn {
             Span::styled(format!("🟢 {}", t.status_connected), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
         } else {
@@ -348,17 +371,22 @@ impl TuiApp {
 
         let vid_pid_str = format!("0x{:04X}:0x{:04X}", self.custom_vid, self.custom_pid);
         let status_lines = vec![
-            Line::from(vec![Span::raw("Device: "), Span::styled("ID-COOLING FX Series", Style::default().fg(Color::White))]),
-            Line::from(vec![Span::raw("USB VID:PID: "), Span::styled(vid_pid_str, Style::default().fg(Color::Cyan))]),
-            Line::from(vec![Span::raw("Status: "), conn_status]),
-            Line::from(vec![Span::raw("Interval: "), Span::styled(format!("{} ms", self.update_interval_ms), Style::default().fg(Color::Magenta))]),
+            Line::from(vec![
+                Span::raw("Device: "),
+                Span::styled("ID-COOLING FX Series ", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+                Span::styled(format!("({})", vid_pid_str), Style::default().fg(Color::DarkGray)),
+                Span::raw("  │  Status: "),
+                conn_status,
+                Span::raw("  │  Interval: "),
+                Span::styled(format!("{} ms", self.update_interval_ms), Style::default().fg(Color::Cyan)),
+            ]),
         ];
 
         let status_block = Paragraph::new(status_lines)
             .block(Block::default().title(format!(" {} ", t.device_name)).borders(Borders::ALL).border_style(Style::default().fg(Color::Blue)));
-        frame.render_widget(status_block, top_chunks[0]);
+        frame.render_widget(status_block, main_chunks[0]);
 
-        // Live Metrics Card
+        // Live Telemetry Gauges
         let (temp_val, load_val) = if let Ok(m) = state.metrics.lock() {
             (
                 m.temperature.map(|t| t.round() as i32).unwrap_or(0),
@@ -371,44 +399,44 @@ impl TuiApp {
         let broadcast_val = if let Ok(v) = state.broadcast_value.lock() {
             v.clone()
         } else {
-            "0".to_string()
+            "-".to_string()
         };
 
         let metrics_chunks = Layout::default()
             .direction(Direction::Vertical)
             .margin(1)
             .constraints([Constraint::Length(2), Constraint::Length(2)])
-            .split(top_chunks[1]);
+            .split(main_chunks[1]);
 
         let temp_gauge = Gauge::default()
             .block(Block::default().title(format!(" {} ", t.chip_temp)))
-            .gauge_style(Style::default().fg(Color::Red).bg(Color::Black))
+            .gauge_style(Style::default().fg(Color::Red).bg(Color::DarkGray))
             .percent(temp_val.clamp(0, 100) as u16)
             .label(format!("{} °C", temp_val));
         frame.render_widget(temp_gauge, metrics_chunks[0]);
 
         let load_gauge = Gauge::default()
-            .block(Block::default().title(format!(" {} (Cap Display: {}) ", t.chip_load, broadcast_val)))
-            .gauge_style(Style::default().fg(Color::Green).bg(Color::Black))
+            .block(Block::default().title(format!(" {} (Display Output: {}) ", t.chip_load, broadcast_val)))
+            .gauge_style(Style::default().fg(Color::Green).bg(Color::DarkGray))
             .percent(load_val.clamp(0, 100) as u16)
             .label(format!("{} %", load_val));
         frame.render_widget(load_gauge, metrics_chunks[1]);
 
-        // Sparklines
+        // History Sparklines
         let spark_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(main_chunks[1]);
+            .split(main_chunks[2]);
 
         let temp_spark = Sparkline::default()
-            .block(Block::default().title(" Temperature History (°C) ").borders(Borders::ALL).border_style(Style::default().fg(Color::Red)))
+            .block(Block::default().title(" Temperature Trend (°C) ").borders(Borders::ALL).border_style(Style::default().fg(Color::Red)))
             .data(&self.temp_history)
             .max(100)
             .style(Style::default().fg(Color::Red));
         frame.render_widget(temp_spark, spark_chunks[0]);
 
         let load_spark = Sparkline::default()
-            .block(Block::default().title(" CPU Load History (%) ").borders(Borders::ALL).border_style(Style::default().fg(Color::Green)))
+            .block(Block::default().title(" CPU Load Trend (%) ").borders(Borders::ALL).border_style(Style::default().fg(Color::Green)))
             .data(&self.load_history)
             .max(100)
             .style(Style::default().fg(Color::Green));
@@ -435,7 +463,12 @@ impl TuiApp {
             "fr" => "Français (fr)",
             _ => "English (en)",
         };
-        let autostart_str = if self.auto_start { &t.autostart_on } else { &t.autostart_off };
+        let autostart_str = match self.autostart_mode.as_str() {
+            "daemon" => "Daemon (~2 MB RAM)",
+            "gui" => "GUI (in Tray)",
+            _ => "Disabled",
+        };
+        let tray_str = if self.show_tray { "Enabled" } else { "Disabled" };
 
         let items = vec![
             format!("{}: < {} >", t.setting_display_mode, mode_str),
@@ -446,8 +479,10 @@ impl TuiApp {
             format!("Target USB VID: < 0x{:04X} >", self.custom_vid),
             format!("Target USB PID: < 0x{:04X} >", self.custom_pid),
             format!("{}: < {} >", t.setting_autostart, autostart_str),
+            format!("System Tray Icon: < {} >", tray_str),
             format!("  [ {} (S) ]", t.btn_save_return),
             format!("  [ {} (R) ]", t.setting_reset_defaults),
+            "  [ Power Off Display & Stop (X) ]".to_string(),
         ];
 
         let list_items: Vec<ListItem> = items
@@ -480,7 +515,7 @@ impl TuiApp {
             Line::from(Span::raw(""))
         };
 
-        let keys_text = " [Tab] View | [↑/↓] Select | [←/→/Enter/Space] Change | [S] Save | [R] Reset | [D] Detach | [Q] Exit";
+        let keys_text = " [Tab] View | [↑/↓] Select | [←/→] Change | [S] Save | [Q] Exit (Daemon in background) | [X] Stop";
         let footer_widget = Paragraph::new(vec![
             msg_line,
             Line::from(Span::styled(keys_text, Style::default().fg(Color::Cyan))),
