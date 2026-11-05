@@ -336,8 +336,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut raw_args: Vec<String> = std::env::args().collect();
     for arg in raw_args.iter_mut() {
-        if arg == "-tui" {
+        if arg == "-tui" || arg == "tui" {
             *arg = "--tui".to_string();
+        } else if arg == "daemon" {
+            *arg = "--daemon".to_string();
+        } else if arg == "stop" {
+            *arg = "--stop".to_string();
+        } else if arg == "status" {
+            *arg = "--status".to_string();
         }
     }
     let args = CliArgs::parse_from(raw_args);
@@ -487,7 +493,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("Launching interactive TUI mode...");
         service::lifecycle::stop_daemon();
         let monitor = Arc::new(MonitorService::new(Arc::clone(&config_ref)));
+        // Pre-arm screen persistence so terminal closure or unexpected crash does not shut down the display
+        monitor.leave_screen_on();
         monitor.start();
+
+        #[cfg(target_os = "linux")]
+        unsafe {
+            extern "C" fn tui_sighup_handler(_: libc::c_int) {
+                // When terminal window is closed, immediately spawn detached background daemon
+                let _ = crate::service::lifecycle::spawn_daemon();
+                unsafe {
+                    libc::_exit(0);
+                }
+            }
+            libc::signal(libc::SIGHUP, tui_sighup_handler as *const () as usize);
+            libc::signal(libc::SIGTERM, tui_sighup_handler as *const () as usize);
+        }
 
         let mut app = tui::TuiApp::new(Arc::clone(&config_ref), Arc::clone(&monitor));
         let keep_daemon = app.run().unwrap_or(true);
@@ -499,6 +520,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 warn!("Failed to spawn daemon process.");
             }
         } else {
+            // User explicitly requested power off with X
+            monitor.power_off_on_stop();
             monitor.stop();
             #[cfg(windows)]
             {
@@ -512,6 +535,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     service::lifecycle::stop_daemon();
     let monitor = Arc::new(MonitorService::new(Arc::clone(&config_ref)));
     monitor.start();
+
+    #[cfg(unix)]
+    unsafe {
+        // Prevent terminal closure from abruptly killing GUI without daemon handoff
+        libc::signal(libc::SIGHUP, libc::SIG_IGN);
+    }
 
     // Initialize Slint GUI
     let main_window = match MainWindow::new() {
@@ -783,24 +812,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Close window (top-right cross) -> hides window to system tray (or exits to daemon if tray disabled)
-    let win_for_close = main_window.as_weak();
-    let vis_for_close = Arc::clone(&is_window_visible);
-    let tray_for_close = Rc::clone(&tray_ref);
+    // Close window (top-right cross) -> exits GUI, frees terminal, and hands off to background daemon
     let keep_for_close = Arc::clone(&keep_daemon_on_exit);
     main_window.on_close_window(move || {
-        let has_tray = tray_for_close.borrow().is_some();
-        if has_tray {
-            info!("Close requested -> hiding window to system tray");
-            if let Some(w) = win_for_close.upgrade() {
-                hide_window_to_tray(&w);
-                vis_for_close.store(false, Ordering::SeqCst);
-            }
-        } else {
-            info!("Close requested and tray is disabled -> exiting GUI and switching to background daemon");
-            keep_for_close.store(true, Ordering::SeqCst);
-            let _ = slint::quit_event_loop();
-        }
+        info!("Window close requested (UI button) -> exiting GUI and switching to background daemon");
+        keep_for_close.store(true, Ordering::SeqCst);
+        let _ = slint::quit_event_loop();
+    });
+
+    // Window manager close request (Super+Q in Hyprland, Alt+F4, xdg_toplevel close)
+    let keep_for_req = Arc::clone(&keep_daemon_on_exit);
+    main_window.window().on_close_requested(move || {
+        info!("Window manager close requested (Super+Q / Alt+F4 / WM) -> exiting GUI and switching to background daemon");
+        keep_for_req.store(true, Ordering::SeqCst);
+        let _ = slint::quit_event_loop();
+        slint::CloseRequestResponse::HideWindow
     });
 
     // Native, smooth window dragging for Wayland/X11 and Windows
@@ -808,9 +834,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     main_window.on_drag_start(move || {
         if let Some(w) = win_for_drag_start.upgrade() {
             use i_slint_backend_winit::WinitWindowAccessor;
-            let _ = w.window().with_winit_window(|win| {
-                let _ = win.drag_window();
+            let res = w.window().with_winit_window(|win| {
+                win.drag_window()
             });
+            info!("Window drag initiated: {:?}", res);
         }
     });
     main_window.on_drag_move(|| {});
