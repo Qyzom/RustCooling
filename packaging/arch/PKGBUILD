@@ -1,6 +1,6 @@
 # Maintainer: Qyzom <t0lotsmail@gmail.com>
 pkgname=rustcooling
-pkgver=1.0.1
+pkgver=1.0.2
 pkgrel=1
 pkgdesc="Ultra-lightweight LCD Display controller for ID-COOLING FX series liquid coolers"
 arch=('x86_64')
