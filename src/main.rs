@@ -372,6 +372,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     I18n::init(&config.language);
 
     if config.auto_start {
+        if config.autostart_mode == "none" {
+            config.autostart_mode = "gui".to_string();
+            let _ = config.save();
+        }
         set_autostart_mode(&config.autostart_mode);
     }
 
@@ -528,6 +532,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
+    // Enforce single instance: prevent launching multiple concurrent GUI instances
+    let _instance_lock = match service::single_instance::SingleInstanceLock::acquire("rustcooling-gui") {
+        Some(lock) => lock,
+        None => {
+            info!("Another RustCooling GUI instance is already running. Focusing existing window and exiting.");
+            #[cfg(windows)]
+            unsafe {
+                use windows_sys::Win32::UI::WindowsAndMessaging::{
+                    BringWindowToTop, FindWindowW, SetForegroundWindow, ShowWindow, SW_RESTORE,
+                };
+                let title: Vec<u16> = "RustCooling\0".encode_utf16().collect();
+                let hwnd = FindWindowW(std::ptr::null(), title.as_ptr());
+                if !hwnd.is_null() {
+                    ShowWindow(hwnd, SW_RESTORE);
+                    SetForegroundWindow(hwnd);
+                    BringWindowToTop(hwnd);
+                }
+            }
+            return Ok(());
+        }
+    };
+
     // Stop background daemon so GUI has direct device control
     service::lifecycle::stop_daemon();
     let monitor = Arc::new(MonitorService::new(Arc::clone(&config_ref)));
@@ -543,6 +569,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         // Enforce Winit backend with FemtoVG renderer for hardware-accelerated OpenGL and embedded fonts
         std::env::set_var("SLINT_BACKEND", "winit");
+        // Ensure Wayland / X11 window manager associates window with rustcooling.desktop / GNOME dock icon
+        let mut backend_builder = i_slint_backend_winit::Backend::builder();
+        backend_builder = backend_builder.with_window_attributes_hook(|attrs| {
+            #[cfg(target_os = "linux")]
+            {
+                use i_slint_backend_winit::winit::platform::wayland::WindowAttributesExtWayland;
+                use i_slint_backend_winit::winit::platform::x11::WindowAttributesExtX11;
+                let attrs = WindowAttributesExtWayland::with_name(attrs, "rustcooling", "rustcooling");
+                WindowAttributesExtX11::with_name(attrs, "rustcooling", "rustcooling")
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                attrs
+            }
+        });
+        if let Ok(backend) = backend_builder.build() {
+            let _ = slint::platform::set_platform(Box::new(backend));
+        }
+        let _ = slint::set_xdg_app_id("rustcooling");
     }
 
     // Initialize Slint GUI
@@ -793,6 +838,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Ok(mut cfg) = config_for_save.lock() {
             cfg.display_mode = mode.to_string();
             cfg.auto_start = actual_autostart;
+            cfg.autostart_mode = if actual_autostart { "gui".to_string() } else { "none".to_string() };
             cfg.update_interval_ms = (interval as u64).clamp(100, 3000);
             cfg.language = lang_str.clone();
             cfg.animation_enabled = anim_enabled;
@@ -993,7 +1039,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         main_window.window().request_redraw();
         info!("Step 6: main_window.show() returned Ok.");
     } else {
-        info!("Step 5: Starting minimized to system tray.");
+        info!("Step 5: Starting minimized to system tray -> hiding window");
+        hide_window_to_tray(&main_window);
+        let win_weak = main_window.as_weak();
+        let vis = Arc::clone(&is_window_visible);
+        let _ = slint::invoke_from_event_loop(move || {
+            if !vis.load(Ordering::SeqCst) {
+                if let Some(w) = win_weak.upgrade() {
+                    // Transition state to Shown then call hide_window_to_tray so Slint invokes suspend()
+                    // and drops the Wayland toplevel surface, eliminating phantom dock icon.
+                    let _ = w.show();
+                    hide_window_to_tray(&w);
+                }
+            }
+        });
     }
 
     info!("Step 9: Calling slint::run_event_loop_until_quit()...");
