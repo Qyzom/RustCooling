@@ -12,6 +12,7 @@
 [![Slint](https://img.shields.io/badge/UI-Slint_1.9-blueviolet.svg)](https://slint.dev/)
 [![Ratatui](https://img.shields.io/badge/TUI-Ratatui-red.svg)](https://ratatui.rs/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-brightgreen.svg)]()
+[![Arch / CachyOS](https://img.shields.io/badge/Arch%20%7C%20CachyOS-Available-1793d1?logo=arch-linux&logoColor=white)](https://github.com/Qyzom/RustCooling/releases/latest)
 [![Release](https://img.shields.io/github/v/release/Qyzom/RustCooling?color=teal)](https://github.com/Qyzom/RustCooling/releases)
 
 <br/>
@@ -42,7 +43,7 @@
 ### Key Features (Missing in the Official Vendor App)
 
 1. **Interactive Terminal UI (TUI) Mode (~4–7 MB RAM):**  
-   Run `rustcooling tui` or `rustcooling -t` for a minimalist, distraction-free terminal dashboard powered by `ratatui`. Features real-time CPU telemetry gauges, edge-to-edge history sparklines, full runtime settings editor, and 5-language localization. Mouse wheel events are ignored so scrolling never accidentally changes your settings.
+   In the CLI package (`RustCooling-CLI`), running `rustcooling` directly launches the interactive dashboard. In the GUI package, run `rustcooling tui` or `rustcooling -t` for a minimalist, distraction-free terminal dashboard powered by `ratatui`. Features real-time CPU telemetry gauges, edge-to-edge history sparklines, full runtime settings editor, and 5-language localization. Mouse wheel events are ignored so scrolling never accidentally changes your settings.
 2. **Headless Daemon Mode (~2–4 MB RAM) & Seamless Terminal Detachment:**  
    When closing the terminal running TUI, RustCooling automatically catches `SIGHUP` and hands off monitoring to a detached background daemon without powering off your pump screen. Alternatively, run `rustcooling daemon` or enable the included systemd user service.
 3. **One-Shot Status Query for Status Bars:**  
@@ -60,7 +61,7 @@
 8. **Instant Cold Start (< 50 ms):**  
    No heavy runtimes or framework loading — the application launches instantaneously.
 9. **Completely Standalone, Portable & Clean:**  
-   Single self-contained binary with zero external runtime dependencies. Configuration (`config.json`) and driver files are kept strictly alongside the executable on Windows or in `~/.config/RustCooling/config.json` on Linux.
+   Single self-contained binary with zero external runtime dependencies. Configuration (`config.json`) and driver files are kept strictly alongside the executable on Windows, or in isolated configuration directories on Linux (`~/.config/RustCooling-gui/` and `~/.config/RustCooling-tui/`).
 
 > [!NOTE]
 > **Regarding ARM Architecture Support:**  
@@ -87,10 +88,16 @@
 
 ### Command Line Interface (CLI)
 
-Once installed, the `rustcooling` command is accessible globally:
+RustCooling provides two distinct package flavors for Linux:
+
+- **CLI / TUI Package (`RustCooling-CLI`)**: Minimalist, zero GUI dependencies. Running `rustcooling` directly launches the interactive Ratatui terminal dashboard.
+- **GUI Package (`RustCooling-GUI`)**: Full desktop version with Slint OpenGL interface and system tray.
+
+Commands:
 
 ```bash
-# Launch Graphical User Interface (Slint OpenGL window)
+# In CLI package: directly opens interactive Ratatui TUI dashboard
+# In GUI package: opens hardware-accelerated Slint window
 rustcooling
 
 # Launch Interactive Terminal User Interface (Ratatui TUI dashboard)
@@ -108,32 +115,69 @@ rustcooling stop
 
 ---
 
-### Quick Start
+### Downloads & Quick Start
 
-Pre-built binaries are available on the [**Releases**](https://github.com/Qyzom/RustCooling/releases/latest) page.
+Pre-built standalone binaries and packages are available on the [**Releases**](https://github.com/Qyzom/RustCooling/releases/latest) page:
+
+| OS / Distribution | Package Type | Architecture | Download Link |
+| :--- | :--- | :---: | :--- |
+| **Windows 10 / 11** | Standalone Executable (Portable) | x86_64 | [**`RustCooling-1.0.4.exe`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-1.0.4.exe) |
+| **Universal Linux (All Distros)** | Standalone GUI AppImage | x86_64 | [**`RustCooling-GUI-1.0.4.AppImage`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-GUI-1.0.4.AppImage) |
+| **Arch Linux / CachyOS** | Native Package (`.pkg.tar.zst`) | x86_64 | [**`rustcooling-1.0.4-1-x86_64.pkg.tar.zst`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/rustcooling-1.0.4-1-x86_64.pkg.tar.zst) |
+| **Debian / Ubuntu / Mint** | Desktop GUI Package (`.deb`) | x86_64 | [**`RustCooling-GUI-1.0.4.deb`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-GUI-1.0.4.deb) |
+| **Debian / Ubuntu / Mint** | Minimal CLI / TUI Package (`.deb`) | x86_64 | [**`RustCooling-CLI-1.0.4.deb`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-CLI-1.0.4.deb) |
+| **Generic Linux Archive** | Universal GUI Archive (`.tar.gz`) | x86_64 | [**`RustCooling-GUI-1.0.4.tar.gz`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-GUI-1.0.4.tar.gz) |
+| **Generic Linux Archive** | Minimal CLI / TUI Archive (`.tar.gz`) | x86_64 | [**`RustCooling-CLI-1.0.4.tar.gz`**](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-CLI-1.0.4.tar.gz) |
+
+---
 
 #### Windows (Portable)
-1. Download **[`RustCooling-1.0.4.exe`](https://github.com/Qyzom/RustCooling/releases/latest)**.
-2. Place it in any folder of your choice (e.g. `C:\Tools\RustCooling\`). Configuration (`config.json`) and the micro-driver will reside directly next to it.
-3. On first run, the activation screen will appear: click **"Grant Rights & Install"** (UAC) to register the LibreHardwareMonitor sensor driver once.
+1. Download **[`RustCooling-1.0.4.exe`](https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/RustCooling-1.0.4.exe)**.
+2. Place it in any folder of your choice (e.g. `C:\Tools\RustCooling\`). Configuration (`config.json`) and the micro-driver reside directly next to it.
+3. On first run, click **"Grant Rights & Install"** (UAC) to register the LibreHardwareMonitor sensor driver once.
 4. Click **"Continue"** — the application is ready to use! System autostart is available in Settings.
 
-#### Linux (Universal AppImage — All Distributions)
+#### Arch Linux & CachyOS
+**Direct pacman installation from latest release:**
 ```bash
-chmod +x RustCooling-1.0.4.AppImage
-./RustCooling-1.0.4.AppImage
+sudo pacman -U https://github.com/Qyzom/RustCooling/releases/download/v1.0.4/rustcooling-1.0.4-1-x86_64.pkg.tar.zst
+```
+
+**Or build locally from source:**
+```bash
+git clone https://github.com/Qyzom/RustCooling.git
+cd RustCooling/packaging/arch && makepkg -si
+```
+
+#### Linux GUI (Universal AppImage — All Distributions)
+```bash
+chmod +x RustCooling-GUI-1.0.4.AppImage
+./RustCooling-GUI-1.0.4.AppImage
 ```
 
 #### Linux (Debian / Ubuntu / Linux Mint)
-```bash
-sudo dpkg -i RustCooling-1.0.4.deb
-```
-*(Installs `/usr/bin/rustcooling`, `rustcooling-cli`, udev rules for non-root USB pump access, desktop shortcut, and systemd user unit automatically).*
 
-#### Linux (Fedora / Arch Linux / Generic Tarball)
+**For Desktop GUI (with system tray, desktop entry, fonts):**
 ```bash
-tar -xzf RustCooling-1.0.4.tar.gz
-cd RustCooling-1.0.4
+sudo dpkg -i RustCooling-GUI-1.0.4.deb
+```
+
+**For Minimal Terminal TUI & Server Daemon (zero GUI dependencies):**
+```bash
+sudo dpkg -i RustCooling-CLI-1.0.4.deb
+```
+
+#### Generic Linux Tarball (Fedora / openSUSE / Void)
+
+**For Desktop GUI:**
+```bash
+tar -xzf RustCooling-GUI-1.0.4.tar.gz
+sudo ./install.sh
+```
+
+**For Minimal Terminal TUI & Server Daemon:**
+```bash
+tar -xzf RustCooling-CLI-1.0.4.tar.gz
 sudo ./install.sh
 ```
 
@@ -171,14 +215,17 @@ systemctl --user enable --now rustcooling
 ---
 
 ### Building from Source
-
+ 
 ```bash
 git clone https://github.com/Qyzom/RustCooling.git
 cd RustCooling
 cargo test
 cargo build --release
 ```
-The compiled binary will be located in `target/release/RustCooling.exe` (Windows) or `target/release/RustCooling` (Linux).
+The compiled binaries will be located in:
+- Windows: `target/release/RustCooling.exe` (GUI)
+- Linux GUI: `target/release/RustCooling`
+- Linux CLI/TUI: `target/release/rustcooling-cli`
 
 ---
 

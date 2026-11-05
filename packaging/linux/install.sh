@@ -68,55 +68,60 @@ DESKTOP_FILE="$SCRIPT_DIR/rustcooling.desktop"
 SERVICE_FILE="$SCRIPT_DIR/rustcooling.service"
 [ -f "$SERVICE_FILE" ] || SERVICE_FILE="rustcooling.service"
 
-echo "[*] Installing desktop entry, icon, and systemd service..."
-install -d /usr/share/icons/hicolor/256x256/apps
-install -m 644 "$LOGO_FILE" /usr/share/icons/hicolor/256x256/apps/rustcooling.png
-install -m 644 "$DESKTOP_FILE" /usr/share/applications/rustcooling.desktop
-
-# Create Desktop shortcut for the invoking user
-REAL_USER="${SUDO_USER:-$USER}"
-if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ]; then
-    USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-    DESK_FOUND=false
-    for DESK_NAME in "Desktop" "Рабочий стол"; do
-        DESK_DIR="$USER_HOME/$DESK_NAME"
-        if [ -d "$DESK_DIR" ]; then
-            echo "[*] Creating Desktop shortcut in $DESK_DIR..."
-            install -m 755 -o "$REAL_USER" "$DESKTOP_FILE" "$DESK_DIR/rustcooling.desktop"
-            DESK_FOUND=true
-            break
-        fi
-    done
-    if [ "$DESK_FOUND" = false ] && [ -d "$USER_HOME" ]; then
-        TARGET_DESK="$USER_HOME/Desktop"
-        echo "[*] Creating $TARGET_DESK and Desktop shortcut..."
-        install -d -o "$REAL_USER" "$TARGET_DESK"
-        install -m 755 -o "$REAL_USER" "$DESKTOP_FILE" "$TARGET_DESK/rustcooling.desktop"
-    fi
-fi
-
 if [ -f "$SERVICE_FILE" ]; then
+    echo "[*] Installing systemd user service..."
     install -d /usr/lib/systemd/user
     install -m 644 "$SERVICE_FILE" /usr/lib/systemd/user/rustcooling.service
 fi
 
-echo "[*] Installing application fonts (Unbounded & Noto Sans SC)..."
-FONTS_DIR="$SCRIPT_DIR/fonts"
-[ -d "$FONTS_DIR" ] || FONTS_DIR="$REPO_ROOT/assets/fonts"
-if [ -d "$FONTS_DIR" ]; then
-    install -d /usr/share/fonts/truetype/rustcooling
-    install -m 644 "$FONTS_DIR"/*.ttf /usr/share/fonts/truetype/rustcooling/ 2>/dev/null || true
-    if command -v fc-cache >/dev/null 2>&1; then
-        fc-cache -f /usr/share/fonts/truetype/rustcooling >/dev/null 2>&1 || true
+if [ -f "$BIN_PATH" ]; then
+    echo "[*] Installing desktop entry, icon, and desktop shortcut..."
+    install -d /usr/share/icons/hicolor/256x256/apps
+    install -m 644 "$LOGO_FILE" /usr/share/icons/hicolor/256x256/apps/rustcooling.png
+    install -m 644 "$DESKTOP_FILE" /usr/share/applications/rustcooling.desktop
+
+    REAL_USER="${SUDO_USER:-$USER}"
+    if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ]; then
+        USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+        DESK_FOUND=false
+        for DESK_NAME in "Desktop" "Рабочий стол"; do
+            DESK_DIR="$USER_HOME/$DESK_NAME"
+            if [ -d "$DESK_DIR" ]; then
+                echo "[*] Creating Desktop shortcut in $DESK_DIR..."
+                install -m 755 -o "$REAL_USER" "$DESKTOP_FILE" "$DESK_DIR/rustcooling.desktop"
+                DESK_FOUND=true
+                break
+            fi
+        done
+        if [ "$DESK_FOUND" = false ] && [ -d "$USER_HOME" ]; then
+            TARGET_DESK="$USER_HOME/Desktop"
+            echo "[*] Creating $TARGET_DESK and Desktop shortcut..."
+            install -d -o "$REAL_USER" "$TARGET_DESK"
+            install -m 755 -o "$REAL_USER" "$DESKTOP_FILE" "$TARGET_DESK/rustcooling.desktop"
+        fi
+    fi
+
+    echo "[*] Installing application fonts (Unbounded & Noto Sans SC)..."
+    FONTS_DIR="$SCRIPT_DIR/fonts"
+    [ -d "$FONTS_DIR" ] || FONTS_DIR="$REPO_ROOT/assets/fonts"
+    if [ -d "$FONTS_DIR" ]; then
+        install -d /usr/share/fonts/truetype/rustcooling
+        install -m 644 "$FONTS_DIR"/*.ttf /usr/share/fonts/truetype/rustcooling/ 2>/dev/null || true
+        if command -v fc-cache >/dev/null 2>&1; then
+            fc-cache -f /usr/share/fonts/truetype/rustcooling >/dev/null 2>&1 || true
+        fi
+    fi
+
+    if command -v update-desktop-database >/dev/null 2>&1; then
+        update-desktop-database -q /usr/share/applications || true
     fi
 fi
 
-if command -v update-desktop-database >/dev/null 2>&1; then
-    update-desktop-database -q /usr/share/applications || true
-fi
-
 echo "[✓] RustCooling installed successfully!"
-echo "    - Launch GUI: 'rustcooling' or from application menu / desktop shortcut"
-echo "    - Launch TUI: 'rustcooling --tui' (or 'rustcooling-cli')"
+if [ -f "$BIN_PATH" ]; then
+    echo "    - Launch GUI: 'rustcooling' or from application menu / desktop shortcut"
+else
+    echo "    - Launch TUI: 'rustcooling' (or 'rustcooling-cli')"
+fi
 echo "    - Check status: 'rustcooling --status'"
 echo "    - Background daemon: 'systemctl --user enable --now rustcooling'"
