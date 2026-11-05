@@ -1,12 +1,12 @@
 # Maintainer: Qyzom <t0lotsmail@gmail.com>
 pkgname=rustcooling-bin
-pkgver=1.1.0
+pkgver=1.0.0
 pkgrel=1
 pkgdesc="Ultra-lightweight LCD Display controller for ID-COOLING FX series liquid coolers"
 arch=('x86_64')
 url="https://github.com/Qyzom/RustCooling"
 license=('MIT')
-depends=('systemd-libs' 'fontconfig' 'gtk3' 'xdotool' 'libayatana-appindicator')
+depends=('systemd-libs' 'fontconfig' 'libayatana-appindicator')
 optdepends=('waybar: System tray / StatusNotifierItem support in Wayland/Hyprland')
 provides=('rustcooling')
 conflicts=('rustcooling')

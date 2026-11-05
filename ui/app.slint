@@ -221,7 +221,7 @@ export component MainWindow inherits Window {
     in property <string> tr_setting_debug: "Hardware & USB VID / PID";
     in property <string> tr_setting_reset_defaults: "Reset to Defaults";
     in property <string> tr_open_config_folder: "Program Files";
-    in property <string> tr_about_title: "RustCooling v1.0.1";
+    in property <string> tr_about_title: "RustCooling v1.0.0";
     in property <string> tr_about_desc: "GitHub: Qyzom/RustCooling";
 
     // Activation View State & Strings
@@ -242,6 +242,7 @@ export component MainWindow inherits Window {
 
     // Settings View State
     in-out property <bool> show_settings: false;
+    in-out property <length> settings_viewport_y: 0px;
     in-out property <string> setting_display_mode: "temp";
     in-out property <bool> setting_autostart: false;
     in-out property <int> setting_interval_ms: 300;
@@ -771,6 +772,7 @@ export component MainWindow inherits Window {
                     // Scrollable Area containing all Setting Cards (No scrollbar, symmetric 14px margins)
                     Flickable {
                         vertical-stretch: 1;
+                        viewport-y <=> root.settings_viewport_y;
                         viewport-height: settings_layout.preferred-height;
 
                         settings_layout := VerticalLayout {

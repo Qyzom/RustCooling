@@ -3,10 +3,12 @@ use log::info;
 use std::fs::File;
 use std::path::PathBuf;
 
+#[allow(dead_code)]
 pub struct SingleInstanceLock {
     _file: File,
 }
 
+#[allow(dead_code)]
 impl SingleInstanceLock {
     pub fn acquire(name: &str) -> Option<Self> {
         let path = Self::lock_file_path(name);

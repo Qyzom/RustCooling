@@ -27,10 +27,9 @@ jobs:
             libasound2-dev \
             libayatana-appindicator3-dev \
             libglib2.0-dev \
-            libgtk-3-dev \
-            libxdo-dev \
             pkg-config \
-            build-essential
+            build-essential \
+            rpm
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -57,7 +56,6 @@ jobs:
 
           cp target/release/RustCooling AppDir/usr/bin/RustCooling
           chmod 755 AppDir/usr/bin/RustCooling
-          cp -P /usr/lib/x86_64-linux-gnu/libxdo.so* AppDir/usr/lib/ 2>/dev/null || true
           cp -P /usr/lib/x86_64-linux-gnu/libayatana-appindicator3.so* AppDir/usr/lib/ 2>/dev/null || true
           cp -P /usr/lib/x86_64-linux-gnu/libayatana-ido3*.so* AppDir/usr/lib/ 2>/dev/null || true
           cp -P /usr/lib/x86_64-linux-gnu/libayatana-indicator3.so* AppDir/usr/lib/ 2>/dev/null || true
@@ -118,6 +116,24 @@ jobs:
 
           ARCH=x86_64 ./squashfs-root/AppRun --no-appstream AppDirTui "RustCooling-TUI-${VERSION}.AppImage"
 
+      - name: Package Debian (.deb)
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${TAG_NAME#v}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
+            VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
+          fi
+          ./packaging/deb/build_deb.sh "$VERSION"
+
+      - name: Package RPM (.rpm)
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          VERSION="${TAG_NAME#v}"
+          if [ -z "$VERSION" ] || [ "$VERSION" = "main" ]; then
+            VERSION=$(grep -m1 '^version = ' Cargo.toml | cut -d '"' -f 2)
+          fi
+          ./packaging/rpm/build_rpm.sh "$VERSION"
+
       - name: Publish or Upload Linux Assets to Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -131,6 +147,10 @@ jobs:
           ASSETS=(
             "RustCooling-GUI-${VERSION}.AppImage"
             "RustCooling-TUI-${VERSION}.AppImage"
+            "RustCooling-GUI-${VERSION}.deb"
+            "RustCooling-TUI-${VERSION}.deb"
+            "RustCooling-GUI-${VERSION}.rpm"
+            "RustCooling-TUI-${VERSION}.rpm"
           )
           if ! gh release view "$TAG_NAME" >/dev/null 2>&1; then
             if [ -f RELEASE_NOTES.md ]; then

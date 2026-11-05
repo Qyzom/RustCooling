@@ -14,10 +14,10 @@ Technical architectural memo and guide for developing, maintaining, and extendin
 
 ---
 
-## 2. Hardware Reality & Protocol Specification
+## 2. Hardware Protocol Specification
 
-### Hardware Reality
-The ID-COOLING FX pump cap houses an ultra-simple microcontroller driving a **2-digit 7-segment display** with a fixed static Celsius (°C) indicator.
+### Display Characteristics
+The ID-COOLING FX pump cap houses a microcontroller driving a **2-digit 7-segment LED display** with a fixed static Celsius (°C) indicator.
 - The hardware controller **only physically renders command `0x01`** (numeric value) on the 7-segment display.
 - Opcodes `0x02` (Frequency) and `0x03` (CPU Load) were legacy vendor placeholders and do not render distinct metrics on the physical panel. RustCooling routes all telemetry modes (temperature, CPU load, and synthetic metrics) through `CMD_TEMPERATURE` (`0x01`).
 
@@ -43,9 +43,7 @@ Each HID output report consists of 64 bytes:
 | `CMD_TEMPERATURE` | `0x01` | Renders number on the 7-segment display | Numeric value `0`–`99` (clamped up to `199`) |
 | `CMD_SHOW` | `0x04` | Powers display panel on or off | `1` = Screen On (`0x0001`), `0` = Screen Off (`0x0000`) |
 
-### Checksum Algorithm
-
-The checksum is the sum of the first 6 bytes modulo 256:
+### Checksum Calculation
 
 ```rust
 pub fn calculate_checksum(header1: u8, header2: u8, len: u8, cmd: u8, val_hi: u8, val_lo: u8) -> u8 {
@@ -55,7 +53,7 @@ pub fn calculate_checksum(header1: u8, header2: u8, len: u8, cmd: u8, val_hi: u8
 
 ---
 
-## 3. Hardware Lifecycle & Communication Flow
+## 3. Communication Lifecycle
 
 ```mermaid
 sequenceDiagram
@@ -63,163 +61,57 @@ sequenceDiagram
     participant Screen as ID-COOLING LCD Display
 
     App->>Screen: Open HID Device (VID 0x1A86, PID 0xE317)
-    App->>Screen: Send CMD_SHOW (0x04, value: 1) [Power On Screen]
+    App->>Screen: Send CMD_SHOW (0x04, value: 1) [Power On]
     
-    loop Polling Interval (e.g. 1000 ms)
-        Note over App: Fetch real CPU silicon temperature or load
-        Note over App: Apply hysteresis & smoothing filter
+    loop Polling Interval (e.g. 500-1000 ms)
+        Note over App: Read hardware telemetry (hwmon / MSR)
+        Note over App: Apply EMA smoothing & hysteresis deadband
         App->>Screen: Send CMD_TEMPERATURE (0x01, value: smoothed_val)
-        Note over App: Wait for next tick
     end
 
-    Note over App: Graceful Shutdown
-    App->>Screen: Send CMD_SHOW (0x04, value: 0) [Power Off Screen]
-    App->>Screen: Close HID Device Handle
+    Note over App: Shutdown signal
+    App->>Screen: Send CMD_SHOW (0x04, value: 0) [Power Off]
+    App->>Screen: Close HID Handle
 ```
-
-### Timing & Reliability Rules:
-1. **Deduplication:** When values do not change across polling cycles, duplicate HID packets can be skipped to minimize USB bus traffic.
-2. **Auto-Reconnect:** If `WriteFile` or `hidapi::write` fails (e.g., USB sleep, unplug), the device handle is dropped, and the monitor enters a non-blocking reconnect loop (retrying every 1.5 seconds).
-3. **High Process Priority:** On Windows, process priority is boosted to `HIGH_PRIORITY_CLASS` or `ABOVE_NORMAL_PRIORITY_CLASS`, and the background monitor thread runs at `THREAD_PRIORITY_HIGHEST` to guarantee jitter-free packet dispatch.
 
 ---
 
 ## 4. Telemetry Architecture
 
-### Windows (LibreHardwareMonitor Ring 0 Kernel Driver):
-- **Driver:** Embedded LibreHardwareMonitor kernel driver (`assets/driver/WinRing0x64.sys`).
-- **Storage:** Extracted portably directly alongside `RustCooling.exe`.
-- **Service Control Manager:** Registered as an on-demand Windows kernel driver service (`WinRing0_1_2_0`, `SERVICE_KERNEL_DRIVER`, `SERVICE_DEMAND_START`), automatically started when needed and stopped/unloaded from kernel memory upon application exit (including console termination signals).
-- **MSR Queries (`IOCTL_OLS_READ_MSR = 0x9C402084`):**
-  - `0x1A2` (`IA32_TEMPERATURE_TARGET`): Extracts TjMax from bits 16–23 (default 100°C).
-  - `0x19C` (`IA32_THERM_STATUS`): Read per-core Digital Thermal Sensor (DTS) temperature (`TjMax - delta`). Pinned across logical threads using `SetThreadAffinityMask`.
-  - `0x1B1` (`IA32_PACKAGE_THERM_STATUS`): Reads CPU Package thermal sensor.
-- **UAC Elevation:** If not running as Administrator, user clicks "Update", triggering `ShellExecuteW(..., "runas", exe, "--install-driver", ..., SW_HIDE)` to register the service silently.
-- **Fallback:** If driver is not accessible, gracefully falls back to `sysinfo` ACPI thermal sensors.
+### Linux (sysfs & hwmon):
+- **Temperature:** Discovered via `/sys/class/hwmon/hwmon*/temp*_input` matching known drivers (`k10temp`, `zenpower`, `coretemp`, `Tctl`, `Tdie`, `Package id 0`).
+- **Caching:** Sensor paths are cached in `LinuxTelemetry` (`cached_paths`) upon initialization. Avoid re-enumerating `/sys/class/hwmon` directory entries on every tick.
+- **CPU Load:** Computed from delta counters in `/proc/stat`.
+- **Permissions:** Unprivileged access enabled via `99-idcooling.rules` (`MODE="0666", TAG+="uaccess"`).
 
-### Linux (Driverless Native Kernel sysfs):
-- **Temperature:** Scanned directly via `/sys/class/hwmon/hwmon*/temp*_input` matching driver labels (`k10temp`, `zenpower`, `coretemp`, `Tctl`, `Tdie`, `Package id 0`). Fallback: `/sys/class/thermal/thermal_zone*/temp`.
-- **CPU Load:** Calculated from deltas in `/proc/stat` (`user`, `nice`, `system`, `idle`, `iowait`, etc.).
-- **Permissions:** Zero root rights required. Bundled `99-idcooling.rules` grants user access to VID `0x1A86`, PID `0xE317`.
+### Windows (MSR via Kernel Driver):
+- **Driver:** Embedded ring-0 driver (`assets/driver/WinRing0x64.sys`) loaded dynamically via Windows Service Control Manager (`WinRing0_1_2_0`). Unloaded on process exit.
+- **MSR Queries:** Direct TjMax (`0x1A2`) and core thermal status (`0x19C`, `0x1B1`) reads.
+- **Fallback:** Graceful ACPI thermal zone readout via `sysinfo`.
 
 ---
 
-## 5. UI Architecture & Typography
+## 5. UI Architecture & Memory Optimization Rules
 
-- **Framework:** Slint 1.9 with FemtoVG OpenGL hardware-accelerated rendering.
-- **Window Dimensions:** Exactly **360 x 360 px**, centered upon launch.
-- **Fonts & Typography:**
-  - Standard (Latin/Cyrillic): Embedded **Unbounded** (SIL Open Font License 1.1).
-  - Chinese: Embedded **Google Noto Sans SC Bold** (SIL Open Font License 1.1) to ensure crisp CJK ideograms without tofu squares or layout clipping.
-- **Localizations:** Full runtime localization in 5 languages:
-  - English (`en`), Russian (`ru`), Simplified Chinese (`zh`), German (`de`), French (`fr`).
-- **First-Run Wizard:** An activation view blocks interaction on first launch until administrator driver registration is confirmed.
-
----
-
-## 6. Memory & Performance Benchmarks
-
-- **Active Window RAM (GUI):** **~12 – 14 MB** (Windows), **~80 – 120 MB** (Linux Mesa OpenGL/GTK3).
-- **Interactive TUI Mode:** **~4 – 7 MB** (`--tui` / `rustcooling -t`).
-- **Headless CLI Daemon:** **~2 – 4 MB** (`--daemon` / `rustcooling -d`).
-- **Background CPU Usage:** **0.0%** (event-driven timer loop).
+### Zero-Bloat Memory Design:
+1. **Deferred Window Surface Initialization:**
+   - When launched with `--minimized`, **never** invoke `w.show()` or initialize an OpenGL surface before the user explicitly requests the window.
+   - Initializing FemtoVG/EGL loads GPU drivers (Mesa / NVIDIA shader compiler libraries) into resident memory (~50–80 MB RSS). Starting straight into the tray keeps the process at **~20–25 MB RSS**.
+2. **No GTK Runtime Dependency:**
+   - System tray integration is built on `tray-icon` and `muda` with `default-features = false`.
+   - Avoid `gtk::init()` or GTK event pump loops in the timer, which bring in Pango, ATK, and GtkStyleContext overhead.
+3. **UI Event Timer Frequency:**
+   - Periodic UI tick timer is set to **250 ms** (not 60 ms) to keep idle CPU usage at 0.0%.
+4. **Dimensions & Localization:**
+   - Window dimensions: **360 x 352 px**.
+   - Supported languages: `en`, `ru`, `zh`, `de`, `fr` (managed by `I18n` singleton).
 
 ---
 
-## 7. System Tray & Window Management
+## 6. Packaging & Deployment Matrix
 
-- **Event Handling:** Built on `tray-icon` and `muda` with native Win32/X11 message hooks. Dispatched directly through `slint::invoke_from_event_loop` for **0 ms interaction latency**.
-- **Window Restoration:** On Windows, restoring from tray calls `SW_RESTORE`, `SetForegroundWindow`, and `BringWindowToTop` to guarantee the window surfaces immediately without getting trapped in the background.
-
----
-
-## 8. Configuration & Portability
-
-- **Portable File Storage:** `config.json` and `WinRing0x64.sys` are saved directly in the folder containing `RustCooling.exe` on Windows or `~/.config/RustCooling/config.json` on Linux.
-- **Autostart Integration:** Tied to the real system state:
-  - Windows: `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (`auto-launch` crate).
-  - Linux Desktop: `~/.config/autostart/RustCooling.desktop`.
-  - Linux Systemd User Service: `systemctl --user enable --now rustcooling.service`.
-- **Temperature Smoothing:** Configurable exponential moving average (alpha) + deadband hysteresis filter (0–100% / 0–5°C deadband) to eliminate 7-segment jitter.
-
----
-
-## 9. Architectural Rationale: ARM Architecture Omission
-
-Support for ARM architectures (Windows on ARM, Linux aarch64) is **intentionally omitted**:
-- ID-COOLING FX Series AIO coolers are desktop cooling units designed exclusively for standard desktop motherboard sockets: Intel (LGA1700/1851/1200) and AMD (AM4/AM5) with internal 9-pin USB headers.
-- Desktop motherboards with ARM sockets and AIO cooler mountings do not exist on the consumer market (Snapdragon X processors are soldered directly onto laptop motherboards).
-- Omitting ARM keeps the codebase free of unreachable dead code and reduces build matrix complexity.
-
----
-
-## 10. Codebase Structure
-
-```
-RustCooling/
-├── assets/
-│   ├── driver/
-│   │   └── WinRing0x64.sys          # Embedded LibreHardwareMonitor kernel driver
-│   ├── fonts/
-│   │   ├── Unbounded-Bold.ttf       # Brand typography (Latin & Cyrillic)
-│   │   └── NotoSansSC-Bold.ttf      # CJK typography (Simplified Chinese)
-│   └── icons/                       # Multi-resolution icons (16x16 up to 256x256, .ico, .rgba)
-├── i18n/                            # Localization files (en.json, ru.json, zh.json, de.json, fr.json)
-├── packaging/                       # Linux udev rules, desktop files, systemd units, install scripts
-├── src/
-│   ├── config/                      # Portable config serialization and directory resolution
-│   ├── hid/                         # USB HID communication via hidapi
-│   ├── i18n/                        # Runtime localization provider
-│   ├── protocol/                    # HID packet construction and checksum calculation
-│   ├── service/                     # Background monitor service, hysteresis smoothing, animations
-│   ├── telemetry/
-│   │   ├── mod.rs                   # TelemetryProvider trait and factory
-│   │   ├── driver.rs                # WinRing0 kernel driver loader, SC Manager & MSR reader
-│   │   ├── windows.rs               # Windows telemetry coordinator (MSR + sysinfo fallback)
-│   │   └── linux.rs                 # Linux sysfs / hwmon telemetry reader
-│   ├── tray/                        # System tray icon, context menu, and event hooks
-│   ├── tui/                         # Interactive ratatui TUI dashboard and settings interface
-│   └── main.rs                      # Entry point, Slint UI bindings, CLI args, memory trimming
-├── ui/
-│   └── app.slint                    # Slint UI definitions (Monitor, Settings, Activation screens)
-├── Cargo.toml                       # Dependencies and release profiles
-├── AGENTS.md                        # Architecture memo and developer documentation
-└── README.md                        # Project documentation and guide
-```
-
----
-
-## 11. GitHub Release Formatting Standard
-
-All GitHub releases across the repository **must strictly adhere to the following unified English format**. Never include filler phrases, extraneous prose, or unlinked changelogs.
-
-### Release Body Template
-
-```markdown
-### What's New
-- Concise bulleted summary of new features, optimizations, and hardware behavior fixes.
-- Second key change.
-- Third key change.
-
-[Full Changelog](https://github.com/Qyzom/RustCooling/commits/main)
-
-### Release Assets
-- **`RustCooling-X.X.X.exe`** — Versioned standalone GUI executable for Windows 10/11 x64 (no installation required, ready to run).
-- **`RustCooling-GUI-X.X.X.AppImage`** — Standalone universal GUI AppImage for all x86_64 Linux distributions.
-- **`RustCooling-TUI-X.X.X.AppImage`** — Standalone universal interactive TUI & CLI AppImage for all x86_64 Linux distributions.
-```
-
-### Release Rules & Workflow:
-1. **Language:** Always 100% in **English**.
-2. **"What's New" Section:** Keep it concise and bulleted (3–7 bullets maximum). Focus on tangible user-facing value and low-level improvements.
-3. **Changelog Link:** The link between the sections must strictly be `[Full Changelog](https://github.com/Qyzom/RustCooling/commits/main)`. Do not add trailing or leading filler sentences.
-4. **Asset Descriptions:** Every non-source-code binary asset attached to the release must be explicitly described with its target OS, architecture, and deployment method. Do not describe automatic GitHub source code archives (`.zip` / `.tar.gz`).
-5. **Asset Naming Convention:**
-   - Windows binary: `RustCooling-X.X.X.exe`
-   - Linux GUI AppImage: `RustCooling-GUI-X.X.X.AppImage`
-   - Linux TUI AppImage: `RustCooling-TUI-X.X.X.AppImage`
-6. **Publishing Process:**
-   - Bump version in `Cargo.toml` and verify `cargo test` + `cargo clippy`.
-   - Create Git tag: `git tag -a vX.X.X -m "RustCooling X.X.X"` and push: `git push origin main --tags`.
-   - GitHub Actions (`.github/workflows/release.yml`) triggers on the pushed tag, compiles Linux `.AppImage` (GUI and TUI) and Windows `.exe`, and automatically attaches them to the release via `gh release upload ... --clobber`.
-
+- **AppImage:** Standard portable Linux packages (`RustCooling-GUI`, `RustCooling-TUI`) produced via `appimagetool`.
+- **Debian (`.deb`):** Built with `packaging/deb/build_deb.sh` using `dpkg-deb`.
+- **RPM (`.rpm`):** Built with `packaging/rpm/build_rpm.sh` using `rpmbuild`.
+- **Arch Linux:** Built using `packaging/arch/PKGBUILD` and AUR package.
+- **Windows:** Standalone executable `RustCooling-1.0.0.exe`.

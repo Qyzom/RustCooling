@@ -1,12 +1,13 @@
 use super::{CpuMetrics, TelemetryProvider};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub struct LinuxTelemetry {
     prev_idle: u64,
     prev_total: u64,
     metrics: CpuMetrics,
     temp_source: String,
+    cached_paths: Vec<PathBuf>,
 }
 
 impl Default for LinuxTelemetry {
@@ -16,6 +17,7 @@ impl Default for LinuxTelemetry {
             prev_total: 0,
             metrics: CpuMetrics::default(),
             temp_source: "package".to_string(),
+            cached_paths: Vec::new(),
         }
     }
 }
@@ -27,13 +29,53 @@ impl LinuxTelemetry {
         inst
     }
 
+    fn read_sensor_file(path: &Path) -> Option<f32> {
+        let val_str = fs::read_to_string(path).ok()?;
+        let val = val_str.trim().parse::<f32>().ok()?;
+        let c = if val > 1000.0 { val / 1000.0 } else { val };
+        if (15.0..=120.0).contains(&c) {
+            Some(c)
+        } else {
+            None
+        }
+    }
+
     /// Read CPU temperature from Linux hwmon interface according to the selected source:
     /// "package" (Package / Tctl / Tdie), "core0" (First core), "avg" (Average cores), "max" (Max core).
-    fn read_cpu_temp(&self) -> Option<f32> {
+    fn read_cpu_temp(&mut self) -> Option<f32> {
+        // Fast path: read from cached paths if available
+        if !self.cached_paths.is_empty() {
+            let mut readings: Vec<f32> = Vec::with_capacity(self.cached_paths.len());
+            for path in &self.cached_paths {
+                if let Some(c) = Self::read_sensor_file(path) {
+                    readings.push(c);
+                }
+            }
+
+            if !readings.is_empty() {
+                return match self.temp_source.as_str() {
+                    "core0" => readings.first().copied(),
+                    "avg" => {
+                        let sum: f32 = readings.iter().sum();
+                        Some((sum / readings.len() as f32).round())
+                    }
+                    "max" => {
+                        let m = readings.iter().cloned().fold(f32::MIN, f32::max);
+                        Some(m.round())
+                    }
+                    _ => readings.first().copied(), // package is single sensor
+                };
+            }
+
+            // If reading from cached paths failed, clear cache and re-discover
+            self.cached_paths.clear();
+        }
+
+        // Slow path: scan hwmon devices and cache paths
         let hwmon_base = Path::new("/sys/class/hwmon");
         if hwmon_base.exists() {
             if let Ok(entries) = fs::read_dir(hwmon_base) {
-                let mut hwmon_devices: Vec<(std::path::PathBuf, String)> = entries
+                let mut hwmon_devices: Vec<(PathBuf, String)> = entries
                     .filter_map(|e| e.ok().map(|d| d.path()))
                     .map(|dir| {
                         let name = fs::read_to_string(dir.join("name"))
@@ -44,7 +86,6 @@ impl LinuxTelemetry {
                     })
                     .collect();
 
-                // Known primary CPU thermal drivers
                 let preferred_cpu_drivers = [
                     "coretemp",
                     "k10temp",
@@ -53,7 +94,6 @@ impl LinuxTelemetry {
                     "soc_thermal",
                 ];
 
-                // Prioritize dedicated CPU thermal drivers
                 hwmon_devices.sort_by_key(|(_, name)| {
                     if preferred_cpu_drivers.iter().any(|d| name.contains(d)) {
                         0
@@ -64,15 +104,14 @@ impl LinuxTelemetry {
                     }
                 });
 
-                let mut package_temp: Option<f32> = None;
-                let mut core0_temp: Option<f32> = None;
-                let mut core_temps: Vec<f32> = Vec::new();
+                let mut package_path: Option<(PathBuf, f32)> = None;
+                let mut core0_path: Option<(PathBuf, f32)> = None;
+                let mut core_paths: Vec<(PathBuf, f32)> = Vec::new();
                 let mut found_primary_cpu = false;
 
                 for (dir, driver_name) in hwmon_devices {
                     let is_cpu_driver = preferred_cpu_drivers.iter().any(|d| driver_name.contains(d));
 
-                    // Once primary CPU driver temps are collected, skip non-CPU devices (nvme, wifi, etc.)
                     if found_primary_cpu && !is_cpu_driver {
                         continue;
                     }
@@ -93,7 +132,6 @@ impl LinuxTelemetry {
                                     String::new()
                                 };
 
-                                // Skip non-CPU devices if their label indicates non-CPU sensors
                                 if !is_cpu_driver {
                                     let is_likely_cpu = label.contains("cpu")
                                         || label.contains("package")
@@ -105,41 +143,28 @@ impl LinuxTelemetry {
                                     }
                                 }
 
-                                if let Ok(val_str) = fs::read_to_string(file.path()) {
-                                    if let Ok(val) = val_str.trim().parse::<f32>() {
-                                        // sysfs temps are usually in millidegrees Celsius
-                                        let c = if val > 1000.0 { val / 1000.0 } else { val };
-                                        if (15.0..=120.0).contains(&c) {
-                                            if is_cpu_driver {
-                                                found_primary_cpu = true;
-                                            }
+                                if let Some(c) = Self::read_sensor_file(&file.path()) {
+                                    if is_cpu_driver {
+                                        found_primary_cpu = true;
+                                    }
 
-                                            if label.contains("tdie")
-                                                || label.contains("tctl")
-                                                || label.contains("package")
-                                            {
-                                                if package_temp.is_none()
-                                                    || c > package_temp.unwrap()
-                                                {
-                                                    package_temp = Some(c);
-                                                }
-                                            } else if label.contains("core 0")
-                                                || label.contains("core0")
-                                                || label.contains("cpu0")
-                                            {
-                                                if core0_temp.is_none() {
-                                                    core0_temp = Some(c);
-                                                }
-                                                core_temps.push(c);
-                                            } else if label.contains("core")
-                                                || label.contains("cpu")
-                                            {
-                                                core_temps.push(c);
-                                            } else if is_cpu_driver {
-                                                // Generic sensor inside a dedicated CPU thermal driver
-                                                core_temps.push(c);
-                                            }
+                                    if label.contains("tdie")
+                                        || label.contains("tctl")
+                                        || label.contains("package")
+                                    {
+                                        if package_path.is_none() || c > package_path.as_ref().unwrap().1 {
+                                            package_path = Some((file.path(), c));
                                         }
+                                    } else if label.contains("core 0")
+                                        || label.contains("core0")
+                                        || label.contains("cpu0")
+                                    {
+                                        if core0_path.is_none() {
+                                            core0_path = Some((file.path(), c));
+                                        }
+                                        core_paths.push((file.path(), c));
+                                    } else if label.contains("core") || label.contains("cpu") || is_cpu_driver {
+                                        core_paths.push((file.path(), c));
                                     }
                                 }
                             }
@@ -147,42 +172,41 @@ impl LinuxTelemetry {
                     }
                 }
 
-                // Resolve according to selected source
-                let resolved = match self.temp_source.as_str() {
-                    "core0" => core0_temp
-                        .or_else(|| core_temps.first().copied())
-                        .or(package_temp),
+                match self.temp_source.as_str() {
+                    "core0" => {
+                        if let Some((p, c)) = core0_path.or_else(|| core_paths.first().cloned()).or(package_path) {
+                            self.cached_paths = vec![p];
+                            return Some(c);
+                        }
+                    }
                     "avg" => {
-                        if !core_temps.is_empty() {
-                            let sum: f32 = core_temps.iter().sum();
-                            Some((sum / core_temps.len() as f32).round())
-                        } else {
-                            package_temp
+                        if !core_paths.is_empty() {
+                            let sum: f32 = core_paths.iter().map(|(_, c)| c).sum();
+                            let avg = (sum / core_paths.len() as f32).round();
+                            self.cached_paths = core_paths.into_iter().map(|(p, _)| p).collect();
+                            return Some(avg);
+                        } else if let Some((p, c)) = package_path {
+                            self.cached_paths = vec![p];
+                            return Some(c);
                         }
                     }
                     "max" => {
-                        if !core_temps.is_empty() {
-                            let m = core_temps.iter().cloned().fold(f32::MIN, f32::max);
-                            Some(m.round())
-                        } else {
-                            package_temp
+                        if !core_paths.is_empty() {
+                            let max_val = core_paths.iter().map(|(_, c)| *c).fold(f32::MIN, f32::max).round();
+                            self.cached_paths = core_paths.into_iter().map(|(p, _)| p).collect();
+                            return Some(max_val);
+                        } else if let Some((p, c)) = package_path {
+                            self.cached_paths = vec![p];
+                            return Some(c);
                         }
                     }
                     _ => {
                         // "package" or default
-                        package_temp.or_else(|| {
-                            if !core_temps.is_empty() {
-                                let m = core_temps.iter().cloned().fold(f32::MIN, f32::max);
-                                Some(m.round())
-                            } else {
-                                None
-                            }
-                        })
+                        if let Some((p, c)) = package_path.or_else(|| core_paths.first().cloned()) {
+                            self.cached_paths = vec![p];
+                            return Some(c);
+                        }
                     }
-                };
-
-                if let Some(t) = resolved {
-                    return Some(t);
                 }
             }
         }
@@ -194,13 +218,9 @@ impl LinuxTelemetry {
                 for entry in entries.filter_map(|e| e.ok()) {
                     let temp_file = entry.path().join("temp");
                     if temp_file.exists() {
-                        if let Ok(content) = fs::read_to_string(&temp_file) {
-                            if let Ok(val) = content.trim().parse::<f32>() {
-                                let c = if val > 1000.0 { val / 1000.0 } else { val };
-                                if (15.0..=120.0).contains(&c) {
-                                    return Some(c.round());
-                                }
-                            }
+                        if let Some(c) = Self::read_sensor_file(&temp_file) {
+                            self.cached_paths = vec![temp_file];
+                            return Some(c.round());
                         }
                     }
                 }
@@ -251,7 +271,10 @@ impl LinuxTelemetry {
 
 impl TelemetryProvider for LinuxTelemetry {
     fn set_temp_source(&mut self, source: &str) {
-        self.temp_source = source.to_string();
+        if self.temp_source != source {
+            self.temp_source = source.to_string();
+            self.cached_paths.clear();
+        }
     }
 
     fn update(&mut self) {
@@ -274,7 +297,6 @@ mod tests {
         provider.set_temp_source("package");
         provider.update();
         let metrics = provider.get_metrics();
-        // On systems with thermal sysfs, temperature should be detected or None
         if let Some(t) = metrics.temperature {
             assert!((10.0..=125.0).contains(&t));
         }

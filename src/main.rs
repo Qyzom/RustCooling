@@ -17,7 +17,7 @@ use service::MonitorService;
 use slint::ComponentHandle;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tray::SystemTray;
@@ -567,9 +567,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg(not(windows))]
     {
-        // Enforce Winit backend with FemtoVG renderer for hardware-accelerated OpenGL and embedded fonts
         std::env::set_var("SLINT_BACKEND", "winit");
-        // Ensure Wayland / X11 window manager associates window with rustcooling.desktop / GNOME dock icon
         let mut backend_builder = i_slint_backend_winit::Backend::builder();
         backend_builder = backend_builder.with_window_attributes_hook(|attrs| {
             #[cfg(target_os = "linux")]
@@ -610,45 +608,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Instant event handler for tray icon and context menu
     let win_handle_for_tray = main_window.as_weak();
     let vis_for_tray = Arc::clone(&is_window_visible);
-
     let keep_for_tray_exit = Arc::clone(&keep_daemon_on_exit);
-    let on_tray_action = move |action: tray::TrayAction| {
-        let win_weak = win_handle_for_tray.clone();
+
+    let on_tray_action: Arc<dyn Fn(tray::TrayAction) + Send + Sync> = {
+        let win_handle = win_handle_for_tray.clone();
         let vis = Arc::clone(&vis_for_tray);
         let keep_exit = Arc::clone(&keep_for_tray_exit);
+        Arc::new(move |action: tray::TrayAction| {
+            let win_weak = win_handle.clone();
+            let vis = Arc::clone(&vis);
+            let keep_exit = Arc::clone(&keep_exit);
 
-        let _ = slint::invoke_from_event_loop(move || {
-            match action {
-                tray::TrayAction::Show => {
-                    info!("Tray event: Show requested");
-                    if let Some(w) = win_weak.upgrade() {
-                        show_and_focus_window(&w);
-                        vis.store(true, Ordering::SeqCst);
-                    }
-                }
-                tray::TrayAction::Toggle => {
-                    info!("Tray event: Toggle requested");
-                    if let Some(w) = win_weak.upgrade() {
-                        let is_showing = vis.load(Ordering::SeqCst);
-                        if is_showing {
-                            hide_window_to_tray(&w);
-                            vis.store(false, Ordering::SeqCst);
-                        } else {
+            let _ = slint::invoke_from_event_loop(move || {
+                match action {
+                    tray::TrayAction::Show => {
+                        info!("Tray event: Show requested");
+                        if let Some(w) = win_weak.upgrade() {
                             show_and_focus_window(&w);
                             vis.store(true, Ordering::SeqCst);
                         }
                     }
+                    tray::TrayAction::Toggle => {
+                        info!("Tray event: Toggle requested");
+                        if let Some(w) = win_weak.upgrade() {
+                            let is_showing = vis.load(Ordering::SeqCst);
+                            if is_showing {
+                                hide_window_to_tray(&w);
+                                vis.store(false, Ordering::SeqCst);
+                            } else {
+                                show_and_focus_window(&w);
+                                vis.store(true, Ordering::SeqCst);
+                            }
+                        }
+                    }
+                    tray::TrayAction::Exit => {
+                        info!("Tray event: Exit requested (stopping monitor and powering off display)");
+                        keep_exit.store(false, Ordering::SeqCst);
+                        let _ = slint::quit_event_loop();
+                    }
                 }
-                tray::TrayAction::Exit => {
-                    info!("Tray event: Exit requested (stopping monitor and powering off display)");
-                    keep_exit.store(false, Ordering::SeqCst);
-                    let _ = slint::quit_event_loop();
-                }
-            }
-        });
+            });
+        })
     };
 
-    let on_tray_action_retry = on_tray_action.clone();
+    let on_tray_action_retry = Arc::clone(&on_tray_action);
 
     #[cfg(target_os = "linux")]
     {
@@ -660,7 +663,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize System Tray after Slint/Winit is initialized on the UI thread
     let show_tray = config_ref.lock().map(|c| c.show_tray).unwrap_or(true);
     let tray = if show_tray {
-        match SystemTray::new(on_tray_action) {
+        let cb = Arc::clone(&on_tray_action);
+        match SystemTray::new(move |a| cb(a)) {
             Ok(t) => {
                 info!("System tray successfully initialized!");
                 Some(t)
@@ -934,17 +938,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     main_window.on_drag_move(|| {});
     main_window.on_drag_end(|| {});
 
-    // Periodic UI update timer (60ms)
+    // Periodic UI update timer (250ms)
     let handle_for_timer = main_window.as_weak();
     let vis_for_timer = Arc::clone(&is_window_visible);
-    let tray_for_timer = Rc::clone(&tray_ref);
-    let tray_retry_counter = std::sync::atomic::AtomicUsize::new(0);
 
     let last_conn = std::cell::Cell::new(false);
     let last_temp = std::cell::Cell::new(-1i32);
     let last_load = std::cell::Cell::new(-1i32);
     let last_label = std::cell::RefCell::new(String::new());
     let last_val = std::cell::RefCell::new(String::new());
+
+    let tray_for_timer = Rc::clone(&tray_ref);
+    let tray_retry_counter = Arc::new(AtomicUsize::new(0));
 
     let ui_timer = slint::Timer::default();
     ui_timer.start(
@@ -961,7 +966,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Attempt a single retry for tray initialization if it wasn't ready at startup (after ~1.5s)
             let tick = tray_retry_counter.fetch_add(1, Ordering::Relaxed);
             if tick == 25 && tray_for_timer.borrow().is_none() && config_ref.lock().map(|c| c.show_tray).unwrap_or(true) {
-                match SystemTray::new(on_tray_action_retry.clone()) {
+                let cb = Arc::clone(&on_tray_action_retry);
+                match SystemTray::new(move |a| cb(a)) {
                     Ok(t) => {
                         info!("System tray successfully initialized on retry!");
                         *tray_for_timer.borrow_mut() = Some(t);
@@ -971,7 +977,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-
             // Sync metrics to UI when visible (throttled/deduplicated)
             if vis_for_timer.load(Ordering::Relaxed) {
                 if let Some(w) = handle_for_timer.upgrade() {
@@ -1046,8 +1051,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let _ = slint::invoke_from_event_loop(move || {
             if !vis.load(Ordering::SeqCst) {
                 if let Some(w) = win_weak.upgrade() {
-                    // Transition state to Shown then call hide_window_to_tray so Slint invokes suspend()
-                    // and drops the Wayland toplevel surface, eliminating phantom dock icon.
                     let _ = w.show();
                     hide_window_to_tray(&w);
                 }
