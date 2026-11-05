@@ -1,0 +1,30 @@
+# Maintainer: Qyzom <t0lotsmail@gmail.com>
+pkgname=rustcooling
+pkgver=1.0.1
+pkgrel=1
+pkgdesc="Ultra-lightweight LCD Display controller for ID-COOLING FX series liquid coolers"
+arch=('x86_64')
+url="https://github.com/Qyzom/RustCooling"
+license=('MIT')
+depends=('systemd-libs' 'fontconfig' 'gtk3' 'xdotool' 'libayatana-appindicator')
+makedepends=('cargo')
+optdepends=('waybar: System tray / StatusNotifierItem support in Wayland/Hyprland')
+provides=('rustcooling')
+conflicts=('rustcooling-bin')
+
+options=('!lto')
+
+build() {
+    cd "$startdir/../.."
+    export CFLAGS="${CFLAGS//-flto=auto/}"
+    export CXXFLAGS="${CXXFLAGS//-flto=auto/}"
+    cargo build --release --bin RustCooling
+}
+
+package() {
+    cd "$startdir/../.."
+    install -Dm755 target/release/RustCooling "$pkgdir/usr/bin/RustCooling"
+    install -Dm644 packaging/linux/99-idcooling.rules "$pkgdir/usr/lib/udev/rules.d/99-idcooling.rules"
+    install -Dm644 packaging/linux/rustcooling.desktop "$pkgdir/usr/share/applications/rustcooling.desktop"
+    install -Dm644 logo.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/rustcooling.png"
+}

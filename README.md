@@ -66,14 +66,18 @@
 | Feature | Official Vendor Software | idc-lite (My Previous C# App) | **RustCooling (Rust)** |
 | :--- | :---: | :---: | :---: |
 | **Tech Stack** | Electron / Node.js + C++ | C# / .NET 8 (WPF) | **100% Pure Rust + Slint** |
-| **RAM (Active Window)** | ~200 – 300 MB | ~60 – 120 MB | **~12 – 14 MB** |
-| **RAM (System Tray)** | ~80 – 150 MB | ~35 – 60 MB | **< 3 MB** (~1.1 – 2.5 MB) |
+| **RAM (Active Window)** | ~200 – 300 MB | ~120 MB | **~12 – 14 MB** |
+| **RAM (System Tray)** | ~200  MB | ~110 MB | **< 3 MB** (~1.1 – 2.5 MB) |
 | **Background CPU Load** | 2.0% – 5.0% | ~1.0% | **0.0%** (Event-driven) |
 | **Temp Jitter Smoothing** | ❌ None (jitters constantly) | ❌ None | **✔ Yes (configurable 0–100% filter)** |
 | **Linux Support** | ❌ None | ⚠️ Experimental | **✔ Native (hwmon, sysfs, udev)** |
-| **Sensor Driver** | Proprietary closed Ring 0 | WinRing0.sys (external) | **✔ Embedded LibreHardwareMonitor (Win) / Driverless (Linux)** |
 | **Startup Time** | 3.0 – 6.0 sec | 1.5 – 3.0 sec | **< 50 ms** |
 | **UI Languages** | EN, ZH | EN, RU, ZH | **EN, RU, ZH, DE, FR** |
+
+> [!TIP]
+> **RAM on Linux vs Windows:**  
+> On Windows, RustCooling sits at ~12–14 MB (and < 3 MB in tray) because Windows D3D isolates driver runtimes and trims working sets on minimize. On Linux, the core engine uses only **~2.6 MB** heap (`RssAnon`), but Linux system monitors count shared Mesa GPU libraries and LLVM JIT into the total `VmRSS` (~120 MB).  
+> To run with minimal memory (~20 MB total) on Linux without Mesa/LLVM overhead, run with software rendering: `SLINT_BACKEND=winit-software RustCooling`, or in headless mode: `RustCooling --daemon` (< 3 MB).
 
 ---
 
@@ -87,16 +91,30 @@ Pre-built binaries are available on the [**Releases**](https://github.com/Qyzom/
 3. On first run, the activation screen will appear: click **"Grant Rights & Install"** (UAC) to register the LibreHardwareMonitor sensor driver once.
 4. Click **"Continue"** — the application is ready to use! System autostart is available in Settings.
 
+#### Linux (Universal AppImage — All Distributions)
+```bash
+chmod +x RustCooling-1.0.1.AppImage
+./RustCooling-1.0.1.AppImage
+```
+
+#### Linux (Arch Linux / CachyOS / Manjaro)
+Build and install natively via `pacman` with full system tray and desktop integration:
+```bash
+cd packaging/arch
+makepkg -si
+```
+*(Or via AUR: `yay -S rustcooling-bin` / `paru -S rustcooling-bin`)*
+
 #### Linux (Debian / Ubuntu / Linux Mint)
 ```bash
-sudo dpkg -i RustCooling-0.1.3.deb
+sudo dpkg -i RustCooling-1.0.1.deb
 ```
 *(Desktop shortcut and udev rules for non-root USB pump access will be configured automatically).*
 
-#### Linux (Arch / Fedora / Generic Tarball)
+#### Linux (Fedora / Generic Tarball)
 ```bash
-tar -xzf RustCooling-0.1.3.tar.gz
-cd RustCooling-0.1.3
+tar -xzf RustCooling-1.0.1.tar.gz
+cd RustCooling-1.0.1
 sudo ./install.sh
 ```
 
