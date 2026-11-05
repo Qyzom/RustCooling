@@ -45,8 +45,7 @@ pub struct TuiApp {
     language: String,
     custom_vid: u16,
     custom_pid: u16,
-    autostart_mode: String,
-    show_tray: bool,
+    auto_start: bool,
 }
 
 impl TuiApp {
@@ -82,8 +81,7 @@ impl TuiApp {
             language: cfg.language,
             custom_vid: cfg.custom_vid,
             custom_pid: cfg.custom_pid,
-            autostart_mode: cfg.autostart_mode,
-            show_tray: cfg.show_tray,
+            auto_start: cfg.auto_start,
         }
     }
 
@@ -163,7 +161,7 @@ impl TuiApp {
                                 }
                             }
                             KeyCode::Down | KeyCode::Char('j') => {
-                                if self.selected_tab == 1 && self.selected_setting < 11 {
+                                if self.selected_tab == 1 && self.selected_setting < 10 {
                                     self.selected_setting += 1;
                                 }
                             }
@@ -171,7 +169,7 @@ impl TuiApp {
                                 self.adjust_setting(false);
                             }
                             KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('+') | KeyCode::Enter | KeyCode::Char(' ') if self.selected_tab == 1 => {
-                                if self.selected_setting == 11 {
+                                if self.selected_setting == 10 {
                                     keep_daemon_running = false;
                                     break;
                                 } else {
@@ -212,13 +210,12 @@ impl TuiApp {
             cfg.language = self.language.clone();
             cfg.custom_vid = self.custom_vid;
             cfg.custom_pid = self.custom_pid;
-            cfg.autostart_mode = self.autostart_mode.clone();
-            cfg.show_tray = self.show_tray;
-            cfg.auto_start = self.autostart_mode != "none";
+            cfg.auto_start = self.auto_start;
+            cfg.autostart_mode = if self.auto_start { "daemon".to_string() } else { "none".to_string() };
             cfg.save()
         };
 
-        crate::set_autostart_mode(&self.autostart_mode);
+        crate::set_autostart_mode(if self.auto_start { "daemon" } else { "none" });
 
         if let Err(e) = save_res {
             self.set_status(&format!("Error saving config: {}", e));
@@ -237,8 +234,7 @@ impl TuiApp {
         self.language = def.language.clone();
         self.custom_vid = def.custom_vid;
         self.custom_pid = def.custom_pid;
-        self.autostart_mode = def.autostart_mode.clone();
-        self.show_tray = def.show_tray;
+        self.auto_start = def.auto_start;
         I18n::set_language(&self.language);
         crate::set_autostart_mode("none");
         if let Ok(mut cfg) = self.config_ref.lock() {
@@ -308,22 +304,12 @@ impl TuiApp {
                 }
             }
             7 => {
-                let modes = ["none", "daemon", "gui"];
-                let pos = modes.iter().position(|&m| m == self.autostart_mode).unwrap_or(0);
-                let new_pos = if forward {
-                    (pos + 1) % modes.len()
-                } else {
-                    (pos + modes.len() - 1) % modes.len()
-                };
-                self.autostart_mode = modes[new_pos].to_string();
+                self.auto_start = !self.auto_start;
             }
             8 => {
-                self.show_tray = !self.show_tray;
-            }
-            9 => {
                 self.save_settings();
             }
-            10 => {
+            9 => {
                 self.reset_defaults();
             }
             _ => {}
@@ -350,7 +336,7 @@ impl TuiApp {
             .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(chunks[0]);
 
-        let title_text = format!(" RustCooling v{} ", env!("CARGO_PKG_VERSION"));
+        let title_text = format!(" RustCooling v{} (TUI) ", env!("CARGO_PKG_VERSION"));
         let title_widget = Paragraph::new(Line::from(vec![
             Span::styled(title_text, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
             Span::styled(format!(" [{}]", t.sub_controller), Style::default().fg(Color::DarkGray)),
@@ -511,12 +497,7 @@ impl TuiApp {
             "fr" => "Français (fr)",
             _ => "English (en)",
         };
-        let autostart_str = match self.autostart_mode.as_str() {
-            "daemon" => &t.opt_daemon,
-            "gui" => &t.opt_gui,
-            _ => &t.opt_disabled,
-        };
-        let tray_str = if self.show_tray { &t.opt_enabled } else { &t.opt_disabled };
+        let autostart_str = if self.auto_start { &t.autostart_on } else { &t.autostart_off };
 
         let items = vec![
             format!("{}: < {} >", t.setting_display_mode, mode_str),
@@ -527,7 +508,6 @@ impl TuiApp {
             format!("{}: < 0x{:04X} >", t.target_vid_label, self.custom_vid),
             format!("{}: < 0x{:04X} >", t.target_pid_label, self.custom_pid),
             format!("{}: < {} >", t.setting_autostart, autostart_str),
-            format!("{}: < {} >", t.setting_tray_icon, tray_str),
             format!("  [ {} (S) ]", t.btn_save_return),
             format!("  [ {} (R) ]", t.setting_reset_defaults),
             format!("  [ {} ]", t.btn_power_off_stop),

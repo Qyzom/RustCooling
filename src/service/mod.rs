@@ -1,3 +1,4 @@
+pub mod autostart;
 pub mod lifecycle;
 
 use crate::config::AppConfig;

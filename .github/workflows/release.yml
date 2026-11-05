@@ -58,12 +58,15 @@ jobs:
           mkdir -p pkg/usr/share/icons/hicolor/256x256/apps
 
           cp target/release/RustCooling pkg/usr/bin/RustCooling
+          cp target/release/rustcooling-cli pkg/usr/bin/rustcooling-cli
           ln -sf RustCooling pkg/usr/bin/rustcooling
-          chmod 755 pkg/usr/bin/RustCooling
+          chmod 755 pkg/usr/bin/RustCooling pkg/usr/bin/rustcooling-cli
           cp packaging/linux/99-idcooling.rules pkg/usr/lib/udev/rules.d/
           cp packaging/linux/rustcooling.desktop pkg/usr/share/applications/
           cp packaging/linux/rustcooling.service pkg/usr/lib/systemd/user/
           cp assets/icons/logo_256.png pkg/usr/share/icons/hicolor/256x256/apps/rustcooling.png
+          mkdir -p pkg/usr/share/fonts/truetype/rustcooling
+          cp assets/fonts/*.ttf pkg/usr/share/fonts/truetype/rustcooling/
 
           cat << EOF > pkg/DEBIAN/control
           Package: rustcooling
@@ -90,6 +93,9 @@ jobs:
           if command -v update-desktop-database >/dev/null 2>&1; then
             update-desktop-database -q /usr/share/applications || true
           fi
+          if command -v fc-cache >/dev/null 2>&1; then
+            fc-cache -f /usr/share/fonts/truetype/rustcooling >/dev/null 2>&1 || true
+          fi
           exit 0
           EOF
           chmod 755 pkg/DEBIAN/postinst
@@ -106,12 +112,15 @@ jobs:
 
           mkdir -p tarball
           cp target/release/RustCooling tarball/
+          cp target/release/rustcooling-cli tarball/
           cp packaging/linux/99-idcooling.rules tarball/
           cp packaging/linux/rustcooling.desktop tarball/
           cp packaging/linux/rustcooling.service tarball/
           cp packaging/linux/install.sh tarball/
           cp packaging/linux/uninstall.sh tarball/
           cp assets/icons/logo_256.png tarball/logo.png
+          mkdir -p tarball/fonts
+          cp assets/fonts/*.ttf tarball/fonts/
           tar -czvf "RustCooling-${VERSION}.tar.gz" -C tarball .
 
       - name: Package AppImage (.AppImage)
@@ -168,17 +177,20 @@ jobs:
                 "RustCooling-${VERSION}.deb" \
                 "RustCooling-${VERSION}.tar.gz" \
                 --title "RustCooling ${VERSION}" \
-                --notes-file RELEASE_NOTES.md
+                --notes-file RELEASE_NOTES.md \
+                --draft=false
             else
               gh release create "$TAG_NAME" \
                 "RustCooling-${VERSION}.AppImage" \
                 "RustCooling-${VERSION}.deb" \
                 "RustCooling-${VERSION}.tar.gz" \
                 --title "RustCooling ${VERSION}" \
-                --generate-notes
+                --generate-notes \
+                --draft=false
             fi
           else
             gh release upload "$TAG_NAME" "RustCooling-${VERSION}.AppImage" "RustCooling-${VERSION}.deb" "RustCooling-${VERSION}.tar.gz" --clobber
+            gh release edit "$TAG_NAME" --draft=false || true
           fi
 
   build-windows:
@@ -195,7 +207,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build Windows Release Binary
-        run: cargo build --release
+        run: cargo build --release --bin RustCooling
 
       - name: Upload Windows Assets to Release
         env:
@@ -209,4 +221,5 @@ jobs:
             TAG_NAME="v${VERSION}"
           fi
           cp target/release/RustCooling.exe "RustCooling-${VERSION}.exe"
-          gh release upload "$TAG_NAME" "RustCooling-${VERSION}.exe" --clobber || true
+          gh release upload "$TAG_NAME" "RustCooling-${VERSION}.exe" --clobber
+          gh release edit "$TAG_NAME" --draft=false || true
