@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=RustCooling TUI
+Comment=Lightweight terminal dashboard and controller for ID-COOLING FX series coolers
+Exec=rustcooling-cli
+Icon=rustcooling
+Terminal=true
+Type=Application
+Categories=Utility;HardwareSettings;System;ConsoleOnly;
+StartupNotify=false
+Keywords=cooling;idcooling;hardware;fan;pump;telemetry;tui;terminal;

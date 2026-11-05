@@ -1,6 +1,6 @@
 [package]
 name = "RustCooling"
-version = "1.0.4"
+version = "1.1.0"
 edition = "2021"
 authors = ["Qyzom", "RustCooling Contributors"]
 description = "Ultra-lightweight cross-platform LCD display controller for ID-COOLING FX series liquid coolers"
@@ -43,6 +43,7 @@ windows-sys = { version = "0.59", features = [
     "Win32_System_Console",
     "Win32_System_IO",
     "Win32_System_LibraryLoader",
+    "Win32_System_ProcessStatus",
     "Win32_System_Services",
     "Win32_System_Threading",
     "Win32_UI_Shell",
@@ -60,7 +61,7 @@ winres = "0.1"
 
 [profile.release]
 opt-level = 3
-lto = false
+lto = "fat"
 codegen-units = 1
-panic = "abort"
-strip = "debuginfo"
+panic = "unwind"
+strip = "symbols"

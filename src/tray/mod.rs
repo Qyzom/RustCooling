@@ -36,11 +36,19 @@ impl SystemTray {
 
         let icon = create_default_icon()?;
 
-        let tray_icon = TrayIconBuilder::new()
-            .with_menu(Box::new(tray_menu))
-            .with_tooltip("RustCooling")
-            .with_icon(icon)
-            .build()?;
+        let tray_icon_res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            TrayIconBuilder::new()
+                .with_menu(Box::new(tray_menu))
+                .with_tooltip("RustCooling")
+                .with_icon(icon)
+                .build()
+        }));
+
+        let tray_icon = match tray_icon_res {
+            Ok(Ok(ti)) => ti,
+            Ok(Err(e)) => return Err(e.into()),
+            Err(_) => return Err("Ayatana/AppIndicator library not available or failed to load".into()),
+        };
 
         let action_cb = std::sync::Arc::new(on_action);
 
