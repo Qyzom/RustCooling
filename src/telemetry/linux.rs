@@ -214,65 +214,6 @@ impl LinuxTelemetry {
         }
         None
     }
-
-    /// Read CPU frequency in MHz.
-    /// Prioritizes live boost frequencies from /sys/devices/system/cpu/cpufreq,
-    /// and falls back to /proc/cpuinfo.
-    fn read_cpu_freq() -> Option<f32> {
-        // 1. Check cpufreq scaling_cur_freq (live boosted frequencies in kHz)
-        for base_str in &["/sys/devices/system/cpu/cpufreq", "/sys/devices/system/cpu"] {
-            let base = Path::new(base_str);
-            if base.exists() {
-                if let Ok(entries) = fs::read_dir(base) {
-                    let mut freqs = Vec::new();
-                    for entry in entries.filter_map(|e| e.ok()) {
-                        let path = entry.path();
-                        let cur_freq_file = if path.join("scaling_cur_freq").exists() {
-                            path.join("scaling_cur_freq")
-                        } else if path.join("cpufreq/scaling_cur_freq").exists() {
-                            path.join("cpufreq/scaling_cur_freq")
-                        } else {
-                            continue;
-                        };
-
-                        if let Ok(content) = fs::read_to_string(&cur_freq_file) {
-                            if let Ok(khz) = content.trim().parse::<f32>() {
-                                if khz > 100_000.0 {
-                                    freqs.push(khz / 1000.0);
-                                }
-                            }
-                        }
-                    }
-                    if !freqs.is_empty() {
-                        let avg = freqs.iter().sum::<f32>() / (freqs.len() as f32);
-                        return Some(avg.round());
-                    }
-                }
-            }
-        }
-
-        // 2. Fallback to /proc/cpuinfo
-        if let Ok(content) = fs::read_to_string("/proc/cpuinfo") {
-            let mut freqs = Vec::new();
-            for line in content.lines() {
-                if line.to_lowercase().starts_with("cpu mhz") {
-                    if let Some(val_str) = line.split(':').nth(1) {
-                        if let Ok(freq) = val_str.trim().parse::<f32>() {
-                            if freq > 100.0 {
-                                freqs.push(freq);
-                            }
-                        }
-                    }
-                }
-            }
-            if !freqs.is_empty() {
-                let avg = freqs.iter().sum::<f32>() / (freqs.len() as f32);
-                return Some(avg.round());
-            }
-        }
-
-        None
-    }
 }
 
 impl TelemetryProvider for LinuxTelemetry {
@@ -283,7 +224,6 @@ impl TelemetryProvider for LinuxTelemetry {
     fn update(&mut self) {
         self.metrics.temperature = self.read_cpu_temp();
         self.metrics.load_percent = self.read_cpu_load();
-        self.metrics.frequency_mhz = Self::read_cpu_freq();
     }
 
     fn get_metrics(&self) -> CpuMetrics {

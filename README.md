@@ -46,10 +46,10 @@
    The original utility from the vendor is built on Electron / Node.js and eats up 200–300 MB of RAM. RustCooling is written in 100% pure native Rust with Slint UI and consumes 20–50x less memory.
 3. **True Native Linux Support:**  
    The vendor does not support Linux at all. RustCooling reads system sensors natively through the Linux kernel (`/sys/class/hwmon` and `sysfs`) without Wine, root permissions, or third-party background daemons.
-4. **Reliable Hardware Sensor Telemetry via LibreHardwareMonitor:**  
-   No synthetic guesswork, inaccurate estimates, or heavy third-party background software.
-   - **Windows:** Powered by the battle-tested LibreHardwareMonitor kernel driver subsystem (`WinRing0x64.sys`). Instead of raw or unverified manual polling hacks, RustCooling integrates LibreHardwareMonitor's proven hardware monitoring architecture to safely read real CPU silicon temperatures (Intel DTS / AMD Tctl). On first run, the app requests Administrator rights once via UAC to register the driver service.
-   - **Linux:** Neither root rights nor external drivers are needed — telemetry is read natively via the standard kernel `/sys/class/hwmon` interface.
+4. **Direct Native Silicon Telemetry (Intel DTS & AMD Ryzen Zen 1–5):**  
+   Zero WMI overhead, 0.0% background CPU, and pinpoint accuracy directly from silicon registers. Supports both CPU Temperature and CPU Load display modes.
+   - **Windows (Direct MSR & SMN Mailbox):** Reads real Intel Digital Thermal Sensors (DTS per-core & Package) via IA32 MSRs (`0x19C`, `0x1B1`) and AMD Ryzen (Zen 1–5) Tctl & CCD temperatures via PCI SMN indirect mailbox (`0:0.0`). Uses an embedded micro-driver with full security hardening: on-demand service execution (`SERVICE_DEMAND_START`), exclusive device handle, and guaranteed automatic kernel memory unloading upon exit (including Ctrl+C and console close events).
+   - **Linux (Driverless Native Kernel sysfs):** Telemetry is read natively via standard `/sys/class/hwmon` interfaces (`k10temp`, `zenpower`, `coretemp`) and `/proc/stat` without root permissions.
 5. **Instant Cold Start (< 50 ms):**  
    No heavy runtimes or framework loading — the app launches instantaneously.
 6. **Completely Standalone, Portable & Clean:**  
@@ -128,7 +128,7 @@ RustCooling --daemon
 #### Command Table
 | Command | Hex | Description |
 | :--- | :---: | :--- |
-| `CMD_TEMPERATURE` | `0x01` | Number on the 7-segment pump display (temperature or CPU load) |
+| `CMD_TEMPERATURE` | `0x01` | Number on the 7-segment pump display (CPU Temperature or CPU Load) |
 | `CMD_SHOW` | `0x04` | Turn display on (`0x0001`) or off (`0x0000`) |
 
 ---

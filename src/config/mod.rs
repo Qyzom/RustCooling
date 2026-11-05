@@ -11,7 +11,7 @@ pub struct AppConfig {
     /// Refresh interval for screen updates in milliseconds (100–3000 ms).
     #[serde(default = "default_interval")]
     pub update_interval_ms: u64,
-    /// Active telemetry metric shown on pump screen: "temp", "freq", "load", "carousel".
+    /// Active telemetry metric shown on pump screen: "temp", "load".
     #[serde(default = "default_display_mode")]
     pub display_mode: String,
     /// CPU temperature source sensor: "package", "core0", "avg", "max".
@@ -88,15 +88,26 @@ impl Default for AppConfig {
 
 impl AppConfig {
     pub fn config_dir() -> PathBuf {
-        if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(parent) = exe_path.parent() {
-                return parent.to_path_buf();
+        #[cfg(windows)]
+        {
+            if let Ok(exe_path) = std::env::current_exe() {
+                if let Some(parent) = exe_path.parent() {
+                    return parent.to_path_buf();
+                }
             }
+            let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+            path.push("RustCooling");
+            let _ = fs::create_dir_all(&path);
+            path
         }
-        let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-        path.push("RustCooling");
-        let _ = fs::create_dir_all(&path);
-        path
+
+        #[cfg(not(windows))]
+        {
+            let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
+            path.push("RustCooling");
+            let _ = fs::create_dir_all(&path);
+            path
+        }
     }
 
     fn config_path() -> PathBuf {
@@ -123,11 +134,8 @@ impl AppConfig {
             if let Ok(data) = fs::read_to_string(&path) {
                 if let Ok(val) = serde_json::from_str::<serde_json::Value>(&data) {
                     if let Ok(mut cfg) = serde_json::from_value::<AppConfig>(val.clone()) {
-                        // Migrate legacy animation_type string if animation_enabled was not in JSON
-                        if val.get("animation_enabled").is_none() {
-                            if let Some(anim_type) = val.get("animation_type").and_then(|v| v.as_str()) {
-                                cfg.animation_enabled = anim_type == "roller" || anim_type == "smooth";
-                            }
+                        if cfg.display_mode != "temp" && cfg.display_mode != "load" {
+                            cfg.display_mode = "temp".to_string();
                         }
                         if cfg.update_interval_ms > 3000 || cfg.update_interval_ms < 100 {
                             cfg.update_interval_ms = cfg.update_interval_ms.clamp(100, 3000);
@@ -145,8 +153,32 @@ impl AppConfig {
 
     pub fn save(&self) -> Result<(), String> {
         let path = Self::config_path();
+        if let Some(parent) = path.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
         let data = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
         fs::write(path, data).map_err(|e| e.to_string())?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default_config() {
+        let cfg = AppConfig::default();
+        assert_eq!(cfg.display_mode, "temp");
+        assert_eq!(cfg.update_interval_ms, 300);
+        assert_eq!(cfg.temp_smoothing, 1);
+        assert_eq!(cfg.custom_vid, 0x1A86);
+        assert_eq!(cfg.custom_pid, 0xE317);
+    }
+
+    #[test]
+    fn test_config_dir_valid() {
+        let dir = AppConfig::config_dir();
+        assert!(!dir.as_os_str().is_empty());
     }
 }
